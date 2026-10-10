@@ -6,13 +6,6 @@ import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
-import { initializeApp as initClientApp, getApps as getClientApps } from 'firebase/app';
-import {
-  getFirestore as getClientFirestore,
-  doc as fsDoc,
-  setDoc as fsSetDoc,
-  deleteDoc as fsDeleteDoc,
-} from 'firebase/firestore';
 
 import {
   Board,
@@ -39,9 +32,7 @@ import {
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
 
-const clientApp =
-  getClientApps().length === 0 ? initClientApp(firebaseConfig) : getClientApps()[0];
-const clientDb = getClientFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
+let adminDb: any = null;
 
 const PORT = 3000;
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'thangnc').trim();
@@ -105,15 +96,16 @@ function saveStore() {
   }
 }
 
-// Non-blocking mirror to Firestore Web SDK when allowed by rules
+// Non-blocking mirror to Firestore via Admin SDK when credentials are configured
 function mirrorToFirestore(col: string, id: string, data: any | null) {
   if (col === 'userSecrets') return; // Never send passwordHash outside server
+  if (!adminDb) return; // Do not call unauthenticated client SDK which triggers PERMISSION_DENIED
   try {
-    const ref = fsDoc(clientDb, col, id);
+    const ref = adminDb.collection(col).doc(id);
     if (data === null) {
-      fsDeleteDoc(ref).catch(() => {});
+      ref.delete().catch(() => {});
     } else {
-      fsSetDoc(ref, data, { merge: true }).catch(() => {});
+      ref.set(data, { merge: true }).catch(() => {});
     }
   } catch {
     // Silent fallback
@@ -1528,7 +1520,18 @@ async function startServer() {
           code: r.code,
           mode: r.mode,
           status: r.status,
-          hostName: r.redPlayer?.username || r.blackPlayer?.username || 'Chủ phòng',
+          hostUid: r.hostUid,
+          hostName:
+            (r.hostUid === r.redPlayer?.uid ? r.redPlayer?.username : undefined) ||
+            (r.hostUid === r.blackPlayer?.uid ? r.blackPlayer?.username : undefined) ||
+            r.spectators.find((s) => s.uid === r.hostUid)?.username ||
+            r.redPlayer?.username ||
+            r.blackPlayer?.username ||
+            'Chủ phòng',
+          redPlayer: r.redPlayer ? { username: r.redPlayer.username, elo: r.redPlayer.elo } : null,
+          blackPlayer: r.blackPlayer
+            ? { username: r.blackPlayer.username, elo: r.blackPlayer.elo }
+            : null,
           playerCount: (r.redPlayer ? 1 : 0) + (r.blackPlayer ? 1 : 0),
           spectatorCount: r.spectators.length,
         }));
@@ -1674,6 +1677,59 @@ async function startServer() {
           cb?.({ room: serialized });
         } catch (e) {
           cb?.({ error: 'Lỗi vào phòng' });
+        }
+      }
+    );
+
+    socket.on(
+      'room:switch_seat',
+      (
+        payload: { code: string; uid: string; targetSeat: 'red' | 'black' | 'spectator' },
+        cb?: (res: any) => void
+      ) => {
+        try {
+          const code = String(payload?.code || currentRoomCode).toUpperCase();
+          const uid = String(payload?.uid || boundUid);
+          const targetSeat = payload?.targetSeat;
+          const room = liveRooms.get(code);
+          if (!room) return cb?.({ error: 'Không tìm thấy phòng' });
+          if (room.status !== 'waiting') return cb?.({ error: 'Chỉ có thể đổi ghế ở phòng chờ' });
+
+          const user = store.users[uid];
+          const username = user?.username || boundUsername || 'Người chơi';
+          const elo = getUserModeElo(uid, username, room.mode);
+
+          const isRed = room.redPlayer?.uid === uid;
+          const isBlack = room.blackPlayer?.uid === uid;
+          const specIdx = room.spectators.findIndex((s) => s.uid === uid);
+          const isSpec = specIdx !== -1;
+
+          if (targetSeat === 'red') {
+            if (isRed) return cb?.({ room: serializeRoomForClient(room) });
+            if (room.redPlayer) return cb?.({ error: 'Ghế Đỏ đã có người ngồi' });
+            if (isBlack) room.blackPlayer = null;
+            if (isSpec) room.spectators.splice(specIdx, 1);
+            room.redPlayer = { uid, username, elo, connected: true };
+          } else if (targetSeat === 'black') {
+            if (isBlack) return cb?.({ room: serializeRoomForClient(room) });
+            if (room.blackPlayer) return cb?.({ error: 'Ghế Đen đã có người ngồi' });
+            if (isRed) room.redPlayer = null;
+            if (isSpec) room.spectators.splice(specIdx, 1);
+            room.blackPlayer = { uid, username, elo, connected: true };
+          } else if (targetSeat === 'spectator') {
+            if (isSpec) return cb?.({ room: serializeRoomForClient(room) });
+            if (room.spectators.length >= 6) return cb?.({ error: 'Ghế khán giả đã đầy (6/6)' });
+            if (isRed) room.redPlayer = null;
+            if (isBlack) room.blackPlayer = null;
+            room.spectators.push({ uid, username, elo, connected: true });
+          }
+
+          persistRoomSnapshot(room);
+          const serialized = serializeRoomForClient(room);
+          io.to(code).emit('room:state', serialized);
+          cb?.({ room: serialized });
+        } catch (e) {
+          cb?.({ error: 'Lỗi đổi ghế' });
         }
       }
     );

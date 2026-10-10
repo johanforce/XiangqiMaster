@@ -54,6 +54,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Client connection test
+    match /test/{docId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
     // Admin registry (managed by server Admin SDK)
     match /admins/{adminId} {
       allow get: if isValidId(adminId) && isOwner(adminId);

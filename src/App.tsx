@@ -26,6 +26,7 @@ import {
   ChevronDown,
   WifiOff,
   Languages,
+  Home,
 } from 'lucide-react';
 
 import './firebase';
@@ -43,27 +44,35 @@ import {
 } from './shared/xiangqi';
 import { BOARD_THEMES, THEME_LIST, BoardThemeId } from './utils/themes';
 import { sound } from './utils/sound';
-import { AIDifficulty, findBestMove } from './workers/ai.worker';
+import { AIDifficulty, AIEngineType, findBestMove } from './workers/ai.worker';
 import { XiangqiBoard } from './components/XiangqiBoard';
 import { AuthModal, UserProfile } from './components/AuthModal';
 import { NotationViewerView } from './components/NotationViewerView';
 import { LeaderboardView } from './components/LeaderboardView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { RankedRoomView } from './components/RankedRoomView';
+import { HomeView } from './components/HomeView';
 
-type MainTab = 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin';
+type MainTab = 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin';
+
+const AI_ENGINES: { id: AIEngineType; name: string; desc: string; badge: string }[] = [
+  { id: 'fairy_stockfish', name: 'Fairy-Stockfish WASM', desc: 'Engine NNUE/AlphaBeta quốc tế siêu mạnh', badge: 'Khuyên dùng' },
+  { id: 'pikafish', name: 'Pikafish NNUE', desc: 'Động cơ cờ tướng số 1 thế giới', badge: 'Vô địch' },
+  { id: 'builtin', name: 'Alpha-Beta Cục Bộ', desc: 'Thuật toán vị trí nhanh nhẹn', badge: 'Offline' },
+];
 
 const AI_LEVELS: { id: AIDifficulty; name: string; eloLabel: string }[] = [
   { id: 'novice', name: 'Tân thủ', eloLabel: '~800' },
   { id: 'veteran', name: 'Kỳ cựu', eloLabel: '~1300' },
   { id: 'master', name: 'Kiện tướng', eloLabel: '~1800' },
-  { id: 'grandmaster', name: 'Kỳ tiên', eloLabel: '~2300' },
+  { id: 'grandmaster', name: 'Kỳ tiên', eloLabel: '~2300+' },
 ];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>(() =>
-    window.location.pathname === '/admin' ? 'admin' : 'ai'
+    window.location.pathname === '/admin' ? 'admin' : 'home'
   );
+  const [viewerInitialPgn, setViewerInitialPgn] = useState<string>('');
 
   // User & Session state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
@@ -109,6 +118,7 @@ export default function App() {
   const [adminLoginReqs, setAdminLoginReqs] = useState<any[] | null>(null);
 
   // AI Match State
+  const [aiEngine, setAiEngine] = useState<AIEngineType>('fairy_stockfish');
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('veteran');
   const [playerSide, setPlayerSide] = useState<PieceColor>('r');
   const [fenHistory, setFenHistory] = useState<string[]>([INITIAL_FEN]);
@@ -168,7 +178,7 @@ export default function App() {
   }, []);
 
   const requestEngineMove = useCallback(
-    (fen: string, difficulty: AIDifficulty): Promise<{ from: Pos; to: Pos } | null> => {
+    (fen: string, difficulty: AIDifficulty, engineType: AIEngineType = aiEngine): Promise<{ from: Pos; to: Pos } | null> => {
       return new Promise((resolve) => {
         if (!workerRef.current) {
           const m = findBestMove(fen, difficulty, false);
@@ -183,10 +193,10 @@ export default function App() {
           }
         };
         workerRef.current.addEventListener('message', handler);
-        workerRef.current.postMessage({ id: reqId, fen, difficulty, isDarkXiangqi: false });
+        workerRef.current.postMessage({ id: reqId, fen, difficulty, engine: engineType, isDarkXiangqi: false });
       });
     },
-    []
+    [aiEngine]
   );
 
   // Socket.IO connection & 5s heartbeat
@@ -445,16 +455,31 @@ export default function App() {
         {/* Zone 1: Brand Wordmark */}
         <button
           onClick={() => {
-            setActiveTab('ai');
+            setActiveTab('home');
             window.history.pushState({}, '', '/');
           }}
-          className="text-base sm:text-lg font-bold tracking-tight text-amber-400 whitespace-nowrap shrink-0"
+          className="text-base sm:text-lg font-bold tracking-tight text-amber-400 whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
         >
           Xiangqi Master
         </button>
 
         {/* Zone 2: Concise Single-Line Navigation Links */}
-        <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+        <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+          <button
+            onClick={() => {
+              setActiveTab('home');
+              window.history.pushState({}, '', '/');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === 'home'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
+                : 'text-stone-400 hover:text-stone-100'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Trang chủ</span>
+          </button>
+
           <button
             onClick={() => {
               setActiveTab('ai');
@@ -462,7 +487,7 @@ export default function App() {
             }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'ai'
-                ? 'bg-stone-800 text-amber-400'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
                 : 'text-stone-400 hover:text-stone-100'
             }`}
           >
@@ -640,10 +665,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6">
+      {/* Main Content Area (With Full Height & Smooth Vertical Scrolling) */}
+      <main className="flex-1 w-full overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start p-3 sm:p-6">
+        {activeTab === 'home' && (
+          <HomeView
+            currentUser={currentUser}
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.history.pushState({}, '', tab === 'admin' ? '/admin' : '/');
+            }}
+            onOpenAuth={() => setAuthModalOpen(true)}
+          />
+        )}
+
         {activeTab === 'ai' && (
-          <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Center Xiangqi Board */}
             <div className="lg:col-span-7 flex flex-col items-center justify-center">
               <XiangqiBoard
@@ -771,7 +807,48 @@ export default function App() {
 
               {/* AI Difficulty & Side Selector */}
               <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 space-y-4">
-                <div className="flex items-center justify-between">
+                {/* AI Engine Selection */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-stone-300">Động cơ tính toán</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      WASM Native
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {AI_ENGINES.map((eng) => {
+                      const active = aiEngine === eng.id;
+                      return (
+                        <button
+                          key={eng.id}
+                          onClick={() => setAiEngine(eng.id)}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                            active
+                              ? 'bg-amber-600/20 border-amber-500 text-stone-100 shadow-sm'
+                              : 'bg-stone-950/70 border-stone-800 text-stone-400 hover:text-stone-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-semibold flex items-center gap-1.5">
+                              <span>{eng.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-amber-400 border border-stone-700">
+                                {eng.badge}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-stone-400 mt-0.5">{eng.desc}</div>
+                          </div>
+                          <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
+                            active ? 'border-amber-400 bg-amber-400' : 'border-stone-600'
+                          }`}>
+                            {active && <div className="w-1.5 h-1.5 rounded-full bg-stone-950" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
                   <span className="text-xs font-semibold text-stone-300">Cấp độ máy</span>
                   <span className="text-xs text-stone-400 font-mono-num">
                     {aiThinking ? 'Máy đang nghĩ…' : `Lượt: ${turn === 'r' ? 'Đỏ' : 'Đen'}`}
@@ -880,11 +957,20 @@ export default function App() {
             theme={currentTheme}
             pieceCharMode={pieceCharMode}
             uid={currentUser?.uid}
+            initialPgnText={viewerInitialPgn}
             onToast={showToast}
           />
         )}
 
-        {activeTab === 'leaderboard' && <LeaderboardView />}
+        {activeTab === 'leaderboard' && (
+          <LeaderboardView
+            onOpenViewer={(txt) => {
+              setViewerInitialPgn(txt);
+              setActiveTab('viewer');
+              showToast('Đã mở ván đấu trong trình xem kỳ phổ');
+            }}
+          />
+        )}
 
         {activeTab === 'admin' &&
           (currentUser?.role === 'admin' ? (

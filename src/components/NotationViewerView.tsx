@@ -11,6 +11,9 @@ import {
   FileText,
   History,
   FolderOpen,
+  Download,
+  Upload,
+  Share2,
 } from 'lucide-react';
 import {
   INITIAL_FEN,
@@ -113,6 +116,43 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
     onToast('Đã sao chép kỳ phổ');
   };
 
+  const handleDownloadFile = () => {
+    const lines = moves.map((m, i) => {
+      const text =
+        notationFormat === 'wxf'
+          ? m.wxf
+          : notationFormat === 'viet'
+          ? m.viet
+          : m.iccs;
+      return i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ${text}` : text;
+    });
+    const content = `[Event "Xiangqi Match"]\n[FEN "${initialFen}"]\n[Format "${notationFormat.toUpperCase()}"]\n[Date "${new Date().toISOString().slice(0, 10)}"]\n\n${lines.join(' ')}\n`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `xiangqi_game_${Date.now()}.${notationFormat === 'wxf' ? 'pgn' : 'txt'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    onToast('Đã tải kỳ phổ về máy');
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (text) {
+        setRawInput(text);
+        loadFromText(text);
+        onToast(`Đã nạp file: ${file.name}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       {/* Center Board Column */}
@@ -129,7 +169,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
         />
 
         {/* Playback Controls Bar */}
-        <div className="mt-4 flex items-center gap-2 bg-stone-900/90 border border-stone-800 rounded-2xl p-2 shadow-lg">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 bg-stone-900/90 border border-stone-800 rounded-2xl p-2 shadow-lg">
           <button
             onClick={() => {
               setAutoPlay(false);
@@ -187,11 +227,32 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
           <button
             onClick={handleCopyRecord}
             title="Sao chép kỳ phổ"
-            className="min-h-[44px] px-3.5 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium transition-colors"
+            className="min-h-[44px] px-3 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium transition-colors"
           >
             <Copy className="w-3.5 h-3.5" />
             <span>Sao chép</span>
           </button>
+          <button
+            onClick={handleDownloadFile}
+            title="Tải tệp kỳ phổ (.pgn / .txt)"
+            className="min-h-[44px] px-3 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <span>Tải về</span>
+          </button>
+          <label
+            title="Mở tệp kỳ phổ từ máy tính"
+            className="min-h-[44px] px-3 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium cursor-pointer transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5 text-amber-400" />
+            <span>Mở tệp</span>
+            <input
+              type="file"
+              accept=".pgn,.txt,.xq,.che"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </label>
         </div>
       </div>
 

@@ -203,8 +203,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-      <div className="w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl overflow-hidden text-stone-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl overflow-hidden text-stone-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
           <h2 className="text-base font-semibold tracking-tight">Tài khoản</h2>
@@ -283,7 +283,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto flex-1">
           {errorMsg && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-950/60 border border-red-800/70 px-3.5 py-2.5 text-xs text-red-200">
               <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />

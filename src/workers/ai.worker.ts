@@ -9,12 +9,14 @@ import {
   isKingInCheck,
 } from '../shared/xiangqi';
 
+export type AIEngineType = 'fairy_stockfish' | 'pikafish' | 'builtin';
 export type AIDifficulty = 'novice' | 'veteran' | 'master' | 'grandmaster';
 
 interface WorkerRequest {
   id: number;
   fen: string;
   difficulty: AIDifficulty;
+  engine?: AIEngineType;
   isDarkXiangqi?: boolean;
 }
 
@@ -28,14 +30,10 @@ const PIECE_VALUES: Record<PieceType, number> = {
   p: 100,
 };
 
-/**
- * Positional bonus for pieces (Red perspective, row 0 is top enemy base, row 9 is bottom own base)
- */
 function getPositionalBonus(type: PieceType, color: PieceColor, row: number, col: number): number {
   const r = color === 'r' ? row : 9 - row;
   switch (type) {
     case 'p': {
-      // Soldiers become much stronger after crossing the river (r <= 4) and near the center
       if (r <= 4) {
         const centerBonus = 4 - Math.abs(4 - col);
         const advanceBonus = (5 - r) * 18;
@@ -44,17 +42,14 @@ function getPositionalBonus(type: PieceType, color: PieceColor, row: number, col
       return r === 5 ? 15 : 0;
     }
     case 'h': {
-      // Horses prefer central files and forward ranks
       const center = 4 - Math.abs(4 - col);
       const forward = 9 - r;
       return center * 8 + forward * 5;
     }
     case 'c': {
-      // Cannons like central file (Pháo đầu) and clear lines
       return col === 4 ? 30 : 10;
     }
     case 'r': {
-      // Chariots prefer active ranks and open files
       const activeRank = r <= 4 ? 25 : 10;
       return activeRank + (col !== 0 && col !== 8 ? 10 : 0);
     }
@@ -165,7 +160,6 @@ function alphaBeta(
 
   const legalMoves = orderMoves(getAllLegalMoves(board, turn, isDarkXiangqi));
   if (legalMoves.length === 0) {
-    // In Xiangqi, having no legal moves (checkmate or stalemate) is a loss
     return turn === maximizingColor ? -99999 - depth * 100 : 99999 + depth * 100;
   }
 
@@ -226,10 +220,10 @@ export function findBestMove(
     AIDifficulty,
     { depth: number; noise: number; useQuiescence: boolean }
   > = {
-    novice: { depth: 1, noise: 160, useQuiescence: false }, // ~800 Elo
-    veteran: { depth: 2, noise: 65, useQuiescence: false }, // ~1300 Elo
-    master: { depth: 3, noise: 15, useQuiescence: true }, // ~1800 Elo
-    grandmaster: { depth: 4, noise: 0, useQuiescence: true }, // ~2300 Elo
+    novice: { depth: 1, noise: 160, useQuiescence: false },
+    veteran: { depth: 2, noise: 65, useQuiescence: false },
+    master: { depth: 3, noise: 15, useQuiescence: true },
+    grandmaster: { depth: 4, noise: 0, useQuiescence: true },
   };
 
   const cfg = configMap[difficulty] || configMap.veteran;
@@ -252,7 +246,6 @@ export function findBestMove(
       cfg.useQuiescence,
       isDarkXiangqi
     );
-    // Slight bonus if move gives check
     if (isKingInCheck(nextBoard, nextTurn, isDarkXiangqi)) {
       score += 18;
     }
@@ -271,8 +264,143 @@ export function findBestMove(
   return bestMove;
 }
 
-self.onmessage = (e: MessageEvent<WorkerRequest>) => {
-  const { id, fen, difficulty, isDarkXiangqi } = e.data;
-  const bestMove = findBestMove(fen, difficulty, Boolean(isDarkXiangqi));
-  self.postMessage({ id, move: bestMove });
+// Convert UCI coordinate string ('b0c2', 'b2e2') to Xiangqi Move
+function parseUciMove(uci: string, board: Board): { from: { row: number; col: number }; to: { row: number; col: number } } | null {
+  if (!uci || uci.length < 4) return null;
+  const fCol = uci.charCodeAt(0) - 97;
+  const fRank = parseInt(uci.slice(1, -2), 10);
+  const tCol = uci.charCodeAt(uci.length - 2) - 97;
+  const tRank = parseInt(uci.slice(-1), 10);
+  if (isNaN(fRank) || isNaN(tRank)) return null;
+
+  const from = { row: 9 - fRank, col: fCol };
+  const to = { row: 9 - tRank, col: tCol };
+
+  return { from, to };
+}
+
+// Global Fairy-Stockfish instance state in Worker
+let fairyInstance: any = null;
+let fairyReady = false;
+let fairyInitPromise: Promise<boolean> | null = null;
+let currentUciResolve: ((val: string | null) => void) | null = null;
+
+async function initFairyEngine(): Promise<boolean> {
+  if (fairyReady && fairyInstance) return true;
+  if (fairyInitPromise) return fairyInitPromise;
+
+  fairyInitPromise = (async () => {
+    try {
+      const wasmRes = await fetch('/engine/fairy/stockfish.wasm');
+      if (!wasmRes.ok) return false;
+      const wasmBinary = await wasmRes.arrayBuffer();
+
+      (self as any).importScripts('/engine/fairy/stockfish.js');
+      const StockfishFactory = (self as any).Stockfish;
+      if (typeof StockfishFactory !== 'function') return false;
+
+      fairyInstance = await StockfishFactory({ wasmBinary });
+      fairyInstance.addMessageListener((line: string) => {
+        if (line.includes('Fairy-Stockfish') && !fairyReady) {
+          fairyInstance.postMessage('uci');
+          fairyInstance.postMessage('setoption name UCI_Variant value xiangqi');
+          fairyInstance.postMessage('isready');
+        }
+        if (line === 'readyok') {
+          fairyReady = true;
+        }
+        if (line.startsWith('bestmove')) {
+          const parts = line.split(' ');
+          const moveUci = parts[1];
+          if (currentUciResolve) {
+            const cb = currentUciResolve;
+            currentUciResolve = null;
+            cb(moveUci);
+          }
+        }
+      });
+
+      return new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => resolve(false), 4000);
+        const check = setInterval(() => {
+          if (fairyReady) {
+            clearTimeout(timeout);
+            clearInterval(check);
+            resolve(true);
+          }
+        }, 80);
+      });
+    } catch {
+      return false;
+    }
+  })();
+
+  return fairyInitPromise;
+}
+
+async function requestFairyMove(
+  fen: string,
+  difficulty: AIDifficulty
+): Promise<{ from: { row: number; col: number }; to: { row: number; col: number } } | null> {
+  const ready = await initFairyEngine();
+  if (!ready || !fairyInstance) return null;
+
+  const { board } = parseFen(fen);
+  const depthMap: Record<AIDifficulty, { depth: number; time: number }> = {
+    novice: { depth: 2, time: 250 },
+    veteran: { depth: 4, time: 500 },
+    master: { depth: 6, time: 900 },
+    grandmaster: { depth: 8, time: 1400 },
+  };
+  const cfg = depthMap[difficulty] || depthMap.master;
+
+  return new Promise((resolve) => {
+    currentUciResolve = (bestUci) => {
+      if (!bestUci || bestUci === '(none)') {
+        resolve(null);
+      } else {
+        resolve(parseUciMove(bestUci, board));
+      }
+    };
+
+    fairyInstance.postMessage(`position fen ${fen}`);
+    fairyInstance.postMessage(`go depth ${cfg.depth} movetime ${cfg.time}`);
+
+    setTimeout(() => {
+      if (currentUciResolve) {
+        currentUciResolve = null;
+        resolve(null);
+      }
+    }, cfg.time + 3500);
+  });
+}
+
+self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
+  const { id, fen, difficulty, engine = 'fairy_stockfish', isDarkXiangqi = false } = e.data;
+
+  // Dark Xiangqi (Cờ Úp) uses the dedicated native engine with face-down rule modeling
+  if (isDarkXiangqi || engine === 'builtin') {
+    const move = findBestMove(fen, difficulty, isDarkXiangqi);
+    self.postMessage({ id, move, engineUsed: 'builtin' });
+    return;
+  }
+
+  // Standard Xiangqi: Try Fairy-Stockfish WASM first!
+  let engineMove = await requestFairyMove(fen, difficulty);
+
+  if (engineMove) {
+    self.postMessage({
+      id,
+      move: { from: engineMove.from, to: engineMove.to },
+      engineUsed: 'fairy_stockfish',
+    });
+  } else {
+    // Graceful fallback to built-in positional AlphaBeta if WASM environment lacks features
+    const fallbackMove = findBestMove(fen, difficulty, false);
+    self.postMessage({
+      id,
+      move: fallbackMove ? { from: fallbackMove.from, to: fallbackMove.to } : null,
+      engineUsed: 'builtin_fallback',
+    });
+  }
 };

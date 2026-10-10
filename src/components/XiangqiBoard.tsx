@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Board,
   Pos,
@@ -58,6 +58,16 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
 }) => {
   const [selectedPos, setSelectedPos] = useState<Pos | null>(null);
   const [dragFrom, setDragFrom] = useState<Pos | null>(null);
+  const [captureEffectPos, setCaptureEffectPos] = useState<Pos | null>(null);
+
+  // Trigger capture ripple when lastMove lands on a square that had a piece
+  useEffect(() => {
+    if (lastMove?.to) {
+      setCaptureEffectPos(lastMove.to);
+      const timer = setTimeout(() => setCaptureEffectPos(null), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastMove]);
 
   const canControlColor = (color: PieceColor) => {
     if (!interactive) return false;
@@ -128,27 +138,19 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
     }
   };
 
-  // Map logical (row, col) to display grid (0..9, 0..8)
-  const toDisplay = (row: number, col: number) => ({
-    dRow: flipped ? 9 - row : row,
-    dCol: flipped ? 8 - col : col,
-  });
-
   // Render fiducial L-marks around cannon/soldier points
   const renderFiducialMark = (r: number, c: number) => {
     const x = c * 100;
     const y = r * 100;
-    const g = 8; // gap from intersection
-    const l = 18; // arm length
+    const g = 9; // gap from intersection
+    const l = 16; // arm length
     const segments: string[] = [];
 
     if (c > 0) {
-      // Top-left & Bottom-left L ticks
       segments.push(`M ${x - g - l} ${y - g} L ${x - g} ${y - g} L ${x - g} ${y - g - l}`);
       segments.push(`M ${x - g - l} ${y + g} L ${x - g} ${y + g} L ${x - g} ${y + g + l}`);
     }
     if (c < 8) {
-      // Top-right & Bottom-right L ticks
       segments.push(`M ${x + g + l} ${y - g} L ${x + g} ${y - g} L ${x + g} ${y - g - l}`);
       segments.push(`M ${x + g + l} ${y + g} L ${x + g} ${y + g} L ${x + g} ${y + g + l}`);
     }
@@ -158,43 +160,100 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
         key={`fid_${r}_${c}`}
         d={segments.join(' ')}
         stroke={theme.gridLine}
-        strokeWidth="3.5"
+        strokeWidth="2.5"
         fill="none"
         strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.9"
       />
     );
   };
 
   return (
     <div
-      className={`relative aspect-square w-full max-w-[min(86vw,74vh)] select-none rounded-2xl p-2 sm:p-3.5 shadow-2xl transition-colors duration-200 flex items-center justify-center ${
+      className={`relative aspect-[9/10] w-full max-w-[min(92vw,560px)] select-none rounded-[22px] p-2 sm:p-3.5 shadow-2xl transition-all duration-200 flex items-center justify-center ${
         redInCheck || blackInCheck ? 'animate-check-shake' : ''
       }`}
       style={{
-        backgroundColor: theme.boardBg,
-        border: `3px solid ${theme.boardBorder}`,
-        boxShadow: '0 20px 45px -15px rgba(0, 0, 0, 0.55), inset 0 1px 2px rgba(255,255,255,0.2)',
+        background: `linear-gradient(145deg, ${theme.frameBgGrad[0]}, ${theme.frameBgGrad[1]})`,
+        border: `3px solid ${theme.frameBorder}`,
+        boxShadow:
+          '0 24px 50px -12px rgba(0,0,0,0.85), inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -3px 6px rgba(0,0,0,0.5)',
       }}
     >
-      {/* Inner 9:10 Board Proportional Frame */}
-      <div className="relative h-full aspect-[9/10] max-w-full flex items-center justify-center">
-        {/* SVG Traditional Xiangqi Grid */}
+      {/* Outer Wood Frame Inner Bevel */}
+      <div
+        className="relative w-full h-full aspect-[9/10] rounded-[14px] p-1 sm:p-2 flex items-center justify-center shadow-inner"
+        style={{
+          background: `linear-gradient(160deg, ${theme.boardBgGrad[0]} 0%, ${theme.boardBgGrad[1]} 100%)`,
+          boxShadow: 'inset 0 0 25px rgba(0,0,0,0.45), 0 1px 2px rgba(255,255,255,0.12)',
+          border: `1.5px solid ${theme.gridLine}55`,
+        }}
+      >
+        {/* SVG Board Graphic with Grid & Calligraphy */}
         <svg
-          viewBox="-55 -55 910 1010"
+          viewBox="-60 -60 920 1020"
           className="w-full h-full pointer-events-none"
           aria-label="Bàn cờ tướng"
         >
-          {/* Outer decorative frame */}
+          <defs>
+            {/* Wood Grain Texture Pattern */}
+            <pattern id="board-grain" width="100" height="40" patternUnits="userSpaceOnUse">
+              <path
+                d="M0 10 Q 50 12, 100 10 M0 25 Q 50 23, 100 25 M0 38 Q 50 40, 100 38"
+                stroke="rgba(0,0,0,0.04)"
+                strokeWidth="1.5"
+                fill="none"
+              />
+            </pattern>
+
+            {/* Rivet Gradient */}
+            <radialGradient id="rivet-grad" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#FFF2A3" />
+              <stop offset="60%" stopColor={theme.rivetColor} />
+              <stop offset="100%" stopColor="#785012" />
+            </radialGradient>
+
+            {/* Piece Drop Shadow */}
+            <filter id="piece-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="4" stdDeviation="4.5" floodColor="#000000" floodOpacity="0.55" />
+            </filter>
+          </defs>
+
+          {/* Board Grain Overlay */}
+          <rect x="-55" y="-55" width="910" height="1010" fill="url(#board-grain)" opacity="0.6" />
+
+          {/* Decorative Corner Rivets (Matching the reference design) */}
+          <circle cx="-32" cy="-32" r="6" fill="url(#rivet-grad)" stroke="#3A2008" strokeWidth="1" />
+          <circle cx="832" cy="-32" r="6" fill="url(#rivet-grad)" stroke="#3A2008" strokeWidth="1" />
+          <circle cx="-32" cy="932" r="6" fill="url(#rivet-grad)" stroke="#3A2008" strokeWidth="1" />
+          <circle cx="832" cy="932" r="6" fill="url(#rivet-grad)" stroke="#3A2008" strokeWidth="1" />
+
+          {/* Outer Border Double Line */}
           <rect
-            x="-14"
-            y="-14"
-            width="828"
-            height="928"
+            x="-20"
+            y="-20"
+            width="840"
+            height="940"
+            rx="6"
             fill="none"
             stroke={theme.gridLine}
-            strokeWidth="6"
-            rx="4"
+            strokeWidth="3.5"
+            opacity="0.85"
           />
+          <rect
+            x="-12"
+            y="-12"
+            width="824"
+            height="924"
+            rx="4"
+            fill="none"
+            stroke={theme.gridLine}
+            strokeWidth="1"
+            opacity="0.55"
+          />
+
+          {/* Inner Grid Outer Boundary */}
           <rect
             x="0"
             y="0"
@@ -202,7 +261,7 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
             height="900"
             fill="none"
             stroke={theme.gridLine}
-            strokeWidth="3.5"
+            strokeWidth="2.5"
           />
 
           {/* 10 Horizontal Rank Lines */}
@@ -214,11 +273,12 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
               x2="800"
               y2={r * 100}
               stroke={theme.gridLine}
-              strokeWidth="3"
+              strokeWidth="2.2"
+              opacity="0.9"
             />
           ))}
 
-          {/* 9 Vertical File Lines (split across the River except outer files 0 and 8) */}
+          {/* 9 Vertical File Lines */}
           {Array.from({ length: 9 }, (_, c) =>
             c === 0 || c === 8 ? (
               <line
@@ -228,7 +288,8 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                 x2={c * 100}
                 y2="900"
                 stroke={theme.gridLine}
-                strokeWidth="3.5"
+                strokeWidth="2.5"
+                opacity="0.9"
               />
             ) : (
               <g key={`v_${c}`}>
@@ -238,7 +299,8 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                   x2={c * 100}
                   y2="400"
                   stroke={theme.gridLine}
-                  strokeWidth="3"
+                  strokeWidth="2.2"
+                  opacity="0.9"
                 />
                 <line
                   x1={c * 100}
@@ -246,52 +308,55 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                   x2={c * 100}
                   y2="900"
                   stroke={theme.gridLine}
-                  strokeWidth="3"
+                  strokeWidth="2.2"
+                  opacity="0.9"
                 />
               </g>
             )
           )}
 
-          {/* Top & Bottom Palace Diagonals (Cửu cung) */}
-          <line x1="300" y1="0" x2="500" y2="200" stroke={theme.gridLine} strokeWidth="3" />
-          <line x1="500" y1="0" x2="300" y2="200" stroke={theme.gridLine} strokeWidth="3" />
-          <line x1="300" y1="700" x2="500" y2="900" stroke={theme.gridLine} strokeWidth="3" />
-          <line x1="500" y1="700" x2="300" y2="900" stroke={theme.gridLine} strokeWidth="3" />
+          {/* Top & Bottom Palace Diagonals (Cung Tướng) */}
+          <line x1="300" y1="0" x2="500" y2="200" stroke={theme.gridLine} strokeWidth="2.2" opacity="0.85" />
+          <line x1="500" y1="0" x2="300" y2="200" stroke={theme.gridLine} strokeWidth="2.2" opacity="0.85" />
+          <line x1="300" y1="700" x2="500" y2="900" stroke={theme.gridLine} strokeWidth="2.2" opacity="0.85" />
+          <line x1="500" y1="700" x2="300" y2="900" stroke={theme.gridLine} strokeWidth="2.2" opacity="0.85" />
 
           {/* Cannon & Soldier Fiducial Marks */}
           {FIDUCIAL_POSITIONS.map(([r, c]) => renderFiducialMark(r, c))}
 
-          {/* River Calligraphy: 楚河 漢界 */}
+          {/* River Calligraphy: 楚 河 (left) 漢 界 (right) */}
           <text
-            x="200"
-            y="466"
+            x="225"
+            y="464"
             textAnchor="middle"
             fill={theme.riverText}
-            className="font-hanzi font-bold tracking-[0.35em]"
+            className="font-hanzi font-bold"
             fontSize="46"
-            opacity="0.85"
+            letterSpacing="28"
+            opacity="0.82"
+            style={{ textShadow: '0 1px 2px rgba(255,255,255,0.25)' }}
           >
             楚河
           </text>
           <text
-            x="600"
-            y="466"
+            x="575"
+            y="464"
             textAnchor="middle"
             fill={theme.riverText}
-            className="font-hanzi font-bold tracking-[0.35em]"
+            className="font-hanzi font-bold"
             fontSize="46"
-            opacity="0.85"
+            letterSpacing="28"
+            opacity="0.82"
+            style={{ textShadow: '0 1px 2px rgba(255,255,255,0.25)' }}
           >
             漢界
           </text>
         </svg>
 
-        {/* Interactive 10x9 Grid Overlay (Touch targets >= 44px) */}
+        {/* Interactive 10x9 Grid Overlay */}
         <div
           className="absolute inset-0 grid grid-rows-10 grid-cols-9"
-          style={{
-            padding: '0.5%',
-          }}
+          style={{ padding: '0.6%' }}
         >
           {Array.from({ length: 10 }, (_, dRow) =>
             Array.from({ length: 9 }, (_, dCol) => {
@@ -312,16 +377,19 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
               const isKingCheckedHere =
                 (redKingPos?.row === row && redKingPos?.col === col) ||
                 (blackKingPos?.row === row && blackKingPos?.col === col);
+              const hasCaptureRipple =
+                captureEffectPos?.row === row && captureEffectPos?.col === col;
 
               const isRed = piece?.color === 'r';
-              const pieceBg = isRed ? theme.pieceRedBg : theme.pieceBlackBg;
+              const pieceBgGrad = isRed ? theme.pieceRedBgGrad : theme.pieceBlackBgGrad;
               const pieceBorder = isRed ? theme.pieceRedBorder : theme.pieceBlackBorder;
+              const pieceRim = isRed ? theme.pieceRedRim : theme.pieceBlackRim;
               const pieceText = isRed ? theme.pieceRedText : theme.pieceBlackText;
 
               let label = '';
               if (piece) {
                 if (piece.isHidden) {
-                  label = '暗';
+                  label = '?';
                 } else if (pieceCharMode === 'hanzi') {
                   label = PIECE_NAMES_HANZI[piece.color][piece.type];
                 } else {
@@ -337,79 +405,107 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                   onDrop={(e) => handleDrop(e, row, col)}
                   className="relative flex items-center justify-center min-w-[32px] min-h-[32px] cursor-pointer group"
                 >
-                  {/* Last Move / Hint Square Indicator */}
-                  {(isLastFrom || isLastTo) && (
-                    <span className="absolute inset-1.5 rounded-full border-2 border-amber-500/75 bg-amber-400/15 pointer-events-none" />
+                  {/* Last Move Indicator (Subtle Amber Ring) */}
+                  {isLastFrom && (
+                    <span className="absolute inset-1.5 rounded-full border-2 border-amber-400/60 bg-amber-400/10 pointer-events-none" />
                   )}
+                  {isLastTo && (
+                    <span className="absolute inset-1 rounded-full border-2 border-amber-400 bg-amber-400/20 shadow-[0_0_10px_rgba(251,191,36,0.5)] pointer-events-none" />
+                  )}
+
+                  {/* AI Hint Move Indicator */}
                   {(isHintFrom || isHintTo) && (
                     <span className="absolute inset-1 rounded-full border-2 border-emerald-400 bg-emerald-400/20 pointer-events-none" />
                   )}
 
-                  {/* Check Danger Halo */}
+                  {/* King Danger Check Pulse Halo */}
                   {isKingCheckedHere && (
-                    <span className="absolute inset-0.5 rounded-full bg-red-600/45 ring-4 ring-red-500 pointer-events-none" />
+                    <span className="absolute inset-0 rounded-full animate-check-pulse border-2 border-red-500 pointer-events-none z-20" />
                   )}
 
-                  {/* Piece Disc */}
+                  {/* Piece Capture Particle/Ink Burst Effect */}
+                  {hasCaptureRipple && (
+                    <span className="absolute inset-0 rounded-full animate-capture-burst border-2 border-amber-300 pointer-events-none z-20" />
+                  )}
+
+                  {/* 3D Chess Piece Disc */}
                   {piece && (
                     <div
                       draggable={canControlColor(piece.color)}
                       onDragStart={(e) => handleDragStart(e, row, col)}
-                      className={`relative w-[88%] h-[88%] rounded-full flex items-center justify-center transition-transform duration-150 select-none ${
+                      className={`relative w-[89%] h-[89%] rounded-full flex items-center justify-center select-none transition-transform duration-200 ease-out ${
                         isSelected
-                          ? 'scale-110 -translate-y-1 ring-3 ring-amber-400 z-20'
+                          ? 'scale-110 -translate-y-1.5 z-30 animate-halo-glow ring-2 ring-amber-400 shadow-2xl'
                           : 'hover:scale-105 z-10'
                       }`}
                       style={{
-                        backgroundColor: piece.isHidden
+                        background: piece.isHidden
                           ? isRed
-                            ? '#7F1D1D'
-                            : '#1E293B'
-                          : pieceBg,
-                        border: `2.5px solid ${pieceBorder}`,
-                        color: piece.isHidden ? '#FDE68A' : pieceText,
+                            ? 'linear-gradient(145deg, #7F1D1D, #450A0A)'
+                            : 'linear-gradient(145deg, #1E293B, #0F172A)'
+                          : `linear-gradient(145deg, ${pieceBgGrad[0]}, ${pieceBgGrad[1]})`,
+                        border: `2px solid ${pieceBorder}`,
                         boxShadow: isSelected
-                          ? '0 10px 18px -3px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.4)'
-                          : '0 4px 7px -1px rgba(0,0,0,0.42), inset 0 2px 2px rgba(255,255,255,0.35)',
+                          ? '0 12px 20px -3px rgba(0,0,0,0.7), inset 0 2px 3px rgba(255,255,255,0.45)'
+                          : '0 5px 9px -2px rgba(0,0,0,0.55), inset 0 2px 2.5px rgba(255,255,255,0.35)',
                       }}
                     >
-                      {/* Inner carved ring */}
+                      {/* Outer Concentric Bevel Rim */}
                       <div
-                        className="w-[84%] h-[84%] rounded-full flex items-center justify-center border"
+                        className="w-[85%] h-[85%] rounded-full flex items-center justify-center border-[2px]"
                         style={{
                           borderColor: piece.isHidden
-                            ? 'rgba(253, 230, 138, 0.45)'
-                            : `${pieceBorder}66`,
+                            ? 'rgba(253, 230, 138, 0.4)'
+                            : pieceRim,
+                          boxShadow: isRed
+                            ? 'inset 0 1px 1px rgba(0,0,0,0.15)'
+                            : 'inset 0 1px 1px rgba(255,255,255,0.1)',
                         }}
                       >
-                        {piece.isHidden ? (
-                          <span
-                            className="font-hanzi font-bold text-xs sm:text-sm md:text-base tracking-tight opacity-90"
-                            title="Quân úp (nước đầu đi theo vị trí xuất phát)"
-                          >
-                            ?
-                          </span>
-                        ) : (
-                          <span
-                            className={
-                              pieceCharMode === 'hanzi'
-                                ? 'font-hanzi font-bold text-base sm:text-xl md:text-2xl leading-none'
-                                : 'font-bold text-[10px] sm:text-xs md:text-sm tracking-tight leading-none text-center px-0.5'
-                            }
-                          >
-                            {label}
-                          </span>
-                        )}
+                        {/* Inner Concentric Fine Line */}
+                        <div
+                          className="w-[88%] h-[88%] rounded-full flex items-center justify-center border"
+                          style={{
+                            borderColor: piece.isHidden
+                              ? 'transparent'
+                              : `${pieceRim}44`,
+                          }}
+                        >
+                          {piece.isHidden ? (
+                            <span
+                              className="font-hanzi font-bold text-xs sm:text-sm md:text-base text-amber-200 opacity-90"
+                              title="Quân úp"
+                            >
+                              ?
+                            </span>
+                          ) : (
+                            <span
+                              className={
+                                pieceCharMode === 'hanzi'
+                                  ? 'font-hanzi font-black text-lg sm:text-2xl md:text-[27px] leading-none select-none'
+                                  : 'font-bold text-[10px] sm:text-xs md:text-sm tracking-tight leading-none text-center px-0.5 select-none'
+                              }
+                              style={{
+                                color: pieceText,
+                                textShadow: isRed
+                                  ? '0 1px 1px rgba(0,0,0,0.15), 0 -0.5px 0.5px rgba(255,255,255,0.4)'
+                                  : '0 1px 2px rgba(0,0,0,0.9), 0 -0.5px 0.5px rgba(254,240,138,0.5)',
+                              }}
+                            >
+                              {label}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Legal Move Target Dot / Capture Ring */}
+                  {/* Legal Move Indicator (Golden/Emerald Dot or Capture Ring) */}
                   {isLegal && !piece && (
-                    <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-500/85 shadow-md ring-2 ring-white/60 pointer-events-none z-20" />
+                    <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] ring-2 ring-white/70 pointer-events-none z-20 transition-transform hover:scale-125" />
                   )}
                   {isLegal && piece && (
-                    <span className="absolute inset-0.5 rounded-full border-3 border-emerald-400 bg-emerald-500/20 pointer-events-none z-20" />
+                    <span className="absolute inset-0.5 rounded-full border-3 border-emerald-400 bg-emerald-400/20 shadow-[0_0_12px_rgba(52,211,153,0.7)] pointer-events-none z-20" />
                   )}
                 </div>
               );
