@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, LogIn, UserPlus, Edit3, KeyRound, Loader2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Logo } from './Logo';
 
 export interface UserProfile {
   uid: string;
@@ -205,9 +206,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl overflow-hidden text-stone-100 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
-          <h2 className="text-base font-semibold tracking-tight">Tài khoản</h2>
+        {/* Header with Official Logo */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-stone-800">
+          <Logo size="sm" variant="full" theme="dark" />
           <button
             onClick={onClose}
             className="p-2 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-colors"

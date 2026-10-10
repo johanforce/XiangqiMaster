@@ -471,7 +471,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_#ef4444]" />
                           <span className="text-red-300 font-bold font-sans">Đỏ:</span>
                           <span className="text-stone-200 font-sans truncate max-w-[130px]">
-                            {r.redPlayer ? r.redPlayer.username : 'Ghế trống'}
+                            {r.redPlayer ? (r.redPlayer.displayName || r.redPlayer.username) : 'Ghế trống'}
                           </span>
                         </div>
                         <span className="text-amber-400/90 font-bold shrink-0">
@@ -484,7 +484,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           <span className="w-2 h-2 rounded-full bg-stone-300 shadow-[0_0_6px_#cbd5e1]" />
                           <span className="text-stone-300 font-bold font-sans">Đen:</span>
                           <span className="text-stone-200 font-sans truncate max-w-[130px]">
-                            {r.blackPlayer ? r.blackPlayer.username : 'Ghế trống'}
+                            {r.blackPlayer ? (r.blackPlayer.displayName || r.blackPlayer.username) : 'Ghế trống'}
                           </span>
                         </div>
                         <span className="text-amber-400/90 font-bold shrink-0">
@@ -619,7 +619,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <div className="flex items-start justify-between relative z-10">
                     <span className="text-xs font-black text-red-400 flex items-center gap-1.5 tracking-wider">
                       <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
-                      <span>QUÂN ĐỎ (ĐI TRƯỚC)</span>
+                      <span>QUÂN ĐỎ</span>
                     </span>
 
                     {activeRoom.redPlayer?.uid === activeRoom.hostUid && (
@@ -647,7 +647,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-extrabold text-stone-100 truncate flex items-center gap-1.5">
-                          <span>{activeRoom.redPlayer.username}</span>
+                          <span>{activeRoom.redPlayer.displayName || activeRoom.redPlayer.username}</span>
                           {activeRoom.redPlayer.uid === currentUser.uid && (
                             <span className="px-1.5 py-0.2 rounded-md bg-emerald-950 text-emerald-400 text-[10px] font-bold border border-emerald-500/40">
                               Bạn
@@ -707,7 +707,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <div className="flex items-start justify-between relative z-10">
                     <span className="text-xs font-black text-stone-300 flex items-center gap-1.5 tracking-wider">
                       <span className="w-2.5 h-2.5 rounded-full bg-stone-300 shadow-[0_0_8px_#cbd5e1]" />
-                      <span>QUÂN ĐEN (ĐI SAU)</span>
+                      <span>QUÂN ĐEN</span>
                     </span>
 
                     {activeRoom.blackPlayer?.uid === activeRoom.hostUid && (
@@ -735,7 +735,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-extrabold text-stone-100 truncate flex items-center gap-1.5">
-                          <span>{activeRoom.blackPlayer.username}</span>
+                          <span>{activeRoom.blackPlayer.displayName || activeRoom.blackPlayer.username}</span>
                           {activeRoom.blackPlayer.uid === currentUser.uid && (
                             <span className="px-1.5 py-0.2 rounded-md bg-emerald-950 text-emerald-400 text-[10px] font-bold border border-emerald-500/40">
                               Bạn
@@ -1033,7 +1033,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           <div className="min-w-0 flex flex-col justify-center">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-stone-100 truncate max-w-[150px] sm:max-w-[200px]">
-                {seat ? seat.username : 'Đang chờ người chơi…'}
+                {seat ? (seat.displayName || seat.username) : 'Đang chờ người chơi…'}
               </span>
 
               {isMe && (
@@ -1270,7 +1270,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <div className="grid grid-cols-2 gap-3 text-xs font-mono-num">
                 <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
                   <span className="font-sans text-stone-300 truncate">
-                    {activeRoom.redPlayer?.username}
+                    {activeRoom.redPlayer?.displayName || activeRoom.redPlayer?.username}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     <span
@@ -1297,7 +1297,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
                 <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
                   <span className="font-sans text-stone-300 truncate">
-                    {activeRoom.blackPlayer?.username}
+                    {activeRoom.blackPlayer?.displayName || activeRoom.blackPlayer?.username}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
                     <span
@@ -1462,9 +1462,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-full bg-stone-800 text-stone-300 flex items-center justify-center font-bold text-[11px]">
-                        {s.username ? s.username.slice(0, 2).toUpperCase() : 'KG'}
+                        {(s.displayName || s.username || 'KG').slice(0, 2).toUpperCase()}
                       </div>
-                      <span className="font-semibold text-stone-200">{s.username}</span>
+                      <span className="font-semibold text-stone-200">{s.displayName || s.username}</span>
                     </div>
                     <span className="text-stone-400 font-mono-num">{s.elo ?? 1200} xu</span>
                   </div>

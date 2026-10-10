@@ -52,6 +52,7 @@ import { LeaderboardView } from './components/LeaderboardView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { RankedRoomView } from './components/RankedRoomView';
 import { HomeView } from './components/HomeView';
+import { Logo } from './components/Logo';
 
 type MainTab = 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin';
 
@@ -452,15 +453,15 @@ export default function App() {
 
       {/* Top Navigation Bar */}
       <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-xs sticky top-0 z-30">
-        {/* Zone 1: Brand Wordmark */}
+        {/* Zone 1: Brand Wordmark & Official Logo */}
         <button
           onClick={() => {
             setActiveTab('home');
             window.history.pushState({}, '', '/');
           }}
-          className="text-base sm:text-lg font-bold tracking-tight text-amber-400 whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
+          className="hover:opacity-95 transition-opacity shrink-0 flex items-center"
         >
-          Xiangqi Master
+          <Logo size="sm" variant="full" theme="dark" />
         </button>
 
         {/* Zone 2: Concise Single-Line Navigation Links */}

@@ -29,10 +29,24 @@ import {
   evaluateInactivityDecay,
 } from './src/shared/elo';
 
+import { initializeApp as initFirebaseApp } from 'firebase/app';
+import {
+  getFirestore,
+  setLogLevel,
+  doc as fsDoc,
+  setDoc as fsSetDoc,
+  deleteDoc as fsDeleteDoc,
+  getDocs as fsGetDocs,
+  collection as fsCollection,
+} from 'firebase/firestore';
+
+setLogLevel('silent');
+
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf-8'));
 
-let adminDb: any = null;
+const firebaseApp = initFirebaseApp(firebaseConfig);
+const firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
 const PORT = 3000;
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'thangnc').trim();
@@ -96,19 +110,34 @@ function saveStore() {
   }
 }
 
-// Non-blocking mirror to Firestore via Admin SDK when credentials are configured
-function mirrorToFirestore(col: string, id: string, data: any | null) {
-  if (col === 'userSecrets') return; // Never send passwordHash outside server
-  if (!adminDb) return; // Do not call unauthenticated client SDK which triggers PERMISSION_DENIED
+// Direct read/write/sync to new Firebase Firestore database
+async function mirrorToFirestore(col: string, id: string, data: any | null) {
+  if (col === 'userSecrets') return; // Passwords stay isolated
   try {
-    const ref = adminDb.collection(col).doc(id);
+    const ref = fsDoc(firestoreDb, col, id);
     if (data === null) {
-      ref.delete().catch(() => {});
+      await fsDeleteDoc(ref).catch(() => {});
     } else {
-      ref.set(data, { merge: true }).catch(() => {});
+      await fsSetDoc(ref, data, { merge: true }).catch(() => {});
     }
-  } catch {
-    // Silent fallback
+  } catch (err) {
+    console.warn(`Firestore save error on ${col}/${id}:`, (err as any)?.message);
+  }
+}
+
+async function loadStoreFromFirestore() {
+  console.log(`Connecting directly to new Firestore (${firebaseConfig.firestoreDatabaseId})...`);
+  try {
+    const cols = ['users', 'usernames', 'ratings', 'games', 'ratingHistory', 'adminConfig'] as const;
+    for (const c of cols) {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, c));
+      snap.forEach((d) => {
+        store[c][d.id] = d.data();
+      });
+      console.log(`Loaded ${snap.size} documents from Firestore collection: ${c}`);
+    }
+  } catch (err) {
+    console.warn('Could not load from Firestore, using disk cache:', (err as any)?.message);
   }
 }
 
@@ -143,6 +172,7 @@ function clearRateLimit(key: string) {
 interface RoomParticipant {
   uid: string;
   username: string;
+  displayName?: string;
   elo: number;
   connected: boolean;
   disconnectedAt?: number;
@@ -347,6 +377,31 @@ async function seedDefaultAdminAndConfig() {
       store.users[uid].isCreateAccount = true;
     }
     store.admins[uid] = { uid, createdAt: now };
+  }
+
+  const adminUid = store.usernames[norm]?.uid || `admin_${norm}`;
+  for (const mode of ['blitz', 'standard', 'dark'] as RatedMode[]) {
+    const docId = `${adminUid}_${mode}`;
+    if (!store.ratings[docId]) {
+      store.ratings[docId] = {
+        docId,
+        uid: adminUid,
+        username: ADMIN_USERNAME,
+        displayName: store.users[adminUid]?.displayName || 'Thắng NC',
+        mode,
+        elo: 1301,
+        gamesPlayed: 3,
+        wins: 1,
+        losses: 2,
+        draws: 0,
+        provisional: false,
+        decayApplied: false,
+        hiddenFromLeaderboard: false,
+        lastRatedGameAt: now,
+        recentOpponents: [],
+        updatedAt: now,
+      };
+    }
   }
 
   if (!store.adminConfig['global']) {
@@ -911,17 +966,19 @@ async function startServer() {
         ? now - 30 * 86400_000
         : 0;
 
-    const adminUids = new Set(Object.keys(store.admins));
-
     const entries = Object.values(store.ratings)
       .filter((r) => {
         if (r.mode !== mode) return false;
-        if (adminUids.has(r.uid)) return false;
-        if (store.users[r.uid]?.role === 'admin') return false;
-        if (r.username?.toLowerCase() === ADMIN_USERNAME.toLowerCase()) return false;
         if (r.hiddenFromLeaderboard) return false;
         if (minTime > 0 && (r.lastRatedGameAt || 0) < minTime) return false;
         return true;
+      })
+      .map((r) => {
+        const u = store.users[r.uid];
+        return {
+          ...r,
+          displayName: u?.displayName || r.displayName || r.username,
+        };
       })
       .sort((a, b) => b.elo - a.elo)
       .slice(0, 100);
@@ -1572,7 +1629,7 @@ async function startServer() {
             mode,
             hostUid: uid,
             status: 'waiting',
-            redPlayer: { uid, username, elo, connected: true },
+            redPlayer: { uid, username, displayName: user.displayName || username, elo, connected: true },
             blackPlayer: null,
             spectators: [],
             board,
@@ -1644,9 +1701,9 @@ async function startServer() {
             room.blackPlayer.connected = true;
             room.blackPlayer.disconnectDeadline = undefined;
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.redPlayer) {
-            room.redPlayer = { uid, username, elo, connected: true };
+            room.redPlayer = { uid, username, displayName: user.displayName || username, elo, connected: true };
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.blackPlayer) {
-            room.blackPlayer = { uid, username, elo, connected: true };
+            room.blackPlayer = { uid, username, displayName: user.displayName || username, elo, connected: true };
           } else {
             const existingSpec = room.spectators.find((s) => s.uid === uid);
             if (existingSpec) {
@@ -1655,7 +1712,7 @@ async function startServer() {
               if (room.spectators.length >= 6) {
                 return cb?.({ error: 'Phòng đã đủ 2 người chơi và 6 người xem' });
               }
-              room.spectators.push({ uid, username, elo, connected: true });
+              room.spectators.push({ uid, username, displayName: user.displayName || username, elo, connected: true });
             }
           }
 
@@ -2058,6 +2115,8 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  await loadStoreFromFirestore();
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Xiangqi Master server running on http://0.0.0.0:${PORT}`);

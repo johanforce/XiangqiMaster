@@ -22,7 +22,7 @@ interface LeaderboardViewProps {
 }
 
 export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }) => {
-  const [mode, setMode] = useState<RatedMode>('blitz');
+  const [mode, setMode] = useState<RatedMode>('standard');
   const [period, setPeriod] = useState<'week' | 'month' | 'all'>('all');
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,14 +72,19 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
       {/* 1. Thanh tiêu đề & Bộ lọc thể loại */}
-      <div className="relative rounded-3xl bg-gradient-to-r from-stone-900 via-stone-900/95 to-amber-950/40 border border-stone-800/90 p-5 sm:p-6 shadow-2xl space-y-4 overflow-hidden">
+      <div
+        className="relative rounded-3xl border border-amber-900/40 p-5 sm:p-7 shadow-2xl space-y-5 overflow-hidden bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, rgba(17, 15, 14, 0.82) 0%, rgba(12, 10, 9, 0.94) 100%), url('/images/champion_hall.jpg')`,
+        }}
+      >
         <div className="absolute -right-8 -bottom-10 font-hanzi text-8xl font-black text-amber-500/5 select-none pointer-events-none">
           楚河漢界
         </div>
 
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-950/60 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/30 to-amber-950/80 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.3)] backdrop-blur-sm">
               <Trophy className="w-6 h-6 stroke-[1.8]" />
             </div>
             <div>
@@ -187,7 +192,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                     </span>
                   </div>
                   <div className="text-sm font-extrabold text-stone-100 group-hover:text-amber-300 transition-colors truncate max-w-[180px]">
-                    {rank2.username}
+                    {rank2.displayName || rank2.username}
                   </div>
                   <div className="text-[11px] text-slate-300 font-semibold mt-0.5">
                     {getEloRankTitle(rank2.elo)}
@@ -213,7 +218,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 >
                   <div className="absolute -top-3.5 flex items-center gap-1 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 text-[11px] font-black shadow-lg">
                     <Crown className="w-3.5 h-3.5 fill-current" />
-                    <span>QUÁN QUÂN KỲ ĐÀN</span>
+                 
                   </div>
 
                   <div className="relative mt-2 mb-3">
@@ -226,7 +231,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   </div>
 
                   <div className="text-base font-black text-amber-200 group-hover:text-amber-300 transition-colors truncate max-w-[200px]">
-                    {rank1.username}
+                    {rank1.displayName || rank1.username}
                   </div>
                   <div className="text-xs text-amber-400/90 font-bold mt-0.5">
                     {getEloRankTitle(rank1.elo)}
@@ -263,7 +268,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                     </span>
                   </div>
                   <div className="text-sm font-extrabold text-stone-100 group-hover:text-amber-300 transition-colors truncate max-w-[180px]">
-                    {rank3.username}
+                    {rank3.displayName || rank3.username}
                   </div>
                   <div className="text-[11px] text-amber-600/90 font-semibold mt-0.5">
                     {getEloRankTitle(rank3.elo)}
@@ -284,8 +289,27 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
             </div>
           </div>
         )}
+      </div>
 
-        {/* 3. Bảng xếp hạng chi tiết (Từ hạng 4 trở đi) */}
+      {/* 3. Bảng xếp hạng chi tiết (Từ hạng 4 trở đi) */}
+      <div
+        className="relative rounded-3xl border border-stone-800/90 p-5 sm:p-6 shadow-2xl overflow-hidden bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 17, 0.92) 0%, rgba(10, 9, 8, 0.97) 100%), url('/images/leaderboard_bg.jpg')`,
+        }}
+      >
+        <div className="flex items-center justify-between mb-4 border-b border-stone-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <Medal className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-stone-200 uppercase tracking-wider">
+              Danh Sách Xếp Hạng Kỳ Thủ
+            </h3>
+          </div>
+          <span className="text-xs text-stone-400 font-mono-num">
+            Tổng cộng: {entries.length} kỳ thủ
+          </span>
+        </div>
+
         {loading ? (
           <div className="space-y-2 py-8">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -298,7 +322,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
             <p className="text-xs text-stone-400">Chưa có kỳ thủ nào trong bảng này</p>
           </div>
         ) : (
-          <div className="overflow-x-auto pt-2">
+          <div className="overflow-x-auto pt-1">
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-stone-800 text-stone-400 text-xs">
@@ -335,7 +359,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                           <span className="w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center text-xs">
                             🐵
                           </span>
-                          <span>{row.username}</span>
+                          <span>{row.displayName || row.username}</span>
                         </div>
                       </td>
 
@@ -371,30 +395,35 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
           <div className="w-full max-w-xl rounded-3xl bg-stone-900 border border-stone-800 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
-            {/* Header hồ sơ */}
-            <div className="flex items-start justify-between border-b border-stone-800 pb-4">
+            {/* Header hồ sơ with background banner */}
+            <div
+              className="relative rounded-2xl overflow-hidden p-4 border border-amber-900/40 bg-cover bg-center flex items-start justify-between"
+              style={{
+                backgroundImage: `linear-gradient(to right, rgba(24, 22, 20, 0.92) 0%, rgba(12, 10, 9, 0.8) 100%), url('/images/champion_hall.jpg')`,
+              }}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner">
-                  🐵
+                <div className="w-13 h-13 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl shadow-inner backdrop-blur-xs">
+                  👑
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-stone-100">
-                      {selectedPlayer.username}
+                    <h3 className="text-base font-extrabold text-stone-100">
+                      {selectedPlayer.displayName || selectedPlayer.username}
                     </h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/35 font-bold">
                       {getEloRankTitle(selectedPlayer.elo)}
                     </span>
                   </div>
-                  <p className="text-xs text-stone-400 mt-0.5 font-mono-num">
-                    Elo hiện tại: <span className="text-amber-400 font-bold">{selectedPlayer.elo}</span> · Cao nhất: {selectedPlayer.peakElo ?? selectedPlayer.elo}
+                  <p className="text-xs text-stone-300 mt-1 font-mono-num">
+                    Elo hiện tại: <span className="text-amber-400 font-extrabold">{selectedPlayer.elo}</span> · Thắng: {selectedPlayer.wins || 0} / {selectedPlayer.gamesPlayed || 0} ván
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedPlayer(null)}
-                className="p-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition-colors"
+                className="p-1.5 rounded-xl bg-stone-950/80 hover:bg-stone-800 text-stone-300 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

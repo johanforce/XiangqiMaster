@@ -428,74 +428,65 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                     <span className="absolute inset-0 rounded-full animate-capture-burst border-2 border-amber-300 pointer-events-none z-20" />
                   )}
 
-                  {/* 3D Chess Piece Disc */}
+                  {/* 3D Chess Piece Disc (Refined & Elegant) */}
                   {piece && (
                     <div
                       draggable={canControlColor(piece.color)}
                       onDragStart={(e) => handleDragStart(e, row, col)}
-                      className={`relative w-[89%] h-[89%] rounded-full flex items-center justify-center select-none transition-transform duration-200 ease-out ${
+                      className={`relative w-[90%] h-[90%] rounded-full flex items-center justify-center select-none transition-transform duration-200 ease-out ${
                         isSelected
                           ? 'scale-110 -translate-y-1.5 z-30 animate-halo-glow ring-2 ring-amber-400 shadow-2xl'
-                          : 'hover:scale-105 z-10'
+                          : 'hover:scale-[1.04] z-10'
                       }`}
                       style={{
                         background: piece.isHidden
                           ? isRed
-                            ? 'linear-gradient(145deg, #7F1D1D, #450A0A)'
-                            : 'linear-gradient(145deg, #1E293B, #0F172A)'
-                          : `linear-gradient(145deg, ${pieceBgGrad[0]}, ${pieceBgGrad[1]})`,
-                        border: `2px solid ${pieceBorder}`,
+                            ? 'radial-gradient(circle at 35% 35%, #7F1D1D, #450A0A 80%)'
+                            : 'radial-gradient(circle at 35% 35%, #292524, #141210 80%)'
+                          : `radial-gradient(circle at 36% 34%, ${pieceBgGrad[0]}, ${pieceBgGrad[1]} 85%)`,
+                        border: `1.5px solid ${piece.isHidden ? (isRed ? '#991B1B' : '#44403C') : pieceBorder}`,
                         boxShadow: isSelected
-                          ? '0 12px 20px -3px rgba(0,0,0,0.7), inset 0 2px 3px rgba(255,255,255,0.45)'
-                          : '0 5px 9px -2px rgba(0,0,0,0.55), inset 0 2px 2.5px rgba(255,255,255,0.35)',
+                          ? '0 12px 22px -2px rgba(0,0,0,0.75), inset 0 2px 2.5px rgba(255,255,255,0.6), inset 0 -2px 3px rgba(0,0,0,0.3)'
+                          : '0 4px 8px -1px rgba(0,0,0,0.5), inset 0 1.5px 2px rgba(255,255,255,0.5), inset 0 -1.5px 2px rgba(0,0,0,0.22)',
                       }}
                     >
-                      {/* Outer Concentric Bevel Rim */}
+                      {/* Single Elegant Recessed Groove Ring (Vòng rãnh khắc tinh tế) */}
                       <div
-                        className="w-[85%] h-[85%] rounded-full flex items-center justify-center border-[2px]"
+                        className="w-[82%] h-[82%] rounded-full flex items-center justify-center relative"
                         style={{
-                          borderColor: piece.isHidden
-                            ? 'rgba(253, 230, 138, 0.4)'
-                            : pieceRim,
-                          boxShadow: isRed
-                            ? 'inset 0 1px 1px rgba(0,0,0,0.15)'
-                            : 'inset 0 1px 1px rgba(255,255,255,0.1)',
+                          border: `1.5px solid ${
+                            piece.isHidden
+                              ? isRed
+                                ? 'rgba(239, 68, 68, 0.45)'
+                                : 'rgba(212, 175, 55, 0.45)'
+                              : piece.color === 'r'
+                              ? 'rgba(185, 28, 28, 0.35)'
+                              : 'rgba(212, 175, 55, 0.35)'
+                          }`,
+                          boxShadow: 'inset 0 1px 1.5px rgba(0,0,0,0.18), 0 0.5px 0.5px rgba(255,255,255,0.4)',
                         }}
                       >
-                        {/* Inner Concentric Fine Line */}
-                        <div
-                          className="w-[88%] h-[88%] rounded-full flex items-center justify-center border"
-                          style={{
-                            borderColor: piece.isHidden
-                              ? 'transparent'
-                              : `${pieceRim}44`,
-                          }}
-                        >
-                          {piece.isHidden ? (
-                            <span
-                              className="font-hanzi font-bold text-xs sm:text-sm md:text-base text-amber-200 opacity-90"
-                              title="Quân úp"
-                            >
-                              ?
-                            </span>
-                          ) : (
-                            <span
-                              className={
-                                pieceCharMode === 'hanzi'
-                                  ? 'font-hanzi font-black text-lg sm:text-2xl md:text-[27px] leading-none select-none'
-                                  : 'font-bold text-[10px] sm:text-xs md:text-sm tracking-tight leading-none text-center px-0.5 select-none'
-                              }
-                              style={{
-                                color: pieceText,
-                                textShadow: isRed
-                                  ? '0 1px 1px rgba(0,0,0,0.15), 0 -0.5px 0.5px rgba(255,255,255,0.4)'
-                                  : '0 1px 2px rgba(0,0,0,0.9), 0 -0.5px 0.5px rgba(254,240,138,0.5)',
-                              }}
-                            >
-                              {label}
-                            </span>
-                          )}
-                        </div>
+                        {piece.isHidden ? (
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="w-2.5 h-2.5 rounded-full border border-amber-300/60 bg-amber-400/20 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
+                          </div>
+                        ) : (
+                          <span
+                            className={
+                              pieceCharMode === 'hanzi'
+                                ? 'font-hanzi font-black text-[21px] sm:text-[25px] md:text-[28px] leading-none select-none tracking-tight'
+                                : 'font-extrabold text-[11px] sm:text-[13px] md:text-[15px] tracking-tight leading-none text-center px-0.5 select-none'
+                            }
+                            style={{
+                              color: pieceText,
+                              textShadow: isRed
+                                ? '0 1px 1px rgba(0,0,0,0.2), 0 -0.5px 0.5px rgba(255,255,255,0.6)'
+                                : '0 1px 1.5px rgba(0,0,0,0.85), 0 -0.5px 0.5px rgba(254,240,138,0.4)',
+                            }}
+                          >
+                            {label}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

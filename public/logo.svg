@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Radial gradient for 3D ivory Xiangqi piece -->
+    <radialGradient id="pieceBody" cx="38%" cy="36%" r="62%">
+      <stop offset="0%" stop-color="#FFFDF7" />
+      <stop offset="45%" stop-color="#F5E8D0" />
+      <stop offset="85%" stop-color="#E2CCA3" />
+      <stop offset="100%" stop-color="#CBB184" />
+    </radialGradient>
+    
+    <!-- Outer disc bevel highlight -->
+    <linearGradient id="bevelLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#A6895A" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Drop shadow for the piece -->
+    <filter id="pieceShadow" x="-20%" y="-20%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.32" />
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.2" />
+    </filter>
+
+    <!-- Subtle inner groove shadow -->
+    <filter id="grooveInner" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.5" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <g transform="translate(250, 195)">
+    <!-- RETICLE: Left Black Semi-Circle & Arm -->
+    <g stroke="#1C1917" stroke-width="11" fill="none" stroke-linecap="square">
+      <!-- Horizontal Left Crosshair Arm -->
+      <line x1="-165" y1="0" x2="-85" y2="0" />
+      <!-- Left Arc with top and bottom gaps -->
+      <path d="M 0 -130 A 130 130 0 0 0 -130 0 A 130 130 0 0 0 0 130" />
+      <!-- Vertical Top/Bottom notches -->
+      <line x1="0" y1="-130" x2="0" y2="-100" />
+      <line x1="0" y1="130" x2="0" y2="100" />
+    </g>
+
+    <!-- RETICLE: Right Gold Semi-Circle & Arm -->
+    <g stroke="#C5A059" stroke-width="11" fill="none" stroke-linecap="square">
+      <!-- Horizontal Right Crosshair Arm -->
+      <line x1="85" y1="0" x2="165" y2="0" />
+      <!-- Right Arc with top and bottom gaps -->
+      <path d="M 12 -130 A 130 130 0 0 1 130 0 A 130 130 0 0 1 12 130" />
+    </g>
+
+    <!-- 3D XIANGQI PIECE (Central Ivory Token) -->
+    <g filter="url(#pieceShadow)">
+      <!-- Main Piece Disc -->
+      <circle cx="0" cy="0" r="76" fill="url(#pieceBody)" stroke="url(#bevelLight)" stroke-width="2.5" />
+      <!-- Outer Bevel Rim Line -->
+      <circle cx="0" cy="0" r="74" fill="none" stroke="#C4A878" stroke-width="1.2" opacity="0.6" />
+      <!-- Single Delicate Engraved Inner Groove -->
+      <circle cx="0" cy="0" r="62" fill="none" stroke="#B89B6C" stroke-width="2.2" opacity="0.85" filter="url(#grooveInner)" />
+      <!-- Subtle Wood Grain / Depth Ring -->
+      <circle cx="0" cy="0" r="60" fill="none" stroke="#FFFFFF" stroke-width="0.8" opacity="0.45" />
+
+      <!-- Calligraphy Character "將" (Jiàng / Tướng) -->
+      <text
+        x="0"
+        y="21"
+        text-anchor="middle"
+        font-family="'Noto Serif TC', 'SimSun', 'Songti SC', 'STSong', serif"
+        font-weight="900"
+        font-size="64"
+        fill="#18181B"
+        style="letter-spacing: -2px; filter: drop-shadow(0 1px 1px rgba(255,255,255,0.7));"
+      >
+        將
+      </text>
+    </g>
+  </g>
+
+  <!-- TYPOGRAPHY: XIANGQI MASTER -->
+  <g id="logoText">
+    <!-- XIANGQI with stylized modern geometric aesthetic -->
+    <text
+      x="250"
+      y="388"
+      text-anchor="middle"
+      font-family="'Be Vietnam Pro', 'Montserrat', 'Inter', sans-serif"
+      font-weight="800"
+      font-size="44"
+      letter-spacing="12"
+      fill="#1C1917"
+    >
+      XIANGQI
+    </text>
+
+    <!-- MASTER framed with gold lines -->
+    <g transform="translate(250, 428)">
+      <!-- Left Gold Line -->
+      <line x1="-155" y1="-7" x2="-80" y2="-7" stroke="#C5A059" stroke-width="2" stroke-linecap="round" />
+      
+      <!-- Text MASTER -->
+      <text
+        x="0"
+        y="0"
+        text-anchor="middle"
+        font-family="'Be Vietnam Pro', 'Montserrat', 'Inter', sans-serif"
+        font-weight="600"
+        font-size="20"
+        letter-spacing="9"
+        fill="#C5A059"
+      >
+        MASTER
+      </text>
+      
+      <!-- Right Gold Line -->
+      <line x1="80" y1="-7" x2="-155" y2="-7" transform="scale(-1, 1)" stroke="#C5A059" stroke-width="2" stroke-linecap="round" />
+    </g>
+  </g>
+</svg>

@@ -23,10 +23,11 @@ import {
 } from 'lucide-react';
 import { UserProfile } from './AuthModal';
 import { getEloRankTitle } from '../shared/elo';
+import { Logo } from './Logo';
 
 interface HomeViewProps {
   currentUser: UserProfile | null;
-  onNavigate: (tab: 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard') => void;
+  onNavigate: (tab: 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin') => void;
   onOpenAuth: () => void;
 }
 
@@ -40,7 +41,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/leaderboard?mode=blitz&period=all')
+    fetch('/api/leaderboard?mode=standard&period=all')
       .then((res) => res.json())
       .then((data) => {
         if (data.leaderboard) {
@@ -58,9 +59,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Hero Background Image with Atmospheric Overlay */}
         <div className="absolute inset-0 z-0">
           <img
-            src="/src/assets/images/xiangqi_hero_cover_1791653377623.jpg"
+            src="/images/hero_cover.jpg"
             alt="Bàn cờ tướng cổ điển"
-            referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-center scale-105 filter brightness-[0.45] contrast-[1.1]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/30" />
@@ -69,6 +69,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         {/* Hero Content */}
         <div className="relative z-10 px-6 py-12 sm:px-12 sm:py-20 max-w-3xl space-y-6">
+          <div className="mb-2">
+            <Logo size="lg" variant="full" theme="dark" />
+          </div>
+
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Fairy-Stockfish WASM · Kỳ Phổ WXF · Cờ Úp Dân Gian</span>
@@ -302,9 +306,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="lg:col-span-6 relative rounded-2xl overflow-hidden border border-stone-800 shadow-2xl">
           <img
-            src="/src/assets/images/xiangqi_master_duel_1791653388676.jpg"
+            src="/images/master_duel.jpg"
             alt="Cận cảnh bàn cờ tướng truyền thống"
-            referrerPolicy="no-referrer"
             className="w-full h-80 sm:h-96 object-cover object-center hover:scale-105 transition-transform duration-700"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-transparent pointer-events-none" />
@@ -367,7 +370,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       {idx + 1}
                     </span>
                     <div>
-                      <span className="font-semibold text-stone-100">{player.username}</span>
+                      <span className="font-semibold text-stone-100">{player.displayName || player.username}</span>
                       <div className="text-[10px] text-stone-400">
                         {getEloRankTitle(player.elo)} · {player.gamesPlayed || 0} ván
                       </div>
