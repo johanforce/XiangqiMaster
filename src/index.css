@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+  }
+
+  .font-hanzi {
+    font-family: 'Noto Serif TC', serif;
+  }
+
+  .font-mono-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes check-shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20%, 60% { transform: translate3d(-3px, 0, 0); }
+  40%, 80% { transform: translate3d(3px, 0, 0); }
+}
+
+.animate-check-shake {
+  animation: check-shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+

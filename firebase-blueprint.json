@@ -1,0 +1,199 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account status (never exposes passwordHash to clients).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 32, "pattern": "^[a-zA-Z0-9_]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "isCreateAccount": { "type": "boolean" },
+        "isLogin": { "type": "boolean" },
+        "isLocked": { "type": "boolean" },
+        "activeSessionId": { "type": "string", "maxLength": 64 },
+        "theme": { "type": "string", "enum": ["classic_wood", "jade", "sumi_ink", "imperial", "midnight_neon", "minimal_light"] },
+        "pieceCharMode": { "type": "string", "enum": ["hanzi", "viet"] },
+        "soundEnabled": { "type": "boolean" },
+        "lastUsernameChangeAt": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "username", "role", "isCreateAccount", "isLogin", "theme", "pieceCharMode", "soundEnabled", "createdAt", "updatedAt"]
+    },
+    "Username": {
+      "title": "Username",
+      "description": "Enforces unique normalized usernames mapped to uid.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "LoginRequest": {
+      "title": "LoginRequest",
+      "description": "Tracks concurrent login attempts and _resetacc admin approval queue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "maxLength": 32 },
+        "attemptCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["blocked_step1", "pending", "approved", "rejected", "completed"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "uid", "username", "attemptCount", "status", "createdAt", "updatedAt"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "Completed or active Xiangqi match record with WXF/ICCS notation and FEN history.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mode": { "type": "string", "enum": ["ai", "blitz", "standard", "dark"] },
+        "redUid": { "type": "string", "maxLength": 64 },
+        "redName": { "type": "string", "maxLength": 40 },
+        "blackUid": { "type": "string", "maxLength": 64 },
+        "blackName": { "type": "string", "maxLength": 40 },
+        "winner": { "type": "string", "enum": ["red", "black", "draw", "ongoing"] },
+        "reason": { "type": "string", "maxLength": 64 },
+        "initialFen": { "type": "string", "maxLength": 200 },
+        "finalFen": { "type": "string", "maxLength": 200 },
+        "moveCount": { "type": "number" },
+        "wxfText": { "type": "string", "maxLength": 10000 },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "mode", "redUid", "redName", "blackUid", "blackName", "winner", "initialFen", "finalFen", "moveCount", "createdAt", "updatedAt"]
+    },
+    "Move": {
+      "title": "Move",
+      "description": "Individual move in a game subcollection.",
+      "type": "object",
+      "properties": {
+        "ply": { "type": "number" },
+        "color": { "type": "string", "enum": ["r", "b"] },
+        "wxf": { "type": "string", "maxLength": 16 },
+        "viet": { "type": "string", "maxLength": 64 },
+        "iccs": { "type": "string", "maxLength": 16 },
+        "fen": { "type": "string", "maxLength": 200 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["ply", "color", "wxf", "viet", "iccs", "fen", "timestamp"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Realtime multiplayer room for Blitz, Standard, and Dark Xiangqi.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "mode": { "type": "string", "enum": ["blitz", "standard", "dark"] },
+        "hostUid": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "redUid": { "type": "string", "maxLength": 64 },
+        "blackUid": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["code", "mode", "hostUid", "status", "createdAt", "updatedAt"]
+    },
+    "Rating": {
+      "title": "Rating",
+      "description": "FIDE Elo rating per user and game mode.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 80, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "maxLength": 64 },
+        "username": { "type": "string", "maxLength": 32 },
+        "mode": { "type": "string", "enum": ["blitz", "standard", "dark"] },
+        "elo": { "type": "number" },
+        "peakElo": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "provisional": { "type": "boolean" },
+        "decayApplied": { "type": "boolean" },
+        "hiddenFromLeaderboard": { "type": "boolean" },
+        "lastRatedGameAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "uid", "username", "mode", "elo", "peakElo", "gamesPlayed", "wins", "losses", "draws", "provisional", "updatedAt"]
+    },
+    "RatingHistory": {
+      "title": "RatingHistory",
+      "description": "Audit log of Elo changes from games, decay, reset, or admin adjustment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "maxLength": 64 },
+        "mode": { "type": "string", "enum": ["blitz", "standard", "dark"] },
+        "beforeElo": { "type": "number" },
+        "afterElo": { "type": "number" },
+        "delta": { "type": "number" },
+        "boostPenalty": { "type": "number" },
+        "reason": { "type": "string", "maxLength": 64 },
+        "gameId": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "uid", "mode", "beforeElo", "afterElo", "delta", "reason", "createdAt"]
+    },
+    "AdminConfig": {
+      "title": "AdminConfig",
+      "description": "Global server parameters for anti-boosting, decay, room cleanup, and time controls.",
+      "type": "object",
+      "properties": {
+        "antiBoostWindowGames": { "type": "number" },
+        "antiBoostThreshold": { "type": "number" },
+        "antiBoostMaxPenalty": { "type": "number" },
+        "decayDays": { "type": "number" },
+        "decayPenalty": { "type": "number" },
+        "resetDays": { "type": "number" },
+        "cleanupHour": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["antiBoostWindowGames", "antiBoostThreshold", "antiBoostMaxPenalty", "decayDays", "decayPenalty", "resetDays", "cleanupHour", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile document"
+    },
+    "/usernames/{username}": {
+      "schema": { "$ref": "#/entities/Username" },
+      "description": "Unique username registry"
+    },
+    "/loginRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/LoginRequest" },
+      "description": "Concurrent login reset approval queue"
+    },
+    "/games/{gameId}": {
+      "schema": { "$ref": "#/entities/Game" },
+      "description": "Match records"
+    },
+    "/games/{gameId}/moves/{moveId}": {
+      "schema": { "$ref": "#/entities/Move" },
+      "description": "Move records per game"
+    },
+    "/rooms/{roomCode}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Realtime rooms"
+    },
+    "/ratings/{ratingId}": {
+      "schema": { "$ref": "#/entities/Rating" },
+      "description": "Elo ratings per user and mode"
+    },
+    "/ratingHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/RatingHistory" },
+      "description": "Elo change logs"
+    },
+    "/adminConfig/{configId}": {
+      "schema": { "$ref": "#/entities/AdminConfig" },
+      "description": "System configuration"
+    }
+  }
+}

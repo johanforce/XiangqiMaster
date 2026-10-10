@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'chienthang06071999@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username', 'role', 'isCreateAccount', 'isLogin', 'theme', 'pieceCharMode', 'soundEnabled', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'username', 'displayName', 'role', 'isCreateAccount', 'isLogin', 'isLocked', 'activeSessionId', 'theme', 'pieceCharMode', 'soundEnabled', 'lastUsernameChangeAt', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 64 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == request.auth.uid &&
+        data.username is string && data.username.size() >= 3 && data.username.size() <= 32 && data.username.matches('^[a-zA-Z0-9_]+$') &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 40)) &&
+        data.role is string && data.role in ['user', 'admin'] &&
+        data.isCreateAccount is bool &&
+        data.isLogin is bool &&
+        (!('isLocked' in data) || data.isLocked is bool) &&
+        (!('activeSessionId' in data) || (data.activeSessionId is string && data.activeSessionId.size() <= 64)) &&
+        data.theme is string && data.theme in ['classic_wood', 'jade', 'sumi_ink', 'imperial', 'midnight_neon', 'minimal_light'] &&
+        data.pieceCharMode is string && data.pieceCharMode in ['hanzi', 'viet'] &&
+        data.soundEnabled is bool &&
+        (!('lastUsernameChangeAt' in data) || data.lastUsernameChangeAt is int) &&
+        data.createdAt is int &&
+        data.updatedAt is int;
+    }
+
+    // Server-only secret store for password hashes (never readable by client)
+    match /userSecrets/{userId} {
+      allow read, write: if false;
+    }
+
+    // Admin registry (managed by server Admin SDK)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isOwner(adminId);
+      allow list, create, update, delete: if false;
+    }
+
+    // Users collection: owner can read own doc and update only UI preferences; Admin SDK handles auth & role updates
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin() && existing().uid is string;
+      allow create, delete: if false;
+      allow update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (
+        incoming().uid == existing().uid &&
+        incoming().username == existing().username &&
+        incoming().role == existing().role &&
+        incoming().isCreateAccount == existing().isCreateAccount &&
+        incoming().isLogin == existing().isLogin &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['theme', 'pieceCharMode', 'soundEnabled', 'updatedAt'])
+      );
+    }
+
+    // Unique usernames registry (server-only writes)
+    match /usernames/{username} {
+      allow get: if isValidId(username) && isSignedIn();
+      allow list, create, update, delete: if false;
+    }
+
+    // Concurrent login requests queue (realtime read for admins)
+    match /loginRequests/{requestId} {
+      allow get: if isValidId(requestId) && (isAdmin() || (isSignedIn() && existing().uid == request.auth.uid));
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // Games collection (written by server, readable by players and admins)
+    match /games/{gameId} {
+      allow get: if isValidId(gameId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().redUid == request.auth.uid || existing().blackUid == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+
+      match /moves/{moveId} {
+        allow get: if isValidId(gameId) && isValidId(moveId) && isSignedIn() && exists(/databases/$(database)/documents/games/$(gameId));
+        allow list: if isSignedIn() && existing().ply is int;
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Realtime rooms (server-authoritative writes only)
+    match /rooms/{roomCode} {
+      allow get: if isValidId(roomCode) && isSignedIn();
+      allow list: if isSignedIn() && existing().status in ['waiting', 'playing', 'finished'];
+      allow create, update, delete: if false;
+    }
+
+    // Elo Ratings (server-authoritative writes only)
+    match /ratings/{ratingId} {
+      allow get: if isValidId(ratingId) && isSignedIn();
+      allow list: if isSignedIn() && existing().hiddenFromLeaderboard == false;
+      allow create, update, delete: if false;
+    }
+
+    // Elo Rating History (server-authoritative writes only)
+    match /ratingHistory/{historyId} {
+      allow get: if isValidId(historyId) && isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // System configuration
+    match /adminConfig/{configId} {
+      allow get: if isValidId(configId) && isSignedIn();
+      allow list, create, update, delete: if false;
+    }
+  }
+}

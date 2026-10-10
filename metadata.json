@@ -1,0 +1,6 @@
+{
+  "name": "Xiangqi Master",
+  "description": "Cờ tướng trực tuyến chuẩn quốc tế WXF, chơi với máy 4 cấp độ, cờ úp, phòng đấu thời gian thực và xếp hạng Elo FIDE.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
