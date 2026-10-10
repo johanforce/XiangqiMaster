@@ -679,8 +679,23 @@ export function formatMoveNotation(
   return { wxf, viet, iccs };
 }
 
+function normalizeVietString(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/\btien\b/g, 'tan')
+    .replace(/\blui\b/g, 'thoai')
+    .replace(/\bchot\b/g, 'tot')
+    .replace(/\bbinh\b(?=\s+\d)/g, 'tot')
+    .replace(/\bvoi\b/g, 'tuong')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
- * Parses ICCS or WXF move string against the current board and returns the matching legal Move.
+ * Parses ICCS, WXF, or Vietnamese move string against the current board and returns the matching legal Move.
  */
 export function parseMoveText(
   board: Board,
@@ -688,46 +703,68 @@ export function parseMoveText(
   token: string,
   isDarkXiangqi = false
 ): Move | null {
-  const clean = token.trim().replace(/[#?!]/g, '');
+  const clean = token.trim().replace(/[#?!,\(\)]/g, '');
   if (!clean) return null;
 
   const legalMoves = getAllLegalMoves(board, turn, isDarkXiangqi);
+  if (legalMoves.length === 0) return null;
 
-  // 1. Try ICCS match (e.g. H2-E2 or h2e2)
+  // 1. Try ICCS match (e.g. H2-E2 or h2e2 or H2E2)
   const iccsMatch = clean.toUpperCase().match(/^([A-I])(\d)-?([A-I])(\d)$/);
   if (iccsMatch) {
     const fromCol = iccsMatch[1].charCodeAt(0) - 65;
     const fromRow = 9 - parseInt(iccsMatch[2], 10);
     const toCol = iccsMatch[3].charCodeAt(0) - 65;
     const toRow = 9 - parseInt(iccsMatch[4], 10);
-    return (
-      legalMoves.find(
-        (m) =>
-          m.from.row === fromRow &&
-          m.from.col === fromCol &&
-          m.to.row === toRow &&
-          m.to.col === toCol
-      ) || null
+    const found = legalMoves.find(
+      (m) =>
+        m.from.row === fromRow &&
+        m.from.col === fromCol &&
+        m.to.row === toRow &&
+        m.to.col === toCol
     );
+    if (found) return found;
   }
 
-  // 2. Match against generated WXF or Vietnamese notation of all legal moves
-  const norm = clean.toLowerCase();
+  // Normalize input string: replace '=' with '.' and standardise spaces
+  const normInput = clean
+    .toLowerCase()
+    .replace(/=/g, '.')
+    .replace(/\s+/g, ' ');
+
+  // Standardize WXF aliases (N->H, B->E, G->K, tandem prefixes like +C.5 -> C+.5)
+  const normWxfInput = normInput
+    .replace(/^n/i, 'h')
+    .replace(/^b/i, 'e')
+    .replace(/^g/i, 'k')
+    .replace(/^\+([chepar])/i, '$1+')
+    .replace(/^-([chepar])/i, '$1-');
+
+  const normVietInput = normalizeVietString(normInput);
+
   for (const m of legalMoves) {
     const formatted = formatMoveNotation(board, m.from, m.to);
+
+    const normWxf = formatted.wxf.toLowerCase().replace(/=/g, '.');
+    const normIccs = formatted.iccs.toLowerCase();
+    const normViet = formatted.viet.toLowerCase();
+    const normVietClean = normalizeVietString(normViet);
+
+    // Direct match against WXF, ICCS, or Vietnamese
     if (
-      formatted.wxf.toLowerCase() === norm ||
-      formatted.iccs.toLowerCase() === norm ||
-      formatted.viet.toLowerCase() === norm
+      normWxf === normInput ||
+      normWxf === normWxfInput ||
+      normIccs === normInput ||
+      normIccs.replace(/-/g, '') === normInput.replace(/-/g, '') ||
+      normViet === normInput ||
+      normVietClean === normVietInput
     ) {
       return m;
     }
-    // Also support B/N aliases in WXF (e.g., N8+7 for H8+7, B3+5 for E3+5)
-    const altWxf = formatted.wxf
-      .replace(/^H/i, 'N')
-      .replace(/^E/i, 'B')
-      .toLowerCase();
-    if (altWxf === norm) {
+
+    // Support WXF aliases in formatted output (e.g. N for H, B for E)
+    const altWxf = normWxf.replace(/^h/, 'n').replace(/^e/, 'b').replace(/^k/, 'g');
+    if (altWxf === normInput || altWxf === normWxfInput) {
       return m;
     }
   }
@@ -764,11 +801,15 @@ export function replayFromNotationText(text: string): {
     moveLines.push(line);
   }
 
-  const body = moveLines.join(' ');
-  // Remove standalone move numbers like "1.", "12." and result markers "1-0", "0-1", "1/2-1/2"
+  let body = moveLines.join(' ');
+  // Remove PGN comments in braces { ... } or semicolons
+  body = body.replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ');
+
+  // Remove standalone move numbers like "1.", "12.", "1.C2.5" -> " C2.5", "1/ ", "1) ", "(1)"
   const cleaned = body
-    .replace(/(?:^|\s)\d+\.(?=\s|$)/g, ' ')
-    .replace(/(?:^|\s)(1-0|0-1|1\/2-1\/2|\*)(?=\s|$)/g, ' ');
+    .replace(/(?:^|\s)\(?\d+[\.\:\)\/\-]+\s*/g, ' ')
+    .replace(/(?:^|\s)\d+\.\.\.\s*/g, ' ')
+    .replace(/(?:^|\s)(?:1-0|0-1|1\/2-1\/2|\*)(?=\s|$)/g, ' ');
 
   const tokens = cleaned
     .split(/\s+/)
@@ -777,25 +818,47 @@ export function replayFromNotationText(text: string): {
 
   let { board, turn } = parseFen(initialFen);
   const moves: FormattedMove[] = [];
+  let i = 0;
 
-  for (let i = 0; i < tokens.length; i++) {
-    const m = parseMoveText(board, turn, tokens[i]);
-    if (!m) continue;
-    const notation = formatMoveNotation(board, m.from, m.to);
-    const { nextBoard } = applyMove(board, m.from, m.to);
-    const nextTurn: PieceColor = turn === 'r' ? 'b' : 'r';
-    const nextFen = boardToFen(nextBoard, nextTurn);
-    const inCheck = isKingInCheck(nextBoard, nextTurn);
-    moves.push({
-      ...m,
-      ply: moves.length + 1,
-      color: turn,
-      ...notation,
-      fen: nextFen,
-      isCheck: inCheck,
-    });
-    board = nextBoard;
-    turn = nextTurn;
+  while (i < tokens.length) {
+    let matchedMove: Move | null = null;
+    let consumedCount = 0;
+
+    // Try multi-word window from 5 down to 1 (handles Vietnamese multi-word phrases as well as single-word WXF/ICCS)
+    const maxWindow = Math.min(5, tokens.length - i);
+    for (let len = maxWindow; len >= 1; len--) {
+      const phrase = tokens.slice(i, i + len).join(' ');
+      const m = parseMoveText(board, turn, phrase, false);
+      if (m) {
+        matchedMove = m;
+        consumedCount = len;
+        break;
+      }
+    }
+
+    if (matchedMove) {
+      const notation = formatMoveNotation(board, matchedMove.from, matchedMove.to);
+      const { nextBoard } = applyMove(board, matchedMove.from, matchedMove.to);
+      const nextTurn: PieceColor = turn === 'r' ? 'b' : 'r';
+      const nextFen = boardToFen(nextBoard, nextTurn);
+      const inCheck = isKingInCheck(nextBoard, nextTurn);
+
+      moves.push({
+        ...matchedMove,
+        ply: moves.length + 1,
+        color: turn,
+        ...notation,
+        fen: nextFen,
+        isCheck: inCheck,
+      });
+
+      board = nextBoard;
+      turn = nextTurn;
+      i += consumedCount;
+    } else {
+      // Advance by 1 if token is unrecognized (e.g. "!?", "...", etc.)
+      i++;
+    }
   }
 
   return { initialFen, moves, headers };

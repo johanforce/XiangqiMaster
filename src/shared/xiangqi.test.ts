@@ -93,6 +93,25 @@ describe('Xiangqi Rule Engine (Standard & Dark Xiangqi)', () => {
     expect(replay.moves.length).toBe(4);
     expect(replay.moves[0].wxf).toBe('C2.5');
     expect(replay.moves[1].wxf).toBe('H8+7');
+
+    // WXF with '=' notation
+    const replayEq = replayFromNotationText('1. C2=5 H8+7 2. H2+3 R9=8 3. R1=2 P7+1');
+    expect(replayEq.moves.length).toBe(6);
+    expect(replayEq.moves[0].wxf).toBe('C2.5');
+    expect(replayEq.moves[3].wxf).toBe('R9.8');
+
+    // Vietnamese phrase notation with 'bình', 'tấn', 'tiến'
+    const replayViet = replayFromNotationText('1. Pháo 2 bình 5 Mã 8 tiến 7 2. Mã 2 tấn 3 Xe 9 bình 8');
+    expect(replayViet.moves.length).toBe(4);
+    expect(replayViet.moves[0].wxf).toBe('C2.5');
+    expect(replayViet.moves[1].wxf).toBe('H8+7');
+    expect(replayViet.moves[2].wxf).toBe('H2+3');
+    expect(replayViet.moves[3].wxf).toBe('R9.8');
+
+    // Compact numbering without space: 1.C2.5
+    const replayCompact = replayFromNotationText('1.C2.5 H8+7 2.H2+3');
+    expect(replayCompact.moves.length).toBe(3);
+    expect(replayCompact.moves[0].wxf).toBe('C2.5');
   });
 
   it('implements Dark Xiangqi (Cờ Úp) shuffling, origin-slot movement, and flip on first move', () => {

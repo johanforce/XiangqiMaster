@@ -19,12 +19,14 @@ import {
   isKingInCheck,
   evaluateGameStatus,
   formatMoveNotation,
+  replayFromNotationText,
   FormattedMove,
 } from './src/shared/xiangqi';
 import {
   RatedMode,
   EloConfig,
   DEFAULT_ELO_CONFIG,
+  DEFAULT_INITIAL_ELO,
   calculateMatchElo,
   evaluateInactivityDecay,
 } from './src/shared/elo';
@@ -51,6 +53,7 @@ const firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId
 const PORT = 3000;
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'thangnc').trim();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thangnc1';
+const ADMIN_DISPLAY_NAME = (process.env.ADMIN_DISPLAY_NAME || 'Nhập Vân Long Công Tôn Thắng').trim();
 const CRON_SECRET = process.env.CRON_SECRET || 'xiangqi_cron_secret_2026';
 
 // ==================== PERSISTENT SERVER STORE + FIRESTORE MIRROR ====================
@@ -128,14 +131,99 @@ async function mirrorToFirestore(col: string, id: string, data: any | null) {
 async function loadStoreFromFirestore() {
   console.log(`Connecting directly to new Firestore (${firebaseConfig.firestoreDatabaseId})...`);
   try {
-    const cols = ['users', 'usernames', 'ratings', 'games', 'ratingHistory', 'adminConfig'] as const;
+    const cols = ['users', 'usernames', 'ratings', 'games', 'ratingHistory', 'adminConfig', 'rooms'] as const;
     for (const c of cols) {
-      const snap = await fsGetDocs(fsCollection(firestoreDb, c));
-      snap.forEach((d) => {
-        store[c][d.id] = d.data();
-      });
-      console.log(`Loaded ${snap.size} documents from Firestore collection: ${c}`);
+      try {
+        const snap = await fsGetDocs(fsCollection(firestoreDb, c));
+        snap.forEach((d) => {
+          // Ignore any test entries
+          if (
+            d.id === 'kythu_test' ||
+            d.id === 'u_1791663983740_8yh2p' ||
+            d.id.includes('kythu_test') ||
+            d.id.includes('seed') ||
+            d.id.startsWith('game_1791664')
+          ) {
+            return;
+          }
+          store[c][d.id] = d.data();
+        });
+        console.log(`Loaded ${snap.size} documents from Firestore collection: ${c}`);
+      } catch (err) {
+        console.warn(`Could not load collection ${c} from Firestore:`, (err as any)?.message);
+      }
     }
+
+    // Backfill from ranked_matches if any exist
+    try {
+      const matchSnap = await fsGetDocs(fsCollection(firestoreDb, 'ranked_matches'));
+      matchSnap.forEach((d) => {
+        const data = d.data();
+        if (d.id.includes('seed') || d.id.startsWith('game_1791664')) return;
+        if (!store.games[d.id]) {
+          store.games[d.id] = {
+            id: d.id,
+            mode: data.mode || 'standard',
+            redUid: data.redUid || '',
+            redName: data.redUsername || data.redName || 'Người chơi Đỏ',
+            blackUid: data.blackUid || '',
+            blackName: data.blackUsername || data.blackName || 'Người chơi Đen',
+            winner: data.winner || (data.winnerSide === 'RED' ? 'r' : data.winnerSide === 'BLACK' ? 'b' : 'draw'),
+            reason: data.winReason || data.reason || 'Kết thúc ván đấu',
+            createdAt: data.playedAt || data.createdAt || Date.now(),
+            updatedAt: data.playedAt || data.updatedAt || Date.now(),
+            durationSeconds: data.durationSeconds || 0,
+            moveCount: data.movesCount || 0,
+            moves: data.moves || [],
+            initialFen: data.initialFen || '',
+          };
+        }
+      });
+      if (matchSnap.size > 0) {
+        console.log(`Loaded ${matchSnap.size} matches from ranked_matches`);
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // Ensure admin user profile has their actual full name
+    const norm = ADMIN_USERNAME.toLowerCase();
+    const adminUid = store.usernames[norm]?.uid || `admin_${norm}`;
+    if (store.users[adminUid]) {
+      if (!store.users[adminUid].displayName || store.users[adminUid].displayName === 'Quản trị viên') {
+        store.users[adminUid].displayName = ADMIN_DISPLAY_NAME;
+      }
+    }
+
+    for (const mode of ['blitz', 'standard', 'dark'] as const) {
+      const docId = `${adminUid}_${mode}`;
+      if (store.ratings[docId]) {
+        if (!store.ratings[docId].displayName || store.ratings[docId].displayName === 'Quản trị viên') {
+          store.ratings[docId].displayName = ADMIN_DISPLAY_NAME;
+        }
+      }
+    }
+
+    // Ensure default passwords for all loaded users so existing accounts can authenticate
+    const defaultUserHash = await bcrypt.hash('123456', 10);
+    const adminHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+
+    for (const uid of Object.keys(store.users)) {
+      const u = store.users[uid];
+      if (!store.userSecrets[uid]) {
+        store.userSecrets[uid] = {
+          uid,
+          passwordHash: (u.username === ADMIN_USERNAME || u.role === 'admin') ? adminHash : defaultUserHash,
+          updatedAt: Date.now(),
+        };
+      }
+      if (u.username === ADMIN_USERNAME || u.role === 'admin') {
+        store.admins[uid] = { uid, createdAt: u.createdAt || Date.now() };
+      }
+    }
+
+    saveStore();
+    console.log(`Firestore data sync complete. Users: ${Object.keys(store.users).length}, Games: ${Object.keys(store.games).length}, Ratings: ${Object.keys(store.ratings).length}`);
   } catch (err) {
     console.warn('Could not load from Firestore, using disk cache:', (err as any)?.message);
   }
@@ -309,7 +397,7 @@ function getAdminConfig(): EloConfig & Record<string, any> {
 function getUserModeElo(uid: string, username: string, mode: RatedMode): number {
   const docId = `${uid}_${mode}`;
   if (store.ratings[docId]) {
-    return store.ratings[docId].elo ?? 1200;
+    return store.ratings[docId].elo ?? DEFAULT_INITIAL_ELO;
   }
   const now = Date.now();
   const initialRating = {
@@ -317,8 +405,8 @@ function getUserModeElo(uid: string, username: string, mode: RatedMode): number 
     uid,
     username,
     mode,
-    elo: 1200,
-    peakElo: 1200,
+    elo: DEFAULT_INITIAL_ELO,
+    peakElo: DEFAULT_INITIAL_ELO,
     gamesPlayed: 0,
     wins: 0,
     losses: 0,
@@ -333,7 +421,7 @@ function getUserModeElo(uid: string, username: string, mode: RatedMode): number 
   store.ratings[docId] = initialRating;
   saveStore();
   mirrorToFirestore('ratings', docId, initialRating);
-  return 1200;
+  return DEFAULT_INITIAL_ELO;
 }
 
 async function seedDefaultAdminAndConfig() {
@@ -353,7 +441,7 @@ async function seedDefaultAdminAndConfig() {
     store.users[uid] = {
       uid,
       username: ADMIN_USERNAME,
-      displayName: 'Quản trị viên',
+      displayName: ADMIN_DISPLAY_NAME,
       role: 'admin',
       isCreateAccount: true,
       isLogin: false,
@@ -369,17 +457,22 @@ async function seedDefaultAdminAndConfig() {
 
     store.usernames[norm] = { uid, createdAt: now };
     store.admins[uid] = { uid, createdAt: now };
-    console.log(`Seeded default admin account: ${ADMIN_USERNAME}`);
+    console.log(`Seeded default admin account: ${ADMIN_USERNAME} (${ADMIN_DISPLAY_NAME})`);
   } else {
     const uid = store.usernames[norm].uid;
     if (store.users[uid]) {
       store.users[uid].role = 'admin';
       store.users[uid].isCreateAccount = true;
+      if (!store.users[uid].displayName || store.users[uid].displayName === 'Quản trị viên') {
+        store.users[uid].displayName = ADMIN_DISPLAY_NAME;
+      }
     }
     store.admins[uid] = { uid, createdAt: now };
   }
 
   const adminUid = store.usernames[norm]?.uid || `admin_${norm}`;
+  const adminDisplayName = store.users[adminUid]?.displayName || ADMIN_DISPLAY_NAME;
+
   for (const mode of ['blitz', 'standard', 'dark'] as RatedMode[]) {
     const docId = `${adminUid}_${mode}`;
     if (!store.ratings[docId]) {
@@ -387,20 +480,24 @@ async function seedDefaultAdminAndConfig() {
         docId,
         uid: adminUid,
         username: ADMIN_USERNAME,
-        displayName: store.users[adminUid]?.displayName || 'Thắng NC',
+        displayName: adminDisplayName,
         mode,
-        elo: 1301,
-        gamesPlayed: 3,
-        wins: 1,
-        losses: 2,
+        elo: DEFAULT_INITIAL_ELO,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
         draws: 0,
-        provisional: false,
+        provisional: true,
         decayApplied: false,
         hiddenFromLeaderboard: false,
-        lastRatedGameAt: now,
+        lastRatedGameAt: 0,
         recentOpponents: [],
         updatedAt: now,
       };
+    } else {
+      if (!store.ratings[docId].displayName || store.ratings[docId].displayName === 'Quản trị viên') {
+        store.ratings[docId].displayName = adminDisplayName;
+      }
     }
   }
 
@@ -445,8 +542,141 @@ function persistRoomSnapshot(room: LiveRoom) {
   mirrorToFirestore('rooms', room.code, snap);
 }
 
+function hydrateLiveRoomsFromStore() {
+  const now = Date.now();
+  let count = 0;
+  for (const [code, snap] of Object.entries(store.rooms)) {
+    if (!snap) continue;
+    // Don't restore finished games
+    if (snap.status === 'finished') continue;
+    // Clean up stale abandoned waiting rooms older than 24 hours
+    if (snap.updatedAt && now - snap.updatedAt > 24 * 3600 * 1000) {
+      delete store.rooms[code];
+      mirrorToFirestore('rooms', code, null);
+      continue;
+    }
+
+    try {
+      const mode: RatedMode = snap.mode || 'blitz';
+      const cfg = getAdminConfig();
+      const tc = getTimeControlForMode(mode, cfg);
+
+      const { board } = snap.fen
+        ? parseFen(snap.fen)
+        : (mode === 'dark' ? createDarkXiangqiBoard() : parseFen(INITIAL_FEN));
+
+      const redUser = snap.redUid ? store.users[snap.redUid] : null;
+      const blackUser = snap.blackUid ? store.users[snap.blackUid] : null;
+
+      const room: LiveRoom = {
+        code,
+        mode,
+        hostUid: snap.hostUid || snap.redUid || '',
+        status: snap.status === 'playing' ? 'playing' : 'waiting',
+        redPlayer: snap.redUid
+          ? {
+              uid: snap.redUid,
+              username: snap.redName || redUser?.username || 'Đỏ',
+              displayName: redUser?.displayName || snap.redName,
+              elo: getUserModeElo(snap.redUid, snap.redName || redUser?.username, mode),
+              connected: false,
+            }
+          : null,
+        blackPlayer: snap.blackUid
+          ? {
+              uid: snap.blackUid,
+              username: snap.blackName || blackUser?.username || 'Đen',
+              displayName: blackUser?.displayName || snap.blackName,
+              elo: getUserModeElo(snap.blackUid, snap.blackName || blackUser?.username, mode),
+              connected: false,
+            }
+          : null,
+        spectators: [],
+        board,
+        turn: snap.turn || 'r',
+        initialFen: snap.initialFen || INITIAL_FEN,
+        fenHistory: [],
+        checkHistory: [],
+        moves: store.moves[code] || [],
+        redTimeMs: snap.redTimeMs ?? tc.totalMs,
+        blackTimeMs: snap.blackTimeMs ?? tc.totalMs,
+        moveTimeLimitMs: snap.moveTimeLimitMs ?? tc.moveLimitMs,
+        incrementMs: snap.incrementMs ?? tc.incrementMs,
+        currentMoveRemainingMs: snap.currentMoveRemainingMs ?? tc.moveLimitMs,
+        lastTickAt: now,
+        turnDeadline: snap.turnDeadline || 0,
+        drawOfferBy: null,
+        chat: [],
+        createdAt: snap.createdAt || now,
+        updatedAt: snap.updatedAt || now,
+      };
+
+      liveRooms.set(code, room);
+      count++;
+    } catch (e) {
+      console.warn(`Failed to hydrate room ${code}:`, e);
+    }
+  }
+  saveStore();
+  console.log(`Hydrated ${count} active rooms from store into liveRooms memory.`);
+}
+
+function getRoomListSummary(modeFilter?: string) {
+  const allRooms = Array.from(liveRooms.values()).filter((r) => r.status !== 'finished');
+
+  const counts = {
+    all: allRooms.length,
+    blitz: allRooms.filter((r) => r.mode === 'blitz').length,
+    standard: allRooms.filter((r) => r.mode === 'standard').length,
+    dark: allRooms.filter((r) => r.mode === 'dark').length,
+  };
+
+  const filtered = allRooms.filter(
+    (r) => !modeFilter || modeFilter === 'all' || r.mode === modeFilter
+  );
+
+  const rooms = filtered.map((r) => ({
+    code: r.code,
+    mode: r.mode,
+    status: r.status,
+    hostUid: r.hostUid,
+    hostName:
+      (r.hostUid === r.redPlayer?.uid ? (r.redPlayer?.displayName || r.redPlayer?.username) : undefined) ||
+      (r.hostUid === r.blackPlayer?.uid ? (r.blackPlayer?.displayName || r.blackPlayer?.username) : undefined) ||
+      r.spectators.find((s) => s.uid === r.hostUid)?.displayName ||
+      r.redPlayer?.displayName ||
+      r.redPlayer?.username ||
+      r.blackPlayer?.displayName ||
+      r.blackPlayer?.username ||
+      'Chủ phòng',
+    redPlayer: r.redPlayer
+      ? {
+          uid: r.redPlayer.uid,
+          username: r.redPlayer.username,
+          displayName: r.redPlayer.displayName || r.redPlayer.username,
+          elo: r.redPlayer.elo,
+        }
+      : null,
+    blackPlayer: r.blackPlayer
+      ? {
+          uid: r.blackPlayer.uid,
+          username: r.blackPlayer.username,
+          displayName: r.blackPlayer.displayName || r.blackPlayer.username,
+          elo: r.blackPlayer.elo,
+        }
+      : null,
+    playerCount: (r.redPlayer ? 1 : 0) + (r.blackPlayer ? 1 : 0),
+    spectatorCount: r.spectators.length,
+    createdAt: r.createdAt,
+  }));
+
+  return { rooms, counts };
+}
+
 async function startServer() {
+  await loadStoreFromFirestore();
   await seedDefaultAdminAndConfig();
+  hydrateLiveRoomsFromStore();
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -476,6 +706,10 @@ async function startServer() {
         });
       }
     }
+  }
+
+  function broadcastRoomListUpdate() {
+    io.emit('room:list_updated', getRoomListSummary());
   }
 
   // ==================== AUTHENTICATION API ====================
@@ -913,19 +1147,71 @@ async function startServer() {
 
       saveStore();
       mirrorToFirestore('games', gameId, gameDoc);
+      mirrorToFirestore('moves', gameId, { moves: store.moves[gameId] });
       return res.json({ game: gameDoc });
     } catch (e) {
       return res.status(500).json({ error: 'Lỗi lưu ván cờ' });
     }
   });
 
+  app.get('/api/rooms', (req, res) => {
+    const mode = String(req.query.mode || 'all').trim();
+    return res.json(getRoomListSummary(mode));
+  });
+
   app.get('/api/games', (req, res) => {
-    const uid = String(req.query.uid || '');
+    const rawUid = String(req.query.uid || '').trim();
     let list = Object.values(store.games).sort((a, b) => b.createdAt - a.createdAt);
-    if (uid) {
-      list = list.filter((g) => g.redUid === uid || g.blackUid === uid);
+
+    if (rawUid) {
+      const q = rawUid.toLowerCase();
+      const targetIds = new Set<string>([rawUid, q]);
+      const targetNames = new Set<string>([rawUid, q]);
+
+      if (q.startsWith('admin_')) {
+        const pure = q.slice(6);
+        targetIds.add(pure);
+        targetNames.add(pure);
+      } else {
+        targetIds.add(`admin_${q}`);
+      }
+
+      // Match with known users
+      const u =
+        store.users[rawUid] ||
+        store.users[q] ||
+        Object.values(store.users).find(
+          (user) => user.username?.toLowerCase() === q || user.displayName?.toLowerCase() === q
+        );
+
+      if (u) {
+        targetIds.add(u.uid);
+        targetIds.add(u.uid.toLowerCase());
+        if (u.username) {
+          targetNames.add(u.username);
+          targetNames.add(u.username.toLowerCase());
+        }
+        if (u.displayName) {
+          targetNames.add(u.displayName);
+          targetNames.add(u.displayName.toLowerCase());
+        }
+      }
+
+      list = list.filter((g) => {
+        const rUid = String(g.redUid || '').toLowerCase();
+        const bUid = String(g.blackUid || '').toLowerCase();
+        const rName = String(g.redName || '').toLowerCase();
+        const bName = String(g.blackName || '').toLowerCase();
+        return (
+          targetIds.has(rUid) ||
+          targetIds.has(bUid) ||
+          targetNames.has(rName) ||
+          targetNames.has(bName)
+        );
+      });
     }
-    return res.json({ games: list.slice(0, 40) });
+
+    return res.json({ games: list.slice(0, 50) });
   });
 
   app.get('/api/games/:id', (req, res) => {
@@ -1015,7 +1301,7 @@ async function startServer() {
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((u) => ({
         ...u,
-        ratings: ratingsByUid[u.uid] || { blitz: 1200, standard: 1200, dark: 1200 },
+        ratings: ratingsByUid[u.uid] || { blitz: DEFAULT_INITIAL_ELO, standard: DEFAULT_INITIAL_ELO, dark: DEFAULT_INITIAL_ELO },
       }));
 
     return res.json({
@@ -1079,14 +1365,14 @@ async function startServer() {
         };
       } else if (action === 'update_elo') {
         const mode = (payload?.mode as RatedMode) || 'blitz';
-        const newElo = Math.max(100, Math.min(3500, Number(payload?.elo || 1200)));
+        const newElo = Math.max(100, Math.min(3500, Number(payload?.elo || DEFAULT_INITIAL_ELO)));
         const rKey = `${targetUid}_${mode}`;
         getUserModeElo(targetUid, userData.username, mode);
         const existingRating = store.ratings[rKey];
-        const beforeElo = existingRating.elo ?? 1200;
+        const beforeElo = existingRating.elo ?? DEFAULT_INITIAL_ELO;
 
         existingRating.elo = newElo;
-        existingRating.peakElo = Math.max(newElo, existingRating.peakElo || 1200);
+        existingRating.peakElo = Math.max(newElo, existingRating.peakElo || DEFAULT_INITIAL_ELO);
         existingRating.hiddenFromLeaderboard = false;
         existingRating.updatedAt = now;
 
@@ -1322,10 +1608,10 @@ async function startServer() {
         const blackData = store.ratings[blackDocId];
 
         const eloRes = calculateMatchElo({
-          redElo: redData.elo ?? 1200,
+          redElo: redData.elo ?? DEFAULT_INITIAL_ELO,
           redGames: redData.gamesPlayed ?? 0,
           redProvisional: redData.provisional,
-          blackElo: blackData.elo ?? 1200,
+          blackElo: blackData.elo ?? DEFAULT_INITIAL_ELO,
           blackGames: blackData.gamesPlayed ?? 0,
           blackProvisional: blackData.provisional,
           outcome: winner,
@@ -1349,7 +1635,7 @@ async function startServer() {
         store.ratings[redDocId] = {
           ...redData,
           elo: eloRes.redAfter,
-          peakElo: Math.max(redData.peakElo || 1200, eloRes.redAfter),
+          peakElo: Math.max(redData.peakElo || DEFAULT_INITIAL_ELO, eloRes.redAfter),
           gamesPlayed: nextRedGames,
           wins: (redData.wins || 0) + (winner === 'red' ? 1 : 0),
           losses: (redData.losses || 0) + (winner === 'black' ? 1 : 0),
@@ -1368,7 +1654,7 @@ async function startServer() {
         store.ratings[blackDocId] = {
           ...blackData,
           elo: eloRes.blackAfter,
-          peakElo: Math.max(blackData.peakElo || 1200, eloRes.blackAfter),
+          peakElo: Math.max(blackData.peakElo || DEFAULT_INITIAL_ELO, eloRes.blackAfter),
           gamesPlayed: nextBlackGames,
           wins: (blackData.wins || 0) + (winner === 'black' ? 1 : 0),
           losses: (blackData.losses || 0) + (winner === 'red' ? 1 : 0),
@@ -1436,6 +1722,14 @@ async function startServer() {
         };
         store.moves[gameId] = room.moves;
         saveStore();
+
+        // Push game result, updated ratings, rating history, and moves directly to Firebase Firestore
+        mirrorToFirestore('games', gameId, store.games[gameId]);
+        mirrorToFirestore('ratings', redDocId, store.ratings[redDocId]);
+        mirrorToFirestore('ratings', blackDocId, store.ratings[blackDocId]);
+        mirrorToFirestore('ratingHistory', `hist_${now}_r`, store.ratingHistory[`hist_${now}_r`]);
+        mirrorToFirestore('ratingHistory', `hist_${now}_b`, store.ratingHistory[`hist_${now}_b`]);
+        mirrorToFirestore('moves', gameId, { moves: room.moves });
       } catch (err) {
         console.error('Error updating Elo after match:', err);
       }
@@ -1443,6 +1737,7 @@ async function startServer() {
 
     persistRoomSnapshot(room);
     io.to(room.code).emit('room:state', serializeRoomForClient(room));
+    broadcastRoomListUpdate();
 
     if (room.cleanupAfterFinish) {
       setTimeout(() => {
@@ -1450,6 +1745,8 @@ async function startServer() {
           liveRooms.delete(room.code);
           delete store.rooms[room.code];
           saveStore();
+          mirrorToFirestore('rooms', room.code, null);
+          broadcastRoomListUpdate();
         }
       }, 60_000);
     }
@@ -1569,30 +1866,10 @@ async function startServer() {
       socket.emit('pong:heartbeat', { t: Date.now() });
     });
 
-    socket.on('room:list', (payload: { mode?: RatedMode }, cb?: (res: any) => void) => {
+    socket.on('room:list', (payload: { mode?: string }, cb?: (res: any) => void) => {
       const modeFilter = payload?.mode;
-      const list = Array.from(liveRooms.values())
-        .filter((r) => (!modeFilter || r.mode === modeFilter) && r.status !== 'finished')
-        .map((r) => ({
-          code: r.code,
-          mode: r.mode,
-          status: r.status,
-          hostUid: r.hostUid,
-          hostName:
-            (r.hostUid === r.redPlayer?.uid ? r.redPlayer?.username : undefined) ||
-            (r.hostUid === r.blackPlayer?.uid ? r.blackPlayer?.username : undefined) ||
-            r.spectators.find((s) => s.uid === r.hostUid)?.username ||
-            r.redPlayer?.username ||
-            r.blackPlayer?.username ||
-            'Chủ phòng',
-          redPlayer: r.redPlayer ? { username: r.redPlayer.username, elo: r.redPlayer.elo } : null,
-          blackPlayer: r.blackPlayer
-            ? { username: r.blackPlayer.username, elo: r.blackPlayer.elo }
-            : null,
-          playerCount: (r.redPlayer ? 1 : 0) + (r.blackPlayer ? 1 : 0),
-          spectatorCount: r.spectators.length,
-        }));
-      if (typeof cb === 'function') cb({ rooms: list });
+      const data = getRoomListSummary(modeFilter);
+      if (typeof cb === 'function') cb(data);
     });
 
     socket.on(
@@ -1664,6 +1941,7 @@ async function startServer() {
           currentRoomCode = code;
           socket.join(code);
           persistRoomSnapshot(room);
+          broadcastRoomListUpdate();
 
           cb?.({ room: serializeRoomForClient(room) });
         } catch (e) {
@@ -1731,6 +2009,7 @@ async function startServer() {
           persistRoomSnapshot(room);
           const serialized = serializeRoomForClient(room);
           io.to(code).emit('room:state', serialized);
+          broadcastRoomListUpdate();
           cb?.({ room: serialized });
         } catch (e) {
           cb?.({ error: 'Lỗi vào phòng' });
@@ -1784,6 +2063,7 @@ async function startServer() {
           persistRoomSnapshot(room);
           const serialized = serializeRoomForClient(room);
           io.to(code).emit('room:state', serialized);
+          broadcastRoomListUpdate();
           cb?.({ room: serialized });
         } catch (e) {
           cb?.({ error: 'Lỗi đổi ghế' });
@@ -1832,6 +2112,7 @@ async function startServer() {
       persistRoomSnapshot(room);
       const serialized = serializeRoomForClient(room);
       io.to(code).emit('room:state', serialized);
+      broadcastRoomListUpdate();
       cb?.({ room: serialized });
     });
 
@@ -2045,6 +2326,8 @@ async function startServer() {
           liveRooms.delete(code);
           delete store.rooms[code];
           saveStore();
+          mirrorToFirestore('rooms', code, null);
+          broadcastRoomListUpdate();
           return;
         }
         if (room.hostUid === uid) {
@@ -2065,7 +2348,9 @@ async function startServer() {
         timestamp: now,
       });
 
+      persistRoomSnapshot(room);
       io.to(code).emit('room:state', serializeRoomForClient(room));
+      broadcastRoomListUpdate();
     });
 
     socket.on('disconnect', () => {
@@ -2115,8 +2400,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
-
-  await loadStoreFromFirestore();
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Xiangqi Master server running on http://0.0.0.0:${PORT}`);

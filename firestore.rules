@@ -18,12 +18,12 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if isValidId(userId);
+      allow read, write: if true;
     }
 
     // Usernames uniqueness registry
     match /usernames/{username} {
-      allow read, write: if isValidId(username);
+      allow read, write: if true;
     }
 
     // Server-only secret store for password hashes
@@ -33,40 +33,44 @@ service cloud.firestore {
 
     // Elo Ratings
     match /ratings/{ratingId} {
-      allow read, write: if isValidId(ratingId);
+      allow read, write: if true;
     }
 
     // Match games & moves
     match /games/{gameId} {
-      allow read, write: if isValidId(gameId);
+      allow read, write: if true;
 
       match /moves/{moveId} {
-        allow read, write: if isValidId(moveId);
+        allow read, write: if true;
       }
+    }
+
+    match /moves/{moveId} {
+      allow read, write: if true;
     }
 
     // Rating History
     match /ratingHistory/{historyId} {
-      allow read, write: if isValidId(historyId);
+      allow read, write: if true;
     }
 
     // Realtime game rooms
     match /rooms/{roomCode} {
-      allow read, write: if isValidId(roomCode);
+      allow read, write: if true;
     }
 
     // System configuration
     match /adminConfig/{configId} {
-      allow read, write: if isValidId(configId);
+      allow read, write: if true;
     }
 
     // Backward-compatibility collections for competition accounts & ranked matches
     match /competition_accounts/{username} {
-      allow read, write: if isValidId(username);
+      allow read, write: if true;
     }
 
     match /ranked_matches/{matchId} {
-      allow read, write: if isValidId(matchId);
+      allow read, write: if true;
     }
   }
 }

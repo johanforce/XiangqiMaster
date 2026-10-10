@@ -512,12 +512,77 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   <div className="py-8 text-center text-xs text-stone-500">Chưa có ván đấu nào được lưu</div>
                 ) : (
                   playerGames.map((g) => {
-                    const isRedPlayer = g.redUid === selectedPlayer.uid;
-                    const opponentName = isRedPlayer ? g.blackName : g.redName;
-                    const isWin =
-                      (g.winner === 'red' && isRedPlayer) ||
-                      (g.winner === 'black' && !isRedPlayer);
-                    const isDraw = g.winner === 'draw';
+                    const uId = String(selectedPlayer.uid || '').toLowerCase();
+                    const uName = String(selectedPlayer.username || '').toLowerCase();
+                    const dName = String(selectedPlayer.displayName || '').toLowerCase();
+
+                    const rUid = String(g.redUid || '').toLowerCase();
+                    const bUid = String(g.blackUid || '').toLowerCase();
+                    const rName = String(g.redName || '').toLowerCase();
+                    const bName = String(g.blackName || '').toLowerCase();
+
+                    const isRed =
+                      (Boolean(rUid) &&
+                        (rUid === uId ||
+                          rUid === uName ||
+                          rUid === `admin_${uName}` ||
+                          (uId.startsWith('admin_') && rUid === uId.replace('admin_', '')))) ||
+                      (Boolean(uName) && rName === uName) ||
+                      (Boolean(dName) && rName === dName);
+
+                    const isBlack =
+                      (Boolean(bUid) &&
+                        (bUid === uId ||
+                          bUid === uName ||
+                          bUid === `admin_${uName}` ||
+                          (uId.startsWith('admin_') && bUid === uId.replace('admin_', '')))) ||
+                      (Boolean(uName) && bName === uName) ||
+                      (Boolean(dName) && bName === dName);
+
+                    // Check winner flag: handle 'r', 'red', 'b', 'black', 'draw', etc.
+                    const winnerNorm = String(g.winner || '').trim().toLowerCase();
+                    const isRedWin = winnerNorm === 'r' || winnerNorm === 'red';
+                    const isBlackWin = winnerNorm === 'b' || winnerNorm === 'black';
+                    const isDrawResult =
+                      winnerNorm === 'draw' ||
+                      winnerNorm === 'd' ||
+                      winnerNorm === 'tie' ||
+                      winnerNorm === 'hòa' ||
+                      winnerNorm === 'hoa';
+
+                    let outcome: 'win' | 'draw' | 'loss' = 'loss';
+                    if (isDrawResult) {
+                      outcome = 'draw';
+                    } else if (isRed && isRedWin) {
+                      outcome = 'win';
+                    } else if (isBlack && isBlackWin) {
+                      outcome = 'win';
+                    } else if (isRed && isBlackWin) {
+                      outcome = 'loss';
+                    } else if (isBlack && isRedWin) {
+                      outcome = 'loss';
+                    } else {
+                      // Fallback: check Elo delta if available
+                      const eloDelta = isRed ? g.redEloDelta : isBlack ? g.blackEloDelta : undefined;
+                      if (typeof eloDelta === 'number') {
+                        if (eloDelta > 0) outcome = 'win';
+                        else if (eloDelta < 0) outcome = 'loss';
+                        else outcome = 'draw';
+                      } else {
+                        outcome = 'draw';
+                      }
+                    }
+
+                    const isWin = outcome === 'win';
+                    const isDraw = outcome === 'draw';
+                    const opponentName = isRed ? g.blackName || 'Đối thủ' : g.redName || 'Đối thủ';
+                    const playerColor = isRed ? 'Đỏ' : isBlack ? 'Đen' : '';
+                    const eloDelta = isRed ? g.redEloDelta : isBlack ? g.blackEloDelta : undefined;
+
+                    const viewerPayload =
+                      g.initialFen && g.initialFen !== 'rnbakabnr/9/1c5c1/s1p1p1p1s/9/9/S1P1P1P1S/1C5C1/9/RNBAKABNR r - - 0 1'
+                        ? `[FEN "${g.initialFen}"]\n${g.wxfText || ''}`
+                        : (g.wxfText || '');
 
                     return (
                       <div
@@ -525,13 +590,13 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                         className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800/80 flex items-center justify-between gap-3 text-xs"
                       >
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
                               className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
                                 isWin
                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                   : isDraw
-                                  ? 'bg-stone-800 text-stone-300'
+                                  ? 'bg-stone-800 text-stone-300 border border-stone-700'
                                   : 'bg-red-500/20 text-red-300 border border-red-500/40'
                               }`}
                             >
@@ -540,9 +605,39 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                             <span className="font-semibold text-stone-200 truncate">
                               vs {opponentName}
                             </span>
+                            {playerColor && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                                  playerColor === 'Đỏ'
+                                    ? 'bg-red-950/60 text-red-400 border border-red-900/40'
+                                    : 'bg-stone-800 text-stone-300 border border-stone-700'
+                                }`}
+                              >
+                                {playerColor === 'Đỏ' ? 'Cầm Đỏ' : 'Cầm Đen'}
+                              </span>
+                            )}
+                            {typeof eloDelta === 'number' && (
+                              <span
+                                className={`text-[10px] font-mono-num font-bold ${
+                                  eloDelta > 0
+                                    ? 'text-emerald-400'
+                                    : eloDelta < 0
+                                    ? 'text-red-400'
+                                    : 'text-stone-400'
+                                }`}
+                              >
+                                {eloDelta > 0 ? `+${eloDelta}` : eloDelta} Elo
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[11px] text-stone-400 mt-1 flex items-center gap-2">
+                          <div className="text-[11px] text-stone-400 mt-1 flex items-center gap-2 flex-wrap">
                             <span>{g.mode === 'blitz' ? 'Cờ chớp' : g.mode === 'dark' ? 'Cờ úp' : 'Tiêu chuẩn'}</span>
+                            {g.reason && (
+                              <>
+                                <span>·</span>
+                                <span className="text-stone-300 font-medium">{g.reason}</span>
+                              </>
+                            )}
                             <span>·</span>
                             <span>{new Date(g.createdAt).toLocaleDateString('vi-VN')}</span>
                           </div>
@@ -551,7 +646,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                         {g.wxfText && onOpenViewer && (
                           <button
                             onClick={() => {
-                              onOpenViewer(g.wxfText);
+                              onOpenViewer(viewerPayload);
                               setSelectedPlayer(null);
                             }}
                             className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium whitespace-nowrap transition-colors"

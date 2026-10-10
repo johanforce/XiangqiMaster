@@ -57,7 +57,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   // Inline states for password reset / Elo edit instead of window.prompt
   const [editingEloUid, setEditingEloUid] = useState<string | null>(null);
   const [editEloMode, setEditEloMode] = useState<RatedMode>('blitz');
-  const [editEloVal, setEditEloVal] = useState<number>(1200);
+  const [editEloVal, setEditEloVal] = useState<number>(1300);
   const [resetPassUid, setResetPassUid] = useState<string | null>(null);
   const [resetPassVal, setResetPassVal] = useState('123456');
 
@@ -303,10 +303,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               <tbody className="divide-y divide-stone-800/60">
                 {pagedUsers.map((u) => (
                   <tr key={u.uid} className="hover:bg-stone-800/30">
-                    <td className="py-3 px-3 font-semibold text-stone-100">
-                      {u.username}{' '}
-                      {u.role === 'admin' && (
-                        <span className="text-amber-400 font-normal">· Admin</span>
+                    <td className="py-3 px-3">
+                      <div className="font-semibold text-stone-100 flex items-center gap-1.5">
+                        <span>{u.displayName || u.username}</span>
+                        {u.role === 'admin' && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">Admin</span>
+                        )}
+                      </div>
+                      {u.displayName && u.displayName !== u.username && (
+                        <div className="text-xs text-stone-400 font-normal">@{u.username}</div>
                       )}
                     </td>
                     <td className="py-3 px-3">
@@ -326,8 +331,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                       {u.isLogin ? 'Đang hoạt động' : 'Ngoại tuyến'}
                     </td>
                     <td className="py-3 px-3 font-mono-num text-stone-300">
-                      {u.ratings?.blitz ?? 1200} / {u.ratings?.standard ?? 1200} /{' '}
-                      {u.ratings?.dark ?? 1200}
+                      {u.ratings?.blitz ?? 1300} / {u.ratings?.standard ?? 1300} /{' '}
+                      {u.ratings?.dark ?? 1300}
                     </td>
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -355,7 +360,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                         <button
                           onClick={() => {
                             setEditingEloUid(editingEloUid === u.uid ? null : u.uid);
-                            setEditEloVal(u.ratings?.blitz ?? 1200);
+                            setEditEloVal(u.ratings?.blitz ?? 1300);
                           }}
                           title="Sửa Elo thủ công"
                           className="px-2 py-1.5 rounded-lg bg-stone-800 text-amber-300 hover:bg-stone-700"
@@ -403,7 +408,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                             onChange={(e) => {
                               const m = e.target.value as RatedMode;
                               setEditEloMode(m);
-                              setEditEloVal(u.ratings?.[m] ?? 1200);
+                              setEditEloVal(u.ratings?.[m] ?? 1300);
                             }}
                             className="rounded-lg bg-stone-900 border border-stone-700 px-2 py-1 text-xs text-stone-200"
                           >
@@ -658,7 +663,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               />
             </div>
             <div>
-              <label className="block text-stone-400 mb-1">Ngày reset Elo (1200)</label>
+              <label className="block text-stone-400 mb-1">Ngày reset Elo (1300)</label>
               <input
                 type="number"
                 value={config.resetDays}

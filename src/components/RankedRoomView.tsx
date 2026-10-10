@@ -24,6 +24,7 @@ import {
   Eye,
   Swords,
   Radio,
+  Trophy,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
 import { parseFen, Pos } from '../shared/xiangqi';
@@ -63,9 +64,15 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   onOpenAuth,
   onToast,
 }) => {
-  const [selectedMode, setSelectedMode] = useState<RatedMode>('blitz');
+  const [selectedMode, setSelectedMode] = useState<RatedMode | 'all'>('all');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [openRooms, setOpenRooms] = useState<any[]>([]);
+  const [roomCounts, setRoomCounts] = useState<{ all: number; blitz: number; standard: number; dark: number }>({
+    all: 0,
+    blitz: 0,
+    standard: 0,
+    dark: 0,
+  });
   const [chatInput, setChatInput] = useState('');
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewPly, setReviewPly] = useState(0);
@@ -75,15 +82,36 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   const lastSeenChatLengthRef = useRef(0);
 
   const fetchOpenRooms = () => {
-    if (!socket) return;
-    socket.emit('room:list', { mode: selectedMode }, (res: any) => {
-      if (res?.rooms) setOpenRooms(res.rooms);
-    });
+    if (socket && socket.connected) {
+      socket.emit('room:list', { mode: selectedMode }, (res: any) => {
+        if (res?.rooms) setOpenRooms(res.rooms);
+        if (res?.counts) setRoomCounts(res.counts);
+      });
+    }
+    // HTTP fallback & immediate fetch
+    fetch(`/api/rooms?mode=${selectedMode}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.rooms) setOpenRooms(data.rooms);
+        if (data?.counts) setRoomCounts(data.counts);
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
     fetchOpenRooms();
-    const timer = setInterval(fetchOpenRooms, 3500);
+    const timer = setInterval(fetchOpenRooms, 3000);
+    if (socket) {
+      const onListUpdate = (data: any) => {
+        if (data?.counts) setRoomCounts(data.counts);
+        fetchOpenRooms();
+      };
+      socket.on('room:list_updated', onListUpdate);
+      return () => {
+        clearInterval(timer);
+        socket.off('room:list_updated', onListUpdate);
+      };
+    }
     return () => clearInterval(timer);
   }, [socket, selectedMode, activeRoom]);
 
@@ -265,9 +293,38 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   // =========================================================================
   if (!activeRoom) {
     const modeConfigs = [
-      { id: 'blitz', label: 'Cờ chớp', sub: '5 phút + 3s', icon: Flame, color: 'from-amber-600/30 via-orange-600/20 to-stone-900' },
-      { id: 'standard', label: 'Tiêu chuẩn', sub: '30p · 2p/nước', icon: Clock, color: 'from-emerald-600/30 via-teal-600/20 to-stone-900' },
-      { id: 'dark', label: 'Cờ úp', sub: '15p · 2p/nước', icon: EyeOff, color: 'from-purple-600/30 via-indigo-600/20 to-stone-900' },
+      {
+        id: 'all',
+        label: 'Tất cả phòng',
+        sub: 'Toàn bộ sảnh đấu',
+        icon: Swords,
+        count: roomCounts.all,
+        color: 'from-amber-600/30 via-orange-600/20 to-stone-900',
+      },
+      {
+        id: 'blitz',
+        label: 'Cờ chớp',
+        sub: '5 phút + 3s',
+        icon: Flame,
+        count: roomCounts.blitz,
+        color: 'from-orange-600/30 via-amber-600/20 to-stone-900',
+      },
+      {
+        id: 'standard',
+        label: 'Tiêu chuẩn',
+        sub: '30p · 2p/nước',
+        icon: Clock,
+        count: roomCounts.standard,
+        color: 'from-emerald-600/30 via-teal-600/20 to-stone-900',
+      },
+      {
+        id: 'dark',
+        label: 'Cờ úp',
+        sub: '15p · 2p/nước',
+        icon: EyeOff,
+        count: roomCounts.dark,
+        color: 'from-purple-600/30 via-indigo-600/20 to-stone-900',
+      },
     ] as const;
 
     return (
@@ -300,14 +357,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             <div className="flex items-center gap-2 shrink-0">
               <div className="px-3 py-1.5 rounded-xl bg-stone-950/80 border border-stone-800 text-xs font-mono-num text-stone-300 flex items-center gap-2 shadow-inner">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{openRooms.length} phòng đang mở</span>
+                <span>{roomCounts.all} phòng đang mở</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 1. Thanh chọn thể loại thi đấu (3 Thẻ nghệ thuật) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {/* 1. Thanh chọn thể loại thi đấu (4 Thẻ nghệ thuật bao gồm Tất cả) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {modeConfigs.map((item) => {
             const Icon = item.icon;
             const active = selectedMode === item.id;
@@ -315,7 +372,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <button
                 key={item.id}
                 onClick={() => setSelectedMode(item.id)}
-                className={`group relative p-4 rounded-2xl border text-left transition-all duration-200 overflow-hidden min-h-[92px] flex flex-col justify-between ${
+                className={`group relative p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-200 overflow-hidden min-h-[92px] flex flex-col justify-between ${
                   active
                     ? `bg-gradient-to-br ${item.color} border-amber-500 text-stone-100 shadow-[0_0_24px_rgba(245,158,11,0.2)] ring-1 ring-amber-400/60 -translate-y-0.5`
                     : 'bg-stone-900/85 hover:bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200 hover:border-stone-700'
@@ -331,18 +388,21 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   >
                     <Icon className="w-4.5 h-4.5" />
                   </div>
-                  {active ? (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 text-[10px] font-black uppercase tracking-wider shadow">
-                      Đang chọn
-                    </span>
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-stone-700 group-hover:bg-stone-500 transition-colors" />
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {item.count > 0 ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                        {item.count} phòng
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-stone-600 font-medium">0</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-2">
-                  <div className={`text-sm font-bold ${active ? 'text-stone-100' : 'text-stone-200'}`}>
-                    {item.label}
+                  <div className={`text-sm font-bold flex items-center gap-1.5 ${active ? 'text-amber-300' : 'text-stone-200'}`}>
+                    <span>{item.label}</span>
+                    {active && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
                   </div>
                   <div className="text-[11px] text-stone-400 font-mono-num mt-0.5">
                     {item.sub}
@@ -384,7 +444,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <RefreshCw className="w-4 h-4" />
             </button>
             <button
-              onClick={handleCreateRoom}
+              onClick={() => handleCreateRoom()}
               className="min-h-[42px] px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] active:scale-95"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -395,23 +455,56 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
         {/* 3. Danh sách phòng SẢNH dạng thẻ tổng hợp */}
         {openRooms.length === 0 ? (
-          /* Trạng thái rỗng: Icon + Nút Tạo phòng tối giản theo yêu cầu */
-          <div className="py-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-stone-900/60 border border-stone-800/80 p-8 text-center shadow-xl">
-            <div className="w-16 h-16 rounded-full bg-stone-950 border border-stone-800 flex items-center justify-center text-stone-500 shadow-inner">
-              <Swords className="w-8 h-8 stroke-[1.2]" />
+          roomCounts.all > 0 && selectedMode !== 'all' ? (
+            /* Có phòng ở thể loại khác nhưng thể loại hiện tại đang rỗng */
+            <div className="py-16 flex flex-col items-center justify-center gap-4 rounded-3xl bg-stone-900/60 border border-stone-800/80 p-8 text-center shadow-xl">
+              <div className="w-14 h-14 rounded-full bg-stone-950 border border-stone-800 flex items-center justify-center text-amber-400 shadow-inner">
+                <Swords className="w-7 h-7 stroke-[1.4]" />
+              </div>
+              <div className="space-y-1.5 max-w-md">
+                <div className="text-sm font-bold text-stone-200">
+                  Chưa có phòng nào cho thể loại này
+                </div>
+                <div className="text-xs text-amber-300">
+                  Đang có <strong className="font-extrabold underline">{roomCounts.all} phòng</strong> đang mở ở các thể loại khác!
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => setSelectedMode('all')}
+                  className="min-h-[42px] px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                >
+                  <Swords className="w-4 h-4 stroke-[2]" />
+                  <span>Xem tất cả {roomCounts.all} phòng đang mở</span>
+                </button>
+                <button
+                  onClick={() => handleCreateRoom()}
+                  className="min-h-[42px] px-5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs flex items-center gap-2 transition-all active:scale-95"
+                >
+                  <Plus className="w-4 h-4 stroke-[2]" />
+                  <span>Tạo phòng thể loại này</span>
+                </button>
+              </div>
             </div>
-            <div className="space-y-1">
-              <div className="text-sm font-bold text-stone-300">Chưa có phòng nào cho thể loại này</div>
-              <div className="text-xs text-stone-500">Hãy là người đầu tiên lập kỳ đài đón khách!</div>
+          ) : (
+            /* Hoàn toàn chưa có phòng nào */
+            <div className="py-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-stone-900/60 border border-stone-800/80 p-8 text-center shadow-xl">
+              <div className="w-16 h-16 rounded-full bg-stone-950 border border-stone-800 flex items-center justify-center text-stone-500 shadow-inner">
+                <Swords className="w-8 h-8 stroke-[1.2]" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-bold text-stone-300">Chưa có phòng nào đang mở</div>
+                <div className="text-xs text-stone-500">Hãy là người đầu tiên lập kỳ đài đón khách!</div>
+              </div>
+              <button
+                onClick={() => handleCreateRoom()}
+                className="min-h-[44px] px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Tạo phòng ngay</span>
+              </button>
             </div>
-            <button
-              onClick={handleCreateRoom}
-              className="min-h-[44px] px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Tạo phòng ngay</span>
-            </button>
-          </div>
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {openRooms.map((r) => {
@@ -655,7 +748,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           )}
                         </div>
                         <div className="text-xs font-mono-num font-bold text-amber-400 mt-0.5">
-                          {activeRoom.redPlayer.elo ?? 1200} xu
+                          {activeRoom.redPlayer.elo ?? 1300} xu
                         </div>
                       </div>
                     </div>
@@ -743,7 +836,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           )}
                         </div>
                         <div className="text-xs font-mono-num font-bold text-amber-400 mt-0.5">
-                          {activeRoom.blackPlayer.elo ?? 1200} xu
+                          {activeRoom.blackPlayer.elo ?? 1300} xu
                         </div>
                       </div>
                     </div>
@@ -843,7 +936,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                         </div>
                         {spec && (
                           <div className="text-[10px] text-amber-400 font-mono-num font-semibold">
-                            {spec.elo ?? 1200} xu
+                            {spec.elo ?? 1300} xu
                           </div>
                         )}
                       </div>
@@ -1060,7 +1153,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
             <div className="text-xs font-mono-num flex items-center gap-2 mt-0.5">
               <span className="font-semibold text-amber-400">
-                {seat?.elo ?? 1200} xu
+                {seat?.elo ?? 1300} xu
               </span>
               {seat && !seat.connected && (
                 <span className="text-red-400 flex items-center gap-1 font-sans text-[11px]">
@@ -1105,6 +1198,146 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
       {/* Cột giữa: Bàn cờ + Đồng hồ */}
       <div className="lg:col-span-7 flex flex-col items-center gap-3">
+        {/* 1. KHUNG ĐỀ NGHỊ HÒA CỜ (ƯU TIÊN ĐẦU TRANG ĐỂ DỄ CHÚ Ý) */}
+        {activeRoom.status === 'playing' &&
+          activeRoom.drawOfferBy &&
+          myColor &&
+          activeRoom.drawOfferBy !== myColor && (
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/15 border-2 border-amber-500 text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.3)] animate-pulse">
+              <div className="flex items-center gap-2.5 font-medium text-xs sm:text-sm text-amber-300">
+                <Handshake className="w-5 h-5 text-amber-400 shrink-0" />
+                <span>
+                  <strong className="text-amber-200">Đối thủ đề nghị hòa ván này!</strong> Bạn có chấp nhận không?
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() =>
+                    socket?.emit('game:draw_respond', {
+                      code: activeRoom.code,
+                      uid: currentUser.uid,
+                      accept: true,
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                >
+                  Đồng ý hòa
+                </button>
+                <button
+                  onClick={() =>
+                    socket?.emit('game:draw_respond', {
+                      code: activeRoom.code,
+                      uid: currentUser.uid,
+                      accept: false,
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold text-xs border border-stone-700 transition-all active:scale-95"
+                >
+                  Từ chối
+                </button>
+              </div>
+            </div>
+          )}
+
+        {/* 2. THANH TIẾN TRÌNH KẾT QUẢ VÁN ĐẤU (ƯU TIÊN ĐẦU TRANG KHI ĐẦU HÀNG HOẶC XONG GAME) */}
+        {activeRoom.status === 'finished' && (
+          <div className="w-full rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900 to-stone-900 border-2 border-amber-500/80 p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                <span className="text-base font-extrabold text-amber-300">
+                  {activeRoom.winner === 'red' || activeRoom.winner === 'r'
+                    ? 'Đỏ chiến thắng!'
+                    : activeRoom.winner === 'black' || activeRoom.winner === 'b'
+                    ? 'Đen chiến thắng!'
+                    : 'Hòa cờ!'}
+                </span>
+              </div>
+              <div className="px-3 py-1 rounded-lg bg-stone-950 border border-stone-800 text-xs text-amber-300/90 font-medium">
+                {activeRoom.endReason || 'Ván đấu đã kết thúc'}
+              </div>
+            </div>
+
+            {activeRoom.eloResult && (
+              <div className="grid grid-cols-2 gap-3 text-xs font-mono-num">
+                <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
+                  <span className="font-sans text-stone-300 truncate">
+                    {activeRoom.redPlayer?.displayName || activeRoom.redPlayer?.username}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className={
+                        activeRoom.eloResult.redDelta >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }
+                    >
+                      {activeRoom.eloResult.redAfter} (
+                      {activeRoom.eloResult.redDelta >= 0
+                        ? `+${activeRoom.eloResult.redDelta}`
+                        : activeRoom.eloResult.redDelta}
+                      )
+                    </span>
+                    {activeRoom.eloResult.redBoostPenalty > 0 && (
+                      <span
+                        title="Trừ điểm chống cày Elo"
+                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
+                      >
+                        −{activeRoom.eloResult.redBoostPenalty}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
+                  <span className="font-sans text-stone-300 truncate">
+                    {activeRoom.blackPlayer?.displayName || activeRoom.blackPlayer?.username}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className={
+                        activeRoom.eloResult.blackDelta >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }
+                    >
+                      {activeRoom.eloResult.blackAfter} (
+                      {activeRoom.eloResult.blackDelta >= 0
+                        ? `+${activeRoom.eloResult.blackDelta}`
+                        : activeRoom.eloResult.blackDelta}
+                      )
+                    </span>
+                    {activeRoom.eloResult.blackBoostPenalty > 0 && (
+                      <span
+                        title="Trừ điểm chống cày Elo"
+                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
+                      >
+                        −{activeRoom.eloResult.blackBoostPenalty}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setReviewMode(true);
+                  setReviewPly(moves.length);
+                }}
+                className="flex-1 min-h-[40px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Xem lại tàn cuộc</span>
+              </button>
+              <button
+                onClick={handleLeaveRoom}
+                className="flex-1 min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Thoát ra phòng chờ</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Thẻ đối thủ */}
         {renderPlayerBar(
           isBlack ? activeRoom.redPlayer : activeRoom.blackPlayer,
@@ -1215,136 +1448,6 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Khung đề nghị hòa cờ */}
-        {activeRoom.status === 'playing' &&
-          activeRoom.drawOfferBy &&
-          myColor &&
-          activeRoom.drawOfferBy !== myColor && (
-            <div className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-amber-950/60 border border-amber-600/60 text-xs text-amber-200 shadow-lg">
-              <span>Đối thủ đề nghị hòa ván này</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    socket?.emit('game:draw_respond', {
-                      code: activeRoom.code,
-                      uid: currentUser.uid,
-                      accept: true,
-                    })
-                  }
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold"
-                >
-                  Đồng ý
-                </button>
-                <button
-                  onClick={() =>
-                    socket?.emit('game:draw_respond', {
-                      code: activeRoom.code,
-                      uid: currentUser.uid,
-                      accept: false,
-                    })
-                  }
-                  className="px-3 py-1.5 rounded-lg bg-stone-800 text-stone-300"
-                >
-                  Từ chối
-                </button>
-              </div>
-            </div>
-          )}
-
-        {/* Kết quả ván đấu */}
-        {activeRoom.status === 'finished' && (
-          <div className="w-full rounded-2xl bg-stone-900 border border-amber-500/50 p-4 space-y-3 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold text-amber-400">
-                {activeRoom.winner === 'red'
-                  ? 'Đỏ chiến thắng!'
-                  : activeRoom.winner === 'black'
-                  ? 'Đen chiến thắng!'
-                  : 'Hòa cờ!'}
-              </div>
-              <div className="text-xs text-stone-400">{activeRoom.endReason}</div>
-            </div>
-
-            {activeRoom.eloResult && (
-              <div className="grid grid-cols-2 gap-3 text-xs font-mono-num">
-                <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
-                  <span className="font-sans text-stone-300 truncate">
-                    {activeRoom.redPlayer?.displayName || activeRoom.redPlayer?.username}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span
-                      className={
-                        activeRoom.eloResult.redDelta >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }
-                    >
-                      {activeRoom.eloResult.redAfter} (
-                      {activeRoom.eloResult.redDelta >= 0
-                        ? `+${activeRoom.eloResult.redDelta}`
-                        : activeRoom.eloResult.redDelta}
-                      )
-                    </span>
-                    {activeRoom.eloResult.redBoostPenalty > 0 && (
-                      <span
-                        title="Trừ điểm chống cày Elo"
-                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
-                      >
-                        −{activeRoom.eloResult.redBoostPenalty}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-between">
-                  <span className="font-sans text-stone-300 truncate">
-                    {activeRoom.blackPlayer?.displayName || activeRoom.blackPlayer?.username}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span
-                      className={
-                        activeRoom.eloResult.blackDelta >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      }
-                    >
-                      {activeRoom.eloResult.blackAfter} (
-                      {activeRoom.eloResult.blackDelta >= 0
-                        ? `+${activeRoom.eloResult.blackDelta}`
-                        : activeRoom.eloResult.blackDelta}
-                      )
-                    </span>
-                    {activeRoom.eloResult.blackBoostPenalty > 0 && (
-                      <span
-                        title="Trừ điểm chống cày Elo"
-                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
-                      >
-                        −{activeRoom.eloResult.blackBoostPenalty}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => {
-                  setReviewMode(true);
-                  setReviewPly(moves.length);
-                }}
-                className="flex-1 min-h-[40px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Xem lại tàn cuộc</span>
-              </button>
-              <button
-                onClick={handleLeaveRoom}
-                className="flex-1 min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Thoát ra phòng chờ</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Cột phải: 3 Tab (Ký Phổ, Khán Giả, Trò Chuyện) */}
@@ -1466,7 +1569,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                       </div>
                       <span className="font-semibold text-stone-200">{s.displayName || s.username}</span>
                     </div>
-                    <span className="text-stone-400 font-mono-num">{s.elo ?? 1200} xu</span>
+                    <span className="text-stone-400 font-mono-num">{s.elo ?? 1300} xu</span>
                   </div>
                 ))}
               </div>

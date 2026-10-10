@@ -79,7 +79,7 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(hugeGap.blackAfter).toBeGreaterThanOrEqual(100);
   });
 
-  it('evaluates 7-day decay (-20 once, floor 800) and >14-day reset (to 1200 provisional & hidden)', () => {
+  it('evaluates 7-day decay (-20 once, floor 800) and >14-day reset (to 1300 provisional & hidden)', () => {
     const dayMs = 86400000;
     const now = 1700000000000;
 
@@ -99,13 +99,13 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     );
     expect(noRepeat.action).toBe('none');
 
-    // 15 days inactive (>14 days): reset to 1200, provisional, hidden from leaderboard
+    // 15 days inactive (>14 days): reset to 1300, provisional, hidden from leaderboard
     const resetRes = evaluateInactivityDecay(
       { elo: 1650, gamesPlayed: 45, lastRatedGameAt: now - 15 * dayMs, decayApplied: true },
       now
     );
     expect(resetRes.action).toBe('reset');
-    expect(resetRes.afterElo).toBe(1200);
+    expect(resetRes.afterElo).toBe(1300);
     expect(resetRes.provisional).toBe(true);
     expect(resetRes.hiddenFromLeaderboard).toBe(true);
   });

@@ -416,7 +416,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="p-3 rounded-xl bg-stone-950/60 border border-stone-800/60 space-y-1">
               <div className="font-semibold text-amber-300">Hệ Thống Elo Real-time</div>
               <p className="text-stone-400 leading-relaxed text-[11px]">
-                Mỗi người chơi bắt đầu từ 1200 Elo. Điểm số tăng giảm dựa trên chênh lệch Elo đối thủ, tích hợp cơ chế chống cày điểm lặp lại.
+                Mỗi người chơi bắt đầu từ 1300 Elo. Điểm số tăng giảm dựa trên chênh lệch Elo đối thủ, tích hợp cơ chế chống cày điểm lặp lại.
               </p>
             </div>
           </div>

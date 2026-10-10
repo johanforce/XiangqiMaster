@@ -15,6 +15,8 @@ export interface EloConfig {
   cleanupHour: number; // default 22
 }
 
+export const DEFAULT_INITIAL_ELO = 1300;
+
 export const DEFAULT_ELO_CONFIG: EloConfig = {
   antiBoostWindowGames: 5,
   antiBoostThreshold: 2,
@@ -163,7 +165,7 @@ export function calculateMatchElo(input: EloMatchInput): EloMatchResult {
  * Evaluates inactivity decay/reset for a player's rating record at 00:05 daily cron:
  * - Only applies to players with at least 1 rated game (`gamesPlayed >= 1` and `lastRatedGameAt > 0`).
  * - `inactiveDays = Math.floor((nowMs - lastRatedGameAt) / 86400000)`
- * - If `inactiveDays > resetDays` (default 14): reset Elo to 1200, `provisional = true`,
+ * - If `inactiveDays > resetDays` (default 14): reset Elo to DEFAULT_INITIAL_ELO (1300), `provisional = true`,
  *   `hiddenFromLeaderboard = true`, `gamesPlayedSinceReset = 0`.
  * - Else if `inactiveDays >= decayDays` (default 7) and `!decayApplied`:
  *   subtract `decayPenalty` (default 20) once, floor 800, set `decayApplied = true`.
@@ -202,10 +204,10 @@ export function evaluateInactivityDecay(
   const inactiveDays = Math.floor((nowMs - rating.lastRatedGameAt) / (1000 * 60 * 60 * 24));
 
   if (inactiveDays > cfg.resetDays) {
-    if (rating.hiddenFromLeaderboard && rating.provisional && rating.elo === 1200) {
+    if (rating.hiddenFromLeaderboard && rating.provisional && rating.elo === DEFAULT_INITIAL_ELO) {
       return {
         action: 'none',
-        afterElo: 1200,
+        afterElo: DEFAULT_INITIAL_ELO,
         delta: 0,
         decayApplied: true,
         hiddenFromLeaderboard: true,
@@ -214,8 +216,8 @@ export function evaluateInactivityDecay(
     }
     return {
       action: 'reset',
-      afterElo: 1200,
-      delta: 1200 - rating.elo,
+      afterElo: DEFAULT_INITIAL_ELO,
+      delta: DEFAULT_INITIAL_ELO - rating.elo,
       decayApplied: true,
       hiddenFromLeaderboard: true,
       provisional: true,

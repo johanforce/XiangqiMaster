@@ -365,10 +365,31 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
               {savedGames.map((g) => (
                 <button
                   key={g.id}
-                  onClick={() => {
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/games/${g.id}`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.moves && data.moves.length > 0) {
+                          setInitialFen(data.game?.initialFen || INITIAL_FEN);
+                          setMoves(data.moves);
+                          setRawInput(data.game?.wxfText || g.wxfText || '');
+                          setPlyIndex(0);
+                          setAutoPlay(false);
+                          onToast('Đã mở kỳ phổ ván đấu');
+                          return;
+                        }
+                      }
+                    } catch {
+                      // Fallback to text parsing
+                    }
                     if (g.wxfText) {
-                      setRawInput(g.wxfText);
-                      loadFromText(g.wxfText);
+                      const text =
+                        g.initialFen && g.initialFen !== INITIAL_FEN
+                          ? `[FEN "${g.initialFen}"]\n${g.wxfText}`
+                          : g.wxfText;
+                      setRawInput(text);
+                      loadFromText(text);
                       onToast('Đã mở kỳ phổ ván đấu');
                     }
                   }}
@@ -382,14 +403,18 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                     <span>·</span>
                     <span
                       className={
-                        g.winner === 'red'
-                          ? 'text-red-400'
-                          : g.winner === 'black'
-                          ? 'text-sky-400'
-                          : 'text-amber-400'
+                        g.winner === 'red' || g.winner === 'r'
+                          ? 'text-red-400 font-semibold'
+                          : g.winner === 'black' || g.winner === 'b'
+                          ? 'text-sky-400 font-semibold'
+                          : 'text-amber-400 font-semibold'
                       }
                     >
-                      {g.winner === 'red' ? 'Đỏ thắng' : g.winner === 'black' ? 'Đen thắng' : 'Hòa'}
+                      {g.winner === 'red' || g.winner === 'r'
+                        ? 'Đỏ thắng'
+                        : g.winner === 'black' || g.winner === 'b'
+                        ? 'Đen thắng'
+                        : 'Hòa'}
                     </span>
                   </div>
                 </button>

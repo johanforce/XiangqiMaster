@@ -274,6 +274,31 @@ export default function App() {
     };
   }, [currentUser?.uid, showToast]);
 
+  // Helper to persist finished AI game
+  const saveGameToServer = useCallback(
+    (winner: 'red' | 'black' | 'draw', reason: string, currentMoves = moves, finalFenStr = currentFen) => {
+      const aiLabel = AI_LEVELS.find((l) => l.id === aiDifficulty)?.name || 'Máy';
+      fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'ai',
+          redUid: playerSide === 'r' ? currentUser?.uid || 'guest' : 'ai',
+          redName: playerSide === 'r' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
+          blackUid: playerSide === 'b' ? currentUser?.uid || 'guest' : 'ai',
+          blackName:
+            playerSide === 'b' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
+          winner,
+          reason,
+          initialFen: INITIAL_FEN,
+          finalFen: finalFenStr,
+          moves: currentMoves,
+        }),
+      }).catch(() => {});
+    },
+    [aiDifficulty, currentUser, currentFen, moves, playerSide]
+  );
+
   // Execute a move in AI mode
   const executeAIModeMove = useCallback(
     (from: Pos, to: Pos) => {
@@ -319,25 +344,7 @@ export default function App() {
           (status.winner === 'black' && playerSide === 'b');
         sound.playGameEnd(won);
 
-        // Save finished game to server
-        const aiLabel = AI_LEVELS.find((l) => l.id === aiDifficulty)?.name || 'Máy';
-        fetch('/api/games', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: 'ai',
-            redUid: playerSide === 'r' ? currentUser?.uid || 'guest' : 'ai',
-            redName: playerSide === 'r' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
-            blackUid: playerSide === 'b' ? currentUser?.uid || 'guest' : 'ai',
-            blackName:
-              playerSide === 'b' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
-            winner: status.winner,
-            reason: status.reason,
-            initialFen: INITIAL_FEN,
-            finalFen: nextFen,
-            moves: nextMoves,
-          }),
-        }).catch(() => {});
+        saveGameToServer(status.winner as any, status.reason, nextMoves, nextFen);
       }
     },
     [
@@ -347,8 +354,7 @@ export default function App() {
       fenHistory,
       checkHistory,
       playerSide,
-      aiDifficulty,
-      currentUser,
+      saveGameToServer,
     ]
   );
 
@@ -606,9 +612,12 @@ export default function App() {
                 className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap"
               >
                 <User className="w-3.5 h-3.5 text-amber-400" />
-                <span>{currentUser.username}</span>
+                <span className="font-semibold text-stone-100">{currentUser.displayName || currentUser.username}</span>
                 {!currentUser.isCreateAccount && (
                   <span className="text-[10px] text-amber-400 font-normal">· Chờ duyệt</span>
+                )}
+                {currentUser.role === 'admin' && (
+                  <span className="text-[10px] text-amber-400/90 font-normal">· Admin</span>
                 )}
               </button>
               <button
@@ -682,7 +691,32 @@ export default function App() {
         {activeTab === 'ai' && (
           <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Center Xiangqi Board */}
-            <div className="lg:col-span-7 flex flex-col items-center justify-center">
+            <div className="lg:col-span-7 flex flex-col items-center justify-center w-full">
+              {/* Thanh tiến trình kết quả trận đấu trên đầu bàn cờ (khi kết thúc hoặc đầu hàng) */}
+              {gameResult.isOver && (
+                <div className="w-full mb-3 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900 to-stone-900 border-2 border-amber-500/80 p-3.5 flex items-center justify-between gap-3 shadow-2xl">
+                  <div className="flex items-center gap-2.5">
+                    <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                    <div>
+                      <div className="text-sm font-bold text-amber-300">
+                        {gameResult.winner === 'red'
+                          ? (playerSide === 'r' ? 'Bạn đã chiến thắng!' : 'Máy đã chiến thắng!')
+                          : gameResult.winner === 'black'
+                          ? (playerSide === 'b' ? 'Bạn đã chiến thắng!' : 'Máy đã chiến thắng!')
+                          : 'Ván đấu hòa cờ!'}
+                      </div>
+                      <div className="text-xs text-stone-300">{gameResult.reason}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => startNewAIGame(playerSide)}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shrink-0 transition-colors"
+                  >
+                    Ván mới
+                  </button>
+                </div>
+              )}
+
               <XiangqiBoard
                 board={board}
                 turn={turn}
@@ -727,11 +761,14 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!gameResult.isOver) {
-                      setGameResult({
+                      const res = {
                         isOver: true,
-                        winner: 'draw',
-                        reason: 'Hòa cờ',
-                      });
+                        winner: 'draw' as const,
+                        reason: 'Hòa cờ theo thỏa thuận',
+                      };
+                      setGameResult(res);
+                      sound.playGameEnd(false);
+                      saveGameToServer('draw', 'Hòa cờ theo thỏa thuận');
                     }
                   }}
                   disabled={gameResult.isOver}
@@ -744,11 +781,15 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!gameResult.isOver) {
-                      setGameResult({
+                      const resignWinner = playerSide === 'r' ? 'black' : 'red';
+                      const res = {
                         isOver: true,
-                        winner: playerSide === 'r' ? 'black' : 'red',
-                        reason: 'Đầu hàng',
-                      });
+                        winner: resignWinner as 'red' | 'black',
+                        reason: `${playerSide === 'r' ? 'Đỏ' : 'Đen'} xin đầu hàng`,
+                      };
+                      setGameResult(res);
+                      sound.playGameEnd(false);
+                      saveGameToServer(resignWinner, `${playerSide === 'r' ? 'Đỏ' : 'Đen'} xin đầu hàng`);
                     }
                   }}
                   disabled={gameResult.isOver}
