@@ -9,11 +9,8 @@ import {
   RotateCcw,
   Copy,
   FileText,
-  History,
-  FolderOpen,
-  Download,
-  Upload,
-  Share2,
+  ClipboardPaste,
+  Trash2,
 } from 'lucide-react';
 import {
   INITIAL_FEN,
@@ -24,6 +21,7 @@ import {
 import { XiangqiBoard } from './XiangqiBoard';
 import { BoardTheme } from '../utils/themes';
 import { sound } from '../utils/sound';
+import { navigateUrl, handleLinkClick } from '../utils/navigation';
 
 interface NotationViewerViewProps {
   theme: BoardTheme;
@@ -36,33 +34,74 @@ interface NotationViewerViewProps {
 export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
   theme,
   pieceCharMode,
-  uid,
   initialPgnText = '',
   onToast,
 }) => {
   const [rawInput, setRawInput] = useState(
-    initialPgnText || '1. C2.5 H8+7 2. H2+3 R9.8 3. R1.2 P7+1'
+    initialPgnText || ''
   );
   const [initialFen, setInitialFen] = useState(INITIAL_FEN);
   const [moves, setMoves] = useState<FormattedMove[]>([]);
-  const [plyIndex, setPlyIndex] = useState(0);
+  const [plyIndex, setPlyIndex] = useState<number>(() => {
+    const p = Number(new URLSearchParams(window.location.search).get('ply'));
+    return !Number.isNaN(p) && p >= 0 ? p : 0;
+  });
   const [autoPlay, setAutoPlay] = useState(false);
   const [flipped, setFlipped] = useState(false);
-  const [notationFormat, setNotationFormat] = useState<'wxf' | 'viet' | 'iccs'>('wxf');
-  const [savedGames, setSavedGames] = useState<any[]>([]);
-  const [loadingGames, setLoadingGames] = useState(false);
+  const [notationFormat, setNotationFormat] = useState<'wxf' | 'viet' | 'iccs'>(() => {
+    const f = new URLSearchParams(window.location.search).get('format');
+    return f === 'viet' || f === 'iccs' ? f : 'wxf';
+  });
 
-  const loadFromText = (text: string) => {
+  const buildViewerUrl = (fmt = notationFormat, ply = plyIndex) => {
+    const params = new URLSearchParams();
+    if (fmt !== 'wxf') params.set('format', fmt);
+    if (ply > 0) params.set('ply', String(ply));
+    const qs = params.toString();
+    return qs ? `/viewer?${qs}` : '/viewer';
+  };
+
+  const loadFromText = (text: string, keepUrlPly = false) => {
     const parsed = replayFromNotationText(text);
     setInitialFen(parsed.initialFen);
     setMoves(parsed.moves);
-    setPlyIndex(0);
+    if (keepUrlPly) {
+      const p = Number(new URLSearchParams(window.location.search).get('ply'));
+      const validPly = !Number.isNaN(p) && p >= 0 ? Math.min(parsed.moves.length, p) : 0;
+      setPlyIndex(validPly);
+    } else {
+      setPlyIndex(0);
+      navigateUrl(buildViewerUrl(notationFormat, 0), true);
+    }
     setAutoPlay(false);
   };
 
   useEffect(() => {
-    loadFromText(rawInput);
+    loadFromText(rawInput, true);
   }, []);
+
+  useEffect(() => {
+    const syncViewerUrl = () => {
+      if (!window.location.pathname.startsWith('/viewer')) return;
+      const params = new URLSearchParams(window.location.search);
+      const f = params.get('format');
+      if (f === 'wxf' || f === 'viet' || f === 'iccs') {
+        setNotationFormat(f);
+      } else {
+        setNotationFormat('wxf');
+      }
+      const p = params.get('ply');
+      if (p !== null && !Number.isNaN(Number(p))) {
+        setPlyIndex(Math.max(0, Math.min(moves.length, Number(p))));
+      }
+    };
+    window.addEventListener('popstate', syncViewerUrl);
+    window.addEventListener('app:locationchange', syncViewerUrl);
+    return () => {
+      window.removeEventListener('popstate', syncViewerUrl);
+      window.removeEventListener('app:locationchange', syncViewerUrl);
+    };
+  }, [moves.length]);
 
   useEffect(() => {
     if (initialPgnText) {
@@ -70,18 +109,6 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
       loadFromText(initialPgnText);
     }
   }, [initialPgnText]);
-
-  useEffect(() => {
-    setLoadingGames(true);
-    const url = uid ? `/api/games?uid=${encodeURIComponent(uid)}` : '/api/games';
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.games) setSavedGames(d.games);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingGames(false));
-  }, [uid]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -116,41 +143,19 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
     onToast('Đã sao chép kỳ phổ');
   };
 
-  const handleDownloadFile = () => {
-    const lines = moves.map((m, i) => {
-      const text =
-        notationFormat === 'wxf'
-          ? m.wxf
-          : notationFormat === 'viet'
-          ? m.viet
-          : m.iccs;
-      return i % 2 === 0 ? `${Math.floor(i / 2) + 1}. ${text}` : text;
-    });
-    const content = `[Event "Xiangqi Match"]\n[FEN "${initialFen}"]\n[Format "${notationFormat.toUpperCase()}"]\n[Date "${new Date().toISOString().slice(0, 10)}"]\n\n${lines.join(' ')}\n`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `xiangqi_game_${Date.now()}.${notationFormat === 'wxf' ? 'pgn' : 'txt'}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    onToast('Đã tải kỳ phổ về máy');
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target?.result as string;
-      if (text) {
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
         setRawInput(text);
         loadFromText(text);
-        onToast(`Đã nạp file: ${file.name}`);
+        onToast('Đã dán và nạp kỳ phổ từ bộ nhớ tạm');
+      } else {
+        onToast('Bộ nhớ tạm đang trống');
       }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+    } catch {
+      onToast('Vui lòng nhấn Ctrl+V vào ô nhập kỳ phổ');
+    }
   };
 
   return (
@@ -232,33 +237,11 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
             <Copy className="w-3.5 h-3.5" />
             <span>Sao chép</span>
           </button>
-          <button
-            onClick={handleDownloadFile}
-            title="Tải tệp kỳ phổ (.pgn / .txt)"
-            className="min-h-[44px] px-3 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tải về</span>
-          </button>
-          <label
-            title="Mở tệp kỳ phổ từ máy tính"
-            className="min-h-[44px] px-3 flex items-center gap-1.5 rounded-xl bg-stone-800 text-stone-200 hover:bg-stone-700 text-xs font-medium cursor-pointer transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5 text-amber-400" />
-            <span>Mở tệp</span>
-            <input
-              type="file"
-              accept=".pgn,.txt,.xq,.che"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
         </div>
       </div>
 
-      {/* Side Panel: Notation Input, Move List & Saved History */}
+      {/* Side Panel: Paste Notation & Move List Only */}
       <div className="lg:col-span-5 space-y-4">
-        {/* Paste Notation Box */}
         <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-stone-200">
@@ -266,34 +249,58 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
               <span>Trình xem kỳ phổ</span>
             </div>
             <div className="flex items-center gap-1 bg-stone-950 p-1 rounded-lg text-xs">
-              {(['wxf', 'viet', 'iccs'] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => setNotationFormat(fmt)}
-                  className={`px-2.5 py-1 rounded-md font-medium uppercase transition-colors ${
-                    notationFormat === fmt
-                      ? 'bg-amber-600 text-white'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {fmt}
-                </button>
-              ))}
+              {(['wxf', 'viet', 'iccs'] as const).map((fmt) => {
+                const fmtUrl = buildViewerUrl(fmt, plyIndex);
+                return (
+                  <a
+                    key={fmt}
+                    href={fmtUrl}
+                    onClick={(e) =>
+                      handleLinkClick(e, fmtUrl, () => setNotationFormat(fmt))
+                    }
+                    className={`px-2.5 py-1 rounded-md font-medium uppercase transition-colors ${
+                      notationFormat === fmt
+                        ? 'bg-amber-600 text-white'
+                        : 'text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    {fmt}
+                  </a>
+                );
+              })}
             </div>
           </div>
 
           <textarea
-            rows={3}
+            rows={5}
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
-            placeholder="Dán kỳ phổ WXF / ICCS / FEN..."
+            placeholder="Dán kỳ phổ đã sao chép (WXF / ICCS / FEN) vào đây..."
             className="w-full rounded-xl bg-stone-950 border border-stone-800 p-3 text-xs font-mono-num text-stone-200 focus:outline-none focus:border-amber-500"
           />
 
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-stone-400 font-mono-num truncate flex-1" title={currentFen}>
-              FEN: {currentFen}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handlePasteFromClipboard}
+                title="Dán nhanh từ bộ nhớ tạm"
+                className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <ClipboardPaste className="w-3.5 h-3.5 text-amber-400" />
+                <span>Dán kỳ phổ</span>
+              </button>
+              <button
+                onClick={() => {
+                  setRawInput('');
+                  loadFromText('');
+                }}
+                title="Xóa nội dung"
+                className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-stone-200 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <button
               onClick={() => {
                 loadFromText(rawInput);
@@ -305,122 +312,51 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
             </button>
           </div>
 
+          <div className="text-[11px] text-stone-400 font-mono-num truncate" title={currentFen}>
+            FEN: {currentFen}
+          </div>
+
           {/* Interactive Move List */}
-          <div className="max-h-48 overflow-y-auto rounded-xl bg-stone-950/80 border border-stone-800/80 p-2 grid grid-cols-2 gap-1 text-xs font-mono-num">
-            {moves.map((m, idx) => {
-              const active = plyIndex === idx + 1;
-              const label =
-                notationFormat === 'wxf'
-                  ? m.wxf
-                  : notationFormat === 'viet'
-                  ? m.viet
-                  : m.iccs;
-              return (
-                <button
-                  key={m.ply}
-                  onClick={() => {
-                    setAutoPlay(false);
-                    setPlyIndex(idx + 1);
-                  }}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                    active
-                      ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
-                      : 'text-stone-300 hover:bg-stone-800/70'
-                  }`}
-                >
-                  <span className="text-stone-500">
-                    {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
-                  </span>
-                  <span className="truncate ml-1.5">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Saved Games History */}
-        <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-200">
-            <History className="w-4 h-4 text-amber-500" />
-            <span>Lịch sử ván đấu</span>
-          </div>
-
-          {loadingGames ? (
-            <div className="space-y-2">
-              <div className="h-10 rounded-xl bg-stone-800/60 animate-pulse" />
-              <div className="h-10 rounded-xl bg-stone-800/60 animate-pulse" />
-            </div>
-          ) : savedGames.length === 0 ? (
-            <div className="py-6 flex flex-col items-center justify-center gap-2 text-stone-500">
-              <FolderOpen className="w-6 h-6" />
-              <button
-                onClick={() => loadFromText('1. C2.5 H8+7 2. H2+3 R9.8 3. R1.2 P7+1')}
-                className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-stone-200 transition-colors"
-              >
-                Xem ván mẫu
-              </button>
-            </div>
-          ) : (
-            <div className="max-h-48 overflow-y-auto space-y-1.5">
-              {savedGames.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/games/${g.id}`);
-                      if (res.ok) {
-                        const data = await res.json();
-                        if (data.moves && data.moves.length > 0) {
-                          setInitialFen(data.game?.initialFen || INITIAL_FEN);
-                          setMoves(data.moves);
-                          setRawInput(data.game?.wxfText || g.wxfText || '');
-                          setPlyIndex(0);
-                          setAutoPlay(false);
-                          onToast('Đã mở kỳ phổ ván đấu');
-                          return;
-                        }
-                      }
-                    } catch {
-                      // Fallback to text parsing
+          <div className="max-h-72 overflow-y-auto rounded-xl bg-stone-950/80 border border-stone-800/80 p-2 grid grid-cols-2 gap-1 text-xs font-mono-num">
+            {moves.length === 0 ? (
+              <div className="col-span-2 py-8 text-center text-stone-500 font-sans">
+                Dán kỳ phổ vào ô bên trên rồi bấm &ldquo;Nạp kỳ phổ&rdquo; để xem các nước đi
+              </div>
+            ) : (
+              moves.map((m, idx) => {
+                const active = plyIndex === idx + 1;
+                const label =
+                  notationFormat === 'wxf'
+                    ? m.wxf
+                    : notationFormat === 'viet'
+                    ? m.viet
+                    : m.iccs;
+                const moveUrl = buildViewerUrl(notationFormat, idx + 1);
+                return (
+                  <a
+                    key={m.ply}
+                    href={moveUrl}
+                    onClick={(e) =>
+                      handleLinkClick(e, moveUrl, () => {
+                        setAutoPlay(false);
+                        setPlyIndex(idx + 1);
+                      })
                     }
-                    if (g.wxfText) {
-                      const text =
-                        g.initialFen && g.initialFen !== INITIAL_FEN
-                          ? `[FEN "${g.initialFen}"]\n${g.wxfText}`
-                          : g.wxfText;
-                      setRawInput(text);
-                      loadFromText(text);
-                      onToast('Đã mở kỳ phổ ván đấu');
-                    }
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-stone-950/70 hover:bg-stone-800 border border-stone-800/70 text-xs transition-colors"
-                >
-                  <div className="truncate font-medium text-stone-200">
-                    {g.redName} · {g.blackName}
-                  </div>
-                  <div className="flex items-center gap-2 text-stone-400 font-mono-num shrink-0">
-                    <span>{g.moveCount} nước</span>
-                    <span>·</span>
-                    <span
-                      className={
-                        g.winner === 'red' || g.winner === 'r'
-                          ? 'text-red-400 font-semibold'
-                          : g.winner === 'black' || g.winner === 'b'
-                          ? 'text-sky-400 font-semibold'
-                          : 'text-amber-400 font-semibold'
-                      }
-                    >
-                      {g.winner === 'red' || g.winner === 'r'
-                        ? 'Đỏ thắng'
-                        : g.winner === 'black' || g.winner === 'b'
-                        ? 'Đen thắng'
-                        : 'Hòa'}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                      active
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
+                        : 'text-stone-300 hover:bg-stone-800/70'
+                    }`}
+                  >
+                    <span className="text-stone-500">
+                      {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
                     </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                    <span className="truncate ml-1.5">{label}</span>
+                  </a>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>

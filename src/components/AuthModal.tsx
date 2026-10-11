@@ -50,7 +50,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (!pendingRequestId || loginStep !== 2) return;
     const timer = setInterval(async () => {
       try {
-        const res = await fetch(`/api/auth/login-request/${pendingRequestId}`);
+        const res = await fetch(`/api/auth/login-request/${pendingRequestId}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (data.request?.status === 'approved') {
@@ -78,6 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
@@ -123,6 +126,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
@@ -149,6 +153,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await fetch('/api/auth/change-username', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           oldUsername: currentUser?.username || username,
@@ -181,6 +186,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: currentUser?.username || username,

@@ -16,7 +16,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Users collection
+    // Users collection (includes password field for server-verified login)
     match /users/{userId} {
       allow read, write: if true;
     }
@@ -26,9 +26,14 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Server-only secret store for password hashes
-    match /userSecrets/{userId} {
-      allow read, write: if false;
+    // Admins registry
+    match /admins/{adminId} {
+      allow read, write: if true;
+    }
+
+    // Concurrent login reset requests
+    match /loginRequests/{requestId} {
+      allow read, write: if true;
     }
 
     // Elo Ratings

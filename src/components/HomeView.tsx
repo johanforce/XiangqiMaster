@@ -24,6 +24,7 @@ import {
 import { UserProfile } from './AuthModal';
 import { getEloRankTitle } from '../shared/elo';
 import { Logo } from './Logo';
+import { handleLinkClick } from '../utils/navigation';
 
 interface HomeViewProps {
   currentUser: UserProfile | null;
@@ -41,7 +42,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/leaderboard?mode=standard&period=all')
+    fetch('/api/leaderboard?mode=standard&period=all', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.leaderboard) {
@@ -93,36 +94,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={() => onNavigate('ai')}
+            <a
+              href="/ai"
+              onClick={(e) => handleLinkClick(e, '/ai')}
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-sm shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:shadow-[0_0_35px_rgba(245,158,11,0.5)] transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
             >
               <Bot className="w-4 h-4" />
               <span>Đấu với AI ngay</span>
               <ArrowRight className="w-4 h-4 ml-1" />
-            </button>
+            </a>
 
-            <button
-              onClick={() => {
-                if (!currentUser) {
-                  onOpenAuth();
-                } else {
-                  onNavigate('ranked');
-                }
-              }}
+            <a
+              href="/ranked"
+              onClick={(e) => handleLinkClick(e, '/ranked')}
               className="px-6 py-3.5 rounded-2xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-100 font-bold text-sm backdrop-blur-md transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
             >
               <Swords className="w-4 h-4 text-amber-400" />
               <span>Đấu Xếp Hạng</span>
-            </button>
+            </a>
 
-            <button
-              onClick={() => onNavigate('viewer')}
+            <a
+              href="/viewer"
+              onClick={(e) => handleLinkClick(e, '/viewer')}
               className="px-5 py-3.5 rounded-2xl bg-stone-950/60 hover:bg-stone-900 border border-stone-800 text-stone-300 text-sm font-medium transition-colors flex items-center gap-2"
             >
               <BookOpen className="w-4 h-4" />
               <span>Xem Kỳ Phổ</span>
-            </button>
+            </a>
           </div>
 
           {/* Feature Highlights Metadata (Zero-pill style) */}
@@ -161,8 +159,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: AI Match */}
-          <div
-            onClick={() => onNavigate('ai')}
+          <a
+            href="/ai"
+            onClick={(e) => handleLinkClick(e, '/ai')}
             className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-amber-500/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1"
           >
             <div className="space-y-3">
@@ -180,14 +179,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span>Thử sức ngay</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
-          </div>
+          </a>
 
           {/* Card 2: Ranked Online */}
-          <div
-            onClick={() => {
-              if (!currentUser) onOpenAuth();
-              else onNavigate('ranked');
-            }}
+          <a
+            href="/ranked/standard"
+            onClick={(e) => handleLinkClick(e, '/ranked/standard')}
             className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-red-500/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1"
           >
             <div className="space-y-3">
@@ -205,14 +202,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span>Tranh hạng ngay</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
-          </div>
+          </a>
 
           {/* Card 3: Dark Xiangqi (Cờ Úp) */}
-          <div
-            onClick={() => {
-              if (!currentUser) onOpenAuth();
-              else onNavigate('ranked');
-            }}
+          <a
+            href="/ranked/dark"
+            onClick={(e) => handleLinkClick(e, '/ranked/dark')}
             className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-purple-500/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1"
           >
             <div className="space-y-3">
@@ -230,11 +225,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span>Thử vận may & tài năng</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
-          </div>
+          </a>
 
           {/* Card 4: Notation Viewer */}
-          <div
-            onClick={() => onNavigate('viewer')}
+          <a
+            href="/viewer"
+            onClick={(e) => handleLinkClick(e, '/viewer')}
             className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-emerald-500/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1"
           >
             <div className="space-y-3">
@@ -252,7 +248,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span>Mở thư viện kỳ phổ</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
-          </div>
+          </a>
         </div>
       </section>
 
@@ -294,13 +290,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           <div className="pt-2">
-            <button
-              onClick={() => onNavigate('ai')}
-              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-colors flex items-center gap-2"
+            <a
+              href="/ai"
+              onClick={(e) => handleLinkClick(e, '/ai')}
+              className="inline-flex px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-colors items-center gap-2"
             >
               <span>Trải nghiệm ván cờ mẫu</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
         </div>
 
@@ -312,7 +309,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-transparent pointer-events-none" />
           <div className="absolute bottom-3 left-4 right-4 text-xs text-stone-300 font-mono flex items-center justify-between">
-            <span className="font-semibold text-amber-300">Chu Hà · Hán Giới</span>
+            <span className="font-semibold text-amber-300">Sở Hà · Hán Giới</span>
             <span>Trí tuệ phương Đông</span>
           </div>
         </div>
@@ -329,13 +326,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
               <h3 className="text-base font-bold text-stone-100">Bảng Vàng Danh Dự (Top Kỳ Thủ)</h3>
             </div>
-            <button
-              onClick={() => onNavigate('leaderboard')}
+            <a
+              href="/leaderboard/standard"
+              onClick={(e) => handleLinkClick(e, '/leaderboard/standard')}
               className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
             >
               <span>Xem tất cả</span>
               <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
 
           {loadingTop ? (
@@ -350,41 +348,48 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              {topPlayers.map((player, idx) => (
-                <div
-                  key={player.uid || idx}
-                  className="flex items-center justify-between p-3 rounded-xl bg-stone-950/70 border border-stone-800/70 text-xs hover:border-amber-500/30 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[11px] ${
-                        idx === 0
-                          ? 'bg-amber-500 text-stone-950'
-                          : idx === 1
-                          ? 'bg-stone-300 text-stone-950'
-                          : idx === 2
-                          ? 'bg-amber-700 text-stone-100'
-                          : 'bg-stone-800 text-stone-400'
-                      }`}
-                    >
-                      {idx + 1}
-                    </span>
-                    <div>
-                      <span className="font-semibold text-stone-100">{player.displayName || player.username}</span>
-                      <div className="text-[10px] text-stone-400">
-                        {getEloRankTitle(player.elo)} · {player.gamesPlayed || 0} ván
+              {topPlayers.map((player, idx) => {
+                const playerUrl = `/leaderboard/standard/player/${encodeURIComponent(player.uid)}`;
+                return (
+                  <a
+                    key={player.uid || idx}
+                    href={playerUrl}
+                    onClick={(e) => handleLinkClick(e, playerUrl)}
+                    className="flex items-center justify-between p-3 rounded-xl bg-stone-950/70 border border-stone-800/70 text-xs hover:border-amber-500/40 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[11px] ${
+                          idx === 0
+                            ? 'bg-amber-500 text-stone-950'
+                            : idx === 1
+                            ? 'bg-stone-300 text-stone-950'
+                            : idx === 2
+                            ? 'bg-amber-700 text-stone-100'
+                            : 'bg-stone-800 text-stone-400'
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <span className="font-semibold text-stone-100">
+                          {player.displayName || player.username}
+                        </span>
+                        <div className="text-[10px] text-stone-400">
+                          {getEloRankTitle(player.elo)} · {player.gamesPlayed || 0} ván
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="text-right font-mono-num">
-                    <div className="text-amber-400 font-bold">{player.elo} Elo</div>
-                    <div className="text-[10px] text-emerald-400">
-                      Thắng: {player.wins || 0}
+                    <div className="text-right font-mono-num">
+                      <div className="text-amber-400 font-bold">{player.elo} Elo</div>
+                      <div className="text-[10px] text-emerald-400">
+                        Thắng: {player.wins || 0}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  </a>
+                );
+              })}
             </div>
           )}
         </div>
@@ -432,12 +437,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
           Dù bạn là tân thủ đang tìm hiểu nước đi hay kiện tướng muốn chinh phục đỉnh cao Elo, Kỳ Đạo luôn là nơi lý tưởng để rèn luyện tư duy.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <button
-            onClick={() => onNavigate('ai')}
+          <a
+            href="/ai"
+            onClick={(e) => handleLinkClick(e, '/ai')}
             className="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg transition-colors"
           >
             Đấu với Máy ngay
-          </button>
+          </a>
           {!currentUser && (
             <button
               onClick={onOpenAuth}

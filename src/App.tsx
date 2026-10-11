@@ -53,8 +53,12 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { RankedRoomView } from './components/RankedRoomView';
 import { HomeView } from './components/HomeView';
 import { Logo } from './components/Logo';
-
-type MainTab = 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin';
+import {
+  MainTab,
+  navigateUrl,
+  handleLinkClick,
+  getMainTabFromPath,
+} from './utils/navigation';
 
 const AI_ENGINES: { id: AIEngineType; name: string; desc: string; badge: string }[] = [
   { id: 'fairy_stockfish', name: 'Fairy-Stockfish WASM', desc: 'Engine NNUE/AlphaBeta quốc tế siêu mạnh', badge: 'Khuyên dùng' },
@@ -71,37 +75,34 @@ const AI_LEVELS: { id: AIDifficulty; name: string; eloLabel: string }[] = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>(() =>
-    window.location.pathname === '/admin' ? 'admin' : 'home'
+    getMainTabFromPath(window.location.pathname)
   );
   const [viewerInitialPgn, setViewerInitialPgn] = useState<string>('');
 
-  // User & Session state
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('xq_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [sessionId, setSessionId] = useState<string>(
-    () => localStorage.getItem('xq_session') || ''
-  );
+  // User & Session state (Realtime, no localStorage cache)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [sessionId, setSessionId] = useState<string>('');
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Preferences
-  const [themeId, setThemeId] = useState<BoardThemeId>(
-    () => (localStorage.getItem('xq_theme') as BoardThemeId) || 'classic_wood'
-  );
-  const [pieceCharMode, setPieceCharMode] = useState<'hanzi' | 'viet'>(
-    () => (localStorage.getItem('xq_char') as 'hanzi' | 'viet') || 'hanzi'
-  );
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    const v = localStorage.getItem('xq_sound');
-    return v ? v === 'true' : true;
-  });
+  const [themeId, setThemeId] = useState<BoardThemeId>('classic_wood');
+  const [pieceCharMode, setPieceCharMode] = useState<'hanzi' | 'viet'>('hanzi');
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+
+  // Clear any legacy localStorage cache on mount
+  useEffect(() => {
+    try {
+      localStorage.removeItem('xq_user');
+      localStorage.removeItem('xq_session');
+      localStorage.removeItem('xq_theme');
+      localStorage.removeItem('xq_char');
+      localStorage.removeItem('xq_sound');
+    } catch {
+      // Ignore storage cleanup errors
+    }
+  }, []);
 
   // 1-line Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -112,16 +113,69 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => setToastMsg(null), 3200);
   }, []);
 
+  // Realtime fetch of current user profile & preferences from API when switching tabs or opening modal
+  const refreshCurrentUserRealtime = useCallback(
+    async (uid: string) => {
+      if (!uid) return;
+      try {
+        const res = await fetch(`/api/auth/me/${encodeURIComponent(uid)}`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (res.status === 403 || res.status === 404) {
+            setCurrentUser(null);
+            setSessionId('');
+            setActiveRoom(null);
+          }
+          return;
+        }
+        const data = await res.json();
+        if (data?.user) {
+          setCurrentUser(data.user);
+          if (data.user.theme && BOARD_THEMES[data.user.theme as BoardThemeId]) {
+            setThemeId(data.user.theme as BoardThemeId);
+          }
+          if (data.user.pieceCharMode) {
+            setPieceCharMode(data.user.pieceCharMode);
+          }
+          if (typeof data.user.soundEnabled === 'boolean') {
+            setSoundEnabled(data.user.soundEnabled);
+          }
+        }
+      } catch {
+        // Ignore transient network errors
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void refreshCurrentUserRealtime(currentUser.uid);
+    }
+  }, [activeTab, authModalOpen, currentUser?.uid, refreshCurrentUserRealtime]);
+
   // Socket & Realtime state
   const [socket, setSocket] = useState<Socket | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [activeRoom, setActiveRoom] = useState<any | null>(null);
   const [adminLoginReqs, setAdminLoginReqs] = useState<any[] | null>(null);
 
-  // AI Match State
-  const [aiEngine, setAiEngine] = useState<AIEngineType>('fairy_stockfish');
-  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('veteran');
-  const [playerSide, setPlayerSide] = useState<PieceColor>('r');
+  // AI Match State (synced with URL query params when on /ai)
+  const [aiEngine, setAiEngine] = useState<AIEngineType>(() => {
+    const p = new URLSearchParams(window.location.search).get('engine');
+    return p === 'pikafish' || p === 'builtin' || p === 'fairy_stockfish' ? p : 'fairy_stockfish';
+  });
+  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>(() => {
+    const p = new URLSearchParams(window.location.search).get('level');
+    return p === 'novice' || p === 'veteran' || p === 'master' || p === 'grandmaster'
+      ? p
+      : 'veteran';
+  });
+  const [playerSide, setPlayerSide] = useState<PieceColor>(() => {
+    const p = new URLSearchParams(window.location.search).get('side');
+    return p === 'b' ? 'b' : 'r';
+  });
   const [fenHistory, setFenHistory] = useState<string[]>([INITIAL_FEN]);
   const [checkHistory, setCheckHistory] = useState<{ color: PieceColor; gaveCheck: boolean }[]>([]);
   const [moves, setMoves] = useState<FormattedMove[]>([]);
@@ -133,6 +187,35 @@ export default function App() {
     reason: string;
   }>({ isOver: false, winner: 'ongoing', reason: '' });
 
+  // Sync activeTab & AI query params with URL changes (popstate + app:locationchange)
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const nextTab = getMainTabFromPath(window.location.pathname);
+      setActiveTab(nextTab);
+      if (nextTab === 'ai') {
+        const params = new URLSearchParams(window.location.search);
+        const eng = params.get('engine');
+        if (eng === 'fairy_stockfish' || eng === 'pikafish' || eng === 'builtin') {
+          setAiEngine(eng);
+        }
+        const lvl = params.get('level');
+        if (lvl === 'novice' || lvl === 'veteran' || lvl === 'master' || lvl === 'grandmaster') {
+          setAiDifficulty(lvl);
+        }
+        const side = params.get('side');
+        if (side === 'r' || side === 'b') {
+          setPlayerSide(side);
+        }
+      }
+    };
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('app:locationchange', syncFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('app:locationchange', syncFromUrl);
+    };
+  }, []);
+
   const workerRef = useRef<Worker | null>(null);
   const currentFen = fenHistory[fenHistory.length - 1];
   const { board, turn } = parseFen(currentFen);
@@ -142,19 +225,17 @@ export default function App() {
     sound.enabled = soundEnabled;
   }, [soundEnabled]);
 
-  // Sync preferences helper
+  // Sync preferences helper via realtime API call (no localStorage cache)
   const savePreferences = (
     nextTheme: BoardThemeId,
     nextChar: 'hanzi' | 'viet',
     nextSound: boolean
   ) => {
-    localStorage.setItem('xq_theme', nextTheme);
-    localStorage.setItem('xq_char', nextChar);
-    localStorage.setItem('xq_sound', String(nextSound));
     if (currentUser) {
       fetch('/api/auth/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({
           uid: currentUser.uid,
           theme: nextTheme,
@@ -242,7 +323,6 @@ export default function App() {
     s.on('user:updated', (payload: any) => {
       if (payload?.user) {
         setCurrentUser(payload.user);
-        localStorage.setItem('xq_user', JSON.stringify(payload.user));
         if (payload.user.isCreateAccount) {
           showToast('Tài khoản đã được duyệt đấu xếp hạng!');
         }
@@ -256,8 +336,6 @@ export default function App() {
     });
 
     s.on('session:kicked', (payload: any) => {
-      localStorage.removeItem('xq_user');
-      localStorage.removeItem('xq_session');
       setCurrentUser(null);
       setSessionId('');
       setActiveRoom(null);
@@ -280,6 +358,7 @@ export default function App() {
       const aiLabel = AI_LEVELS.find((l) => l.id === aiDifficulty)?.name || 'Máy';
       fetch('/api/games', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'ai',
@@ -424,16 +503,17 @@ export default function App() {
     if (currentUser) {
       await fetch('/api/auth/logout', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uid: currentUser.uid, sessionId }),
       }).catch(() => {});
     }
-    localStorage.removeItem('xq_user');
-    localStorage.removeItem('xq_session');
     setCurrentUser(null);
     setSessionId('');
     setActiveRoom(null);
-    if (activeTab === 'admin') setActiveTab('ai');
+    if (activeTab === 'admin') {
+      navigateUrl('/ai');
+    }
     showToast('Đã đăng xuất');
   };
 
@@ -460,23 +540,19 @@ export default function App() {
       {/* Top Navigation Bar */}
       <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-xs sticky top-0 z-30">
         {/* Zone 1: Brand Wordmark & Official Logo */}
-        <button
-          onClick={() => {
-            setActiveTab('home');
-            window.history.pushState({}, '', '/');
-          }}
+        <a
+          href="/"
+          onClick={(e) => handleLinkClick(e, '/')}
           className="hover:opacity-95 transition-opacity shrink-0 flex items-center"
         >
           <Logo size="sm" variant="full" theme="dark" />
-        </button>
+        </a>
 
         {/* Zone 2: Concise Single-Line Navigation Links */}
         <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-          <button
-            onClick={() => {
-              setActiveTab('home');
-              window.history.pushState({}, '', '/');
-            }}
+          <a
+            href="/"
+            onClick={(e) => handleLinkClick(e, '/')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'home'
                 ? 'bg-stone-800 text-amber-400 font-semibold'
@@ -485,13 +561,13 @@ export default function App() {
           >
             <Home className="w-4 h-4" />
             <span>Trang chủ</span>
-          </button>
+          </a>
 
-          <button
-            onClick={() => {
-              setActiveTab('ai');
-              window.history.pushState({}, '', '/');
-            }}
+          <a
+            href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
+            onClick={(e) =>
+              handleLinkClick(e, `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`)
+            }
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'ai'
                 ? 'bg-stone-800 text-amber-400 font-semibold'
@@ -500,68 +576,65 @@ export default function App() {
           >
             <Bot className="w-4 h-4" />
             <span>Chơi với máy</span>
-          </button>
+          </a>
 
-          <button
-            onClick={() => {
-              setActiveTab('ranked');
-              window.history.pushState({}, '', '/');
-            }}
+          <a
+            href={activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'}
+            onClick={(e) =>
+              handleLinkClick(
+                e,
+                activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'
+              )
+            }
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'ranked'
-                ? 'bg-stone-800 text-amber-400'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
                 : 'text-stone-400 hover:text-stone-100'
             }`}
           >
             <Swords className="w-4 h-4" />
             <span>Đấu xếp hạng</span>
-          </button>
+          </a>
 
-          <button
-            onClick={() => {
-              setActiveTab('viewer');
-              window.history.pushState({}, '', '/');
-            }}
+          <a
+            href="/viewer"
+            onClick={(e) => handleLinkClick(e, '/viewer')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'viewer'
-                ? 'bg-stone-800 text-amber-400'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
                 : 'text-stone-400 hover:text-stone-100'
             }`}
           >
             <BookOpen className="w-4 h-4" />
             <span>Kỳ phổ</span>
-          </button>
+          </a>
 
-          <button
-            onClick={() => {
-              setActiveTab('leaderboard');
-              window.history.pushState({}, '', '/');
-            }}
+          <a
+            href="/leaderboard"
+            onClick={(e) => handleLinkClick(e, '/leaderboard')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'leaderboard'
-                ? 'bg-stone-800 text-amber-400'
+                ? 'bg-stone-800 text-amber-400 font-semibold'
                 : 'text-stone-400 hover:text-stone-100'
             }`}
           >
             <Trophy className="w-4 h-4" />
             <span>Xếp hạng</span>
-          </button>
+          </a>
 
           {currentUser?.role === 'admin' && (
-            <button
-              onClick={() => {
-                setActiveTab('admin');
-                window.history.pushState({}, '', '/admin');
-              }}
+            <a
+              href="/admin/users"
+              onClick={(e) => handleLinkClick(e, '/admin/users')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'admin'
-                  ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40'
+                  ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40 font-semibold'
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
               <span>Quản trị</span>
-            </button>
+            </a>
           )}
         </nav>
 
@@ -681,8 +754,15 @@ export default function App() {
           <HomeView
             currentUser={currentUser}
             onNavigate={(tab) => {
-              setActiveTab(tab);
-              window.history.pushState({}, '', tab === 'admin' ? '/admin' : '/');
+              const targetMap: Record<MainTab, string> = {
+                home: '/',
+                ai: `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`,
+                ranked: '/ranked',
+                viewer: '/viewer',
+                leaderboard: '/leaderboard',
+                admin: '/admin/users',
+              };
+              navigateUrl(targetMap[tab] || '/');
             }}
             onOpenAuth={() => setAuthModalOpen(true)}
           />
@@ -860,10 +940,14 @@ export default function App() {
                   <div className="grid grid-cols-1 gap-2">
                     {AI_ENGINES.map((eng) => {
                       const active = aiEngine === eng.id;
+                      const targetUrl = `/ai?engine=${eng.id}&level=${aiDifficulty}&side=${playerSide}`;
                       return (
-                        <button
+                        <a
                           key={eng.id}
-                          onClick={() => setAiEngine(eng.id)}
+                          href={targetUrl}
+                          onClick={(e) =>
+                            handleLinkClick(e, targetUrl, () => setAiEngine(eng.id))
+                          }
                           className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                             active
                               ? 'bg-amber-600/20 border-amber-500 text-stone-100 shadow-sm'
@@ -884,7 +968,7 @@ export default function App() {
                           }`}>
                             {active && <div className="w-1.5 h-1.5 rounded-full bg-stone-950" />}
                           </div>
-                        </button>
+                        </a>
                       );
                     })}
                   </div>
@@ -900,10 +984,14 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-2">
                   {AI_LEVELS.map((lvl) => {
                     const active = aiDifficulty === lvl.id;
+                    const targetUrl = `/ai?engine=${aiEngine}&level=${lvl.id}&side=${playerSide}`;
                     return (
-                      <button
+                      <a
                         key={lvl.id}
-                        onClick={() => setAiDifficulty(lvl.id)}
+                        href={targetUrl}
+                        onClick={(e) =>
+                          handleLinkClick(e, targetUrl, () => setAiDifficulty(lvl.id))
+                        }
                         className={`p-3 rounded-xl border text-left transition-colors ${
                           active
                             ? 'bg-amber-600/20 border-amber-500 text-stone-100'
@@ -914,7 +1002,7 @@ export default function App() {
                         <div className="text-[11px] font-mono-num text-amber-400/90">
                           Elo {lvl.eloLabel}
                         </div>
-                      </button>
+                      </a>
                     );
                   })}
                 </div>
@@ -923,8 +1011,15 @@ export default function App() {
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-xs font-semibold text-stone-300">Chọn quân</span>
                   <div className="flex items-center gap-1.5 bg-stone-950 p-1 rounded-xl border border-stone-800 text-xs">
-                    <button
-                      onClick={() => startNewAIGame('r')}
+                    <a
+                      href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=r`}
+                      onClick={(e) =>
+                        handleLinkClick(
+                          e,
+                          `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=r`,
+                          () => startNewAIGame('r')
+                        )
+                      }
                       className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors ${
                         playerSide === 'r'
                           ? 'bg-red-700 text-white'
@@ -932,9 +1027,16 @@ export default function App() {
                       }`}
                     >
                       Đỏ (Đi tiên)
-                    </button>
-                    <button
-                      onClick={() => startNewAIGame('b')}
+                    </a>
+                    <a
+                      href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=b`}
+                      onClick={(e) =>
+                        handleLinkClick(
+                          e,
+                          `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=b`,
+                          () => startNewAIGame('b')
+                        )
+                      }
                       className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors ${
                         playerSide === 'b'
                           ? 'bg-stone-700 text-white'
@@ -942,7 +1044,7 @@ export default function App() {
                       }`}
                     >
                       Đen (Đi hậu)
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -1008,7 +1110,7 @@ export default function App() {
           <LeaderboardView
             onOpenViewer={(txt) => {
               setViewerInitialPgn(txt);
-              setActiveTab('viewer');
+              navigateUrl('/viewer');
               showToast('Đã mở ván đấu trong trình xem kỳ phổ');
             }}
           />
@@ -1043,8 +1145,6 @@ export default function App() {
         onAuthSuccess={(user, sess, decayNotice) => {
           setCurrentUser(user);
           setSessionId(sess);
-          localStorage.setItem('xq_user', JSON.stringify(user));
-          localStorage.setItem('xq_session', sess);
           if (user.theme && BOARD_THEMES[user.theme as BoardThemeId]) {
             setThemeId(user.theme as BoardThemeId);
           }

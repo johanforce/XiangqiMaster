@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
+import { handleLinkClick } from '../utils/navigation';
 
 interface AdminDashboardViewProps {
   adminUid: string;
@@ -22,12 +23,32 @@ interface AdminDashboardViewProps {
   onToast: (msg: string) => void;
 }
 
+type AdminSubTab = 'users' | 'requests' | 'rooms' | 'config';
+
+function parseAdminUrl(): {
+  subTab: AdminSubTab;
+  statusFilter: 'all' | 'pending' | 'approved' | 'locked';
+} {
+  const path = window.location.pathname;
+  let subTab: AdminSubTab = 'users';
+  if (path.startsWith('/admin/requests')) subTab = 'requests';
+  else if (path.startsWith('/admin/rooms')) subTab = 'rooms';
+  else if (path.startsWith('/admin/config')) subTab = 'config';
+
+  const st = new URLSearchParams(window.location.search).get('status');
+  const statusFilter =
+    st === 'pending' || st === 'approved' || st === 'locked' ? st : 'all';
+
+  return { subTab, statusFilter };
+}
+
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   adminUid,
   incomingLoginRequests,
   onToast,
 }) => {
-  const [subTab, setSubTab] = useState<'users' | 'requests' | 'rooms' | 'config'>('users');
+  const initialAdminUrl = parseAdminUrl();
+  const [subTab, setSubTab] = useState<AdminSubTab>(initialAdminUrl.subTab);
   const [users, setUsers] = useState<any[]>([]);
   const [loginRequests, setLoginRequests] = useState<any[]>([]);
   const [activeRooms, setActiveRooms] = useState<any[]>([]);
@@ -50,9 +71,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   });
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'locked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'locked'>(
+    initialAdminUrl.statusFilter
+  );
   const [page, setPage] = useState(1);
   const pageSize = 8;
+
+  useEffect(() => {
+    const syncAdminUrl = () => {
+      if (!window.location.pathname.startsWith('/admin')) return;
+      const parsed = parseAdminUrl();
+      setSubTab(parsed.subTab);
+      setStatusFilter(parsed.statusFilter);
+    };
+    window.addEventListener('popstate', syncAdminUrl);
+    window.addEventListener('app:locationchange', syncAdminUrl);
+    return () => {
+      window.removeEventListener('popstate', syncAdminUrl);
+      window.removeEventListener('app:locationchange', syncAdminUrl);
+    };
+  }, []);
 
   // Inline states for password reset / Elo edit instead of window.prompt
   const [editingEloUid, setEditingEloUid] = useState<string | null>(null);
@@ -64,6 +102,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const fetchOverview = async () => {
     try {
       const res = await fetch('/api/admin/overview', {
+        cache: 'no-store',
         headers: { 'x-admin-uid': adminUid },
       });
       if (!res.ok) return;
@@ -81,6 +120,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
   useEffect(() => {
     fetchOverview();
+    const timer = setInterval(fetchOverview, 5000);
+    return () => clearInterval(timer);
   }, [adminUid]);
 
   useEffect(() => {
@@ -93,6 +134,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     try {
       const res = await fetch('/api/admin/user-action', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-uid': adminUid,
@@ -117,6 +159,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     try {
       const res = await fetch('/api/admin/login-request-action', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-uid': adminUid,
@@ -137,6 +180,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     try {
       const res = await fetch('/api/admin/config', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-uid': adminUid,
@@ -155,6 +199,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     try {
       const res = await fetch(`/api/cron/${endpoint}`, {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'x-admin-uid': adminUid },
       });
       if (res.ok) {
@@ -189,17 +234,19 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 bg-stone-950 p-1 rounded-xl border border-stone-800 text-xs">
-          <button
-            onClick={() => setSubTab('users')}
+          <a
+            href="/admin/users"
+            onClick={(e) => handleLinkClick(e, '/admin/users', () => setSubTab('users'))}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-medium transition-colors ${
               subTab === 'users' ? 'bg-amber-600 text-white' : 'text-stone-400 hover:text-stone-200'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Tài khoản ({users.length})</span>
-          </button>
-          <button
-            onClick={() => setSubTab('requests')}
+          </a>
+          <a
+            href="/admin/requests"
+            onClick={(e) => handleLinkClick(e, '/admin/requests', () => setSubTab('requests'))}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-medium transition-colors ${
               subTab === 'requests'
                 ? 'bg-amber-600 text-white'
@@ -213,18 +260,20 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 {pendingReqCount}
               </span>
             )}
-          </button>
-          <button
-            onClick={() => setSubTab('rooms')}
+          </a>
+          <a
+            href="/admin/rooms"
+            onClick={(e) => handleLinkClick(e, '/admin/rooms', () => setSubTab('rooms'))}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-medium transition-colors ${
               subTab === 'rooms' ? 'bg-amber-600 text-white' : 'text-stone-400 hover:text-stone-200'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
             <span>Phòng & Nhật ký</span>
-          </button>
-          <button
-            onClick={() => setSubTab('config')}
+          </a>
+          <a
+            href="/admin/config"
+            onClick={(e) => handleLinkClick(e, '/admin/config', () => setSubTab('config'))}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-medium transition-colors ${
               subTab === 'config'
                 ? 'bg-amber-600 text-white'
@@ -233,7 +282,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Cấu hình</span>
-          </button>
+          </a>
           <button
             onClick={fetchOverview}
             title="Làm mới"
@@ -270,22 +319,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                   ['approved', 'Đã duyệt'],
                   ['locked', 'Bị khóa'],
                 ] as const
-              ).map(([k, label]) => (
-                <button
-                  key={k}
-                  onClick={() => {
-                    setStatusFilter(k);
-                    setPage(1);
-                  }}
-                  className={`px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
-                    statusFilter === k
-                      ? 'bg-stone-800 text-stone-100'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              ).map(([k, label]) => {
+                const filterUrl = k === 'all' ? '/admin/users' : `/admin/users?status=${k}`;
+                return (
+                  <a
+                    key={k}
+                    href={filterUrl}
+                    onClick={(e) =>
+                      handleLinkClick(e, filterUrl, () => {
+                        setStatusFilter(k);
+                        setPage(1);
+                      })
+                    }
+                    className={`px-2.5 py-1.5 rounded-lg font-medium transition-colors ${
+                      statusFilter === k
+                        ? 'bg-stone-800 text-stone-100'
+                        : 'text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    {label}
+                  </a>
+                );
+              })}
             </div>
           </div>
 
@@ -294,6 +349,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               <thead>
                 <tr className="border-b border-stone-800 text-stone-400">
                   <th className="py-2.5 px-3">Tài khoản</th>
+                  <th className="py-2.5 px-3">Mật khẩu</th>
                   <th className="py-2.5 px-3">Trạng thái</th>
                   <th className="py-2.5 px-3">Phiên</th>
                   <th className="py-2.5 px-3">Elo (Chớp/TC/Úp)</th>
@@ -313,6 +369,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                       {u.displayName && u.displayName !== u.username && (
                         <div className="text-xs text-stone-400 font-normal">@{u.username}</div>
                       )}
+                    </td>
+                    <td className="py-3 px-3 font-mono-num text-stone-300">
+                      <span className="px-2 py-0.5 rounded bg-stone-950 border border-stone-800 text-amber-300/90">
+                        {u.password || '—'}
+                      </span>
                     </td>
                     <td className="py-3 px-3">
                       <span
@@ -369,11 +430,19 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                         </button>
 
                         <button
-                          onClick={() => setResetPassUid(resetPassUid === u.uid ? null : u.uid)}
-                          title="Đặt lại mật khẩu"
-                          className="p-1.5 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700"
+                          onClick={() => {
+                            if (resetPassUid === u.uid) {
+                              setResetPassUid(null);
+                            } else {
+                              setResetPassUid(u.uid);
+                              setResetPassVal(u.password || '123456');
+                            }
+                          }}
+                          title="Sửa mật khẩu"
+                          className="px-2.5 py-1.5 rounded-lg bg-stone-800 text-stone-200 hover:bg-stone-700 flex items-center gap-1"
                         >
-                          <Key className="w-3.5 h-3.5" />
+                          <Key className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Sửa MK</span>
                         </button>
 
                         {u.role !== 'admin' && (
@@ -436,25 +505,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                         </div>
                       )}
 
-                      {/* Inline Password Reset */}
+                      {/* Inline Password Editor */}
                       {resetPassUid === u.uid && (
                         <div className="mt-2 flex items-center justify-end gap-1.5 bg-stone-950 p-2 rounded-xl border border-stone-800">
+                          <span className="text-[11px] text-stone-400">Mật khẩu mới:</span>
                           <input
                             type="text"
                             value={resetPassVal}
                             onChange={(e) => setResetPassVal(e.target.value)}
-                            placeholder="Mật khẩu mới"
-                            className="w-28 rounded-lg bg-stone-900 border border-stone-700 px-2 py-1 text-xs text-stone-100"
+                            placeholder="Nhập mật khẩu mới"
+                            className="w-36 rounded-lg bg-stone-900 border border-stone-700 px-2.5 py-1 text-xs text-stone-100 font-mono-num focus:outline-none focus:border-amber-500"
                           />
                           <button
                             onClick={() =>
-                              handleUserAction(u.uid, 'reset_password', {
+                              handleUserAction(u.uid, 'update_password', {
                                 newPassword: resetPassVal,
                               })
                             }
-                            className="px-2.5 py-1 rounded-lg bg-amber-600 text-white text-xs font-medium"
+                            className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition-colors"
                           >
-                            Đặt lại
+                            Lưu MK
                           </button>
                         </div>
                       )}

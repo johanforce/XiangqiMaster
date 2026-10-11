@@ -2,11 +2,12 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile and account status (never exposes passwordHash to clients).",
+      "description": "User profile, account status, and password field.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "username": { "type": "string", "minLength": 3, "maxLength": 32, "pattern": "^[a-zA-Z0-9_]+$" },
+        "password": { "type": "string", "minLength": 1, "maxLength": 64 },
         "displayName": { "type": "string", "minLength": 1, "maxLength": 40 },
         "role": { "type": "string", "enum": ["user", "admin"] },
         "isCreateAccount": { "type": "boolean" },
@@ -20,7 +21,7 @@
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
       },
-      "required": ["uid", "username", "role", "isCreateAccount", "isLogin", "theme", "pieceCharMode", "soundEnabled", "createdAt", "updatedAt"]
+      "required": ["uid", "username", "password", "role", "isCreateAccount", "isLogin", "theme", "pieceCharMode", "soundEnabled", "createdAt", "updatedAt"]
     },
     "Username": {
       "title": "Username",
@@ -115,6 +116,9 @@
         "wins": { "type": "number" },
         "losses": { "type": "number" },
         "draws": { "type": "number" },
+        "winStreak": { "type": "number" },
+        "longestWinStreak": { "type": "number" },
+        "currentWinStreak": { "type": "number" },
         "provisional": { "type": "boolean" },
         "decayApplied": { "type": "boolean" },
         "hiddenFromLeaderboard": { "type": "boolean" },

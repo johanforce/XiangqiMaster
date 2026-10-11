@@ -16,25 +16,66 @@ import {
   User,
 } from 'lucide-react';
 import { RatedMode, getEloRankTitle } from '../shared/elo';
+import { navigateUrl, handleLinkClick } from '../utils/navigation';
 
 interface LeaderboardViewProps {
   onOpenViewer?: (notationText: string) => void;
 }
 
+function parseLeaderboardUrl() {
+  const path = window.location.pathname;
+  const search = new URLSearchParams(window.location.search);
+  let mode: RatedMode = 'standard';
+  if (path.startsWith('/leaderboard/blitz')) mode = 'blitz';
+  else if (path.startsWith('/leaderboard/dark')) mode = 'dark';
+  else if (path.startsWith('/leaderboard/standard')) mode = 'standard';
+
+  const p = search.get('period');
+  const period: 'week' | 'month' | 'all' =
+    p === 'week' || p === 'month' ? p : 'all';
+
+  const playerMatch = path.match(/^\/leaderboard\/(?:blitz|standard|dark)\/player\/([^/?#]+)/);
+  const playerUid = playerMatch ? decodeURIComponent(playerMatch[1]) : null;
+
+  const t = search.get('tab');
+  const playerTab: 'stats' | 'history' = t === 'history' ? 'history' : 'stats';
+
+  return { mode, period, playerUid, playerTab };
+}
+
 export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }) => {
-  const [mode, setMode] = useState<RatedMode>('standard');
-  const [period, setPeriod] = useState<'week' | 'month' | 'all'>('all');
+  const initialUrlState = parseLeaderboardUrl();
+  const [mode, setMode] = useState<RatedMode>(initialUrlState.mode);
+  const [period, setPeriod] = useState<'week' | 'month' | 'all'>(initialUrlState.period);
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<any | null>(null);
-  const [playerTab, setPlayerTab] = useState<'stats' | 'history'>('stats');
+  const [playerTab, setPlayerTab] = useState<'stats' | 'history'>(initialUrlState.playerTab);
   const [playerGames, setPlayerGames] = useState<any[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
+
+  const buildLeaderboardUrl = (
+    m: RatedMode = mode,
+    p: 'week' | 'month' | 'all' = period,
+    uid?: string | null,
+    tab?: 'stats' | 'history'
+  ) => {
+    const base = uid
+      ? `/leaderboard/${m}/player/${encodeURIComponent(uid)}`
+      : `/leaderboard/${m}`;
+    const params = new URLSearchParams();
+    if (p !== 'all') params.set('period', p);
+    if (uid && tab && tab !== 'stats') params.set('tab', tab);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
 
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/leaderboard?mode=${mode}&period=${period}`);
+      const res = await fetch(`/api/leaderboard?mode=${mode}&period=${period}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       setEntries(data.leaderboard || []);
     } catch {
@@ -48,12 +89,21 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
     fetchLeaderboard();
   }, [mode, period]);
 
-  const handleOpenProfile = async (player: any) => {
+  const handleOpenProfile = async (
+    player: any,
+    initialTab: 'stats' | 'history' = 'stats',
+    pushUrl = true
+  ) => {
     setSelectedPlayer(player);
-    setPlayerTab('stats');
+    setPlayerTab(initialTab);
+    if (pushUrl && player?.uid) {
+      navigateUrl(buildLeaderboardUrl(mode, period, player.uid, initialTab));
+    }
     setLoadingGames(true);
     try {
-      const res = await fetch(`/api/games?uid=${player.uid}`);
+      const res = await fetch(`/api/games?uid=${player.uid}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       setPlayerGames(data.games || []);
     } catch {
@@ -62,6 +112,39 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
       setLoadingGames(false);
     }
   };
+
+  const handleCloseProfile = () => {
+    setSelectedPlayer(null);
+    navigateUrl(buildLeaderboardUrl(mode, period, null));
+  };
+
+  // Sync URL -> state on popstate / app:locationchange or when entries load
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const parsed = parseLeaderboardUrl();
+      if (parsed.mode !== mode) setMode(parsed.mode);
+      if (parsed.period !== period) setPeriod(parsed.period);
+      setPlayerTab(parsed.playerTab);
+      if (!parsed.playerUid) {
+        setSelectedPlayer(null);
+      } else if (entries.length > 0) {
+        const found = entries.find(
+          (e) => String(e.uid).toLowerCase() === parsed.playerUid!.toLowerCase()
+        );
+        if (found && (!selectedPlayer || selectedPlayer.uid !== found.uid)) {
+          void handleOpenProfile(found, parsed.playerTab, false);
+        }
+      }
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('app:locationchange', syncFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('app:locationchange', syncFromUrl);
+    };
+  }, [entries, mode, period]);
 
   const top3 = entries.slice(0, 3);
   const rank1 = top3[0];
@@ -103,10 +186,13 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Bộ lọc thể loại */}
+            {/* Bộ lọc thể loại có đường dẫn trực tiếp */}
             <div className="flex items-center gap-1 p-1 rounded-2xl bg-stone-950 border border-stone-800 text-xs">
-              <button
-                onClick={() => setMode('blitz')}
+              <a
+                href={buildLeaderboardUrl('blitz', period)}
+                onClick={(e) =>
+                  handleLinkClick(e, buildLeaderboardUrl('blitz', period), () => setMode('blitz'))
+                }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'blitz'
                     ? 'bg-amber-600 text-white shadow-md'
@@ -115,9 +201,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               >
                 <Flame className="w-3.5 h-3.5" />
                 <span>Cờ chớp</span>
-              </button>
-              <button
-                onClick={() => setMode('standard')}
+              </a>
+              <a
+                href={buildLeaderboardUrl('standard', period)}
+                onClick={(e) =>
+                  handleLinkClick(e, buildLeaderboardUrl('standard', period), () =>
+                    setMode('standard')
+                  )
+                }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'standard'
                     ? 'bg-amber-600 text-white shadow-md'
@@ -126,9 +217,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Tiêu chuẩn</span>
-              </button>
-              <button
-                onClick={() => setMode('dark')}
+              </a>
+              <a
+                href={buildLeaderboardUrl('dark', period)}
+                onClick={(e) =>
+                  handleLinkClick(e, buildLeaderboardUrl('dark', period), () => setMode('dark'))
+                }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'dark'
                     ? 'bg-amber-600 text-white shadow-md'
@@ -137,10 +231,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               >
                 <EyeOff className="w-3.5 h-3.5" />
                 <span>Cờ úp</span>
-              </button>
+              </a>
             </div>
 
-            {/* Bộ lọc thời gian */}
+            {/* Bộ lọc thời gian có đường dẫn trực tiếp */}
             <div className="flex items-center gap-1 p-1 rounded-2xl bg-stone-950 border border-stone-800 text-xs">
               {(
                 [
@@ -148,19 +242,23 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   ['month', 'Tháng'],
                   ['all', 'Tất cả'],
                 ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setPeriod(key)}
-                  className={`px-3 py-1.5 rounded-xl font-medium transition-all ${
-                    period === key
-                      ? 'bg-stone-800 text-stone-100 shadow-sm'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              ).map(([key, label]) => {
+                const pUrl = buildLeaderboardUrl(mode, key);
+                return (
+                  <a
+                    key={key}
+                    href={pUrl}
+                    onClick={(e) => handleLinkClick(e, pUrl, () => setPeriod(key))}
+                    className={`px-3 py-1.5 rounded-xl font-medium transition-all ${
+                      period === key
+                        ? 'bg-stone-800 text-stone-100 shadow-sm'
+                        : 'text-stone-400 hover:text-stone-200'
+                    }`}
+                  >
+                    {label}
+                  </a>
+                );
+              })}
             </div>
 
             <button
@@ -173,14 +271,19 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
           </div>
         </div>
 
-        {/* 2. Bục vinh danh Top 3 (Championship Podium) */}
+        {/* 2. Bục vinh danh Top 3 (Championship Podium) có đường dẫn trực tiếp */}
         {!loading && top3.length > 0 && (
           <div className="pt-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-end">
               {/* Hạng 2 (Bạc - Á Quân) */}
               {rank2 && (
-                <div
-                  onClick={() => handleOpenProfile(rank2)}
+                <a
+                  href={buildLeaderboardUrl(mode, period, rank2.uid)}
+                  onClick={(e) =>
+                    handleLinkClick(e, buildLeaderboardUrl(mode, period, rank2.uid), () =>
+                      handleOpenProfile(rank2, 'stats', false)
+                    )
+                  }
                   className="order-2 md:order-1 rounded-3xl bg-gradient-to-b from-stone-800/90 via-stone-900/95 to-stone-950 border border-slate-400/40 p-5 flex flex-col items-center text-center cursor-pointer hover:border-slate-300 transition-all shadow-xl hover:-translate-y-1 group relative overflow-hidden"
                 >
                   <div className="relative mb-2.5">
@@ -207,18 +310,22 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                       : 0}
                     %
                   </div>
-                </div>
+                </a>
               )}
 
               {/* Hạng 1 (Vàng - Quán Quân Kỳ Đàn) */}
               {rank1 && (
-                <div
-                  onClick={() => handleOpenProfile(rank1)}
+                <a
+                  href={buildLeaderboardUrl(mode, period, rank1.uid)}
+                  onClick={(e) =>
+                    handleLinkClick(e, buildLeaderboardUrl(mode, period, rank1.uid), () =>
+                      handleOpenProfile(rank1, 'stats', false)
+                    )
+                  }
                   className="order-1 md:order-2 rounded-3xl bg-gradient-to-b from-amber-950/70 via-stone-900/95 to-stone-950 border-2 border-amber-500/90 p-6 flex flex-col items-center text-center cursor-pointer hover:border-amber-400 transition-all shadow-[0_0_35px_rgba(245,158,11,0.3)] hover:-translate-y-1.5 group relative overflow-hidden"
                 >
                   <div className="absolute -top-3.5 flex items-center gap-1 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 text-[11px] font-black shadow-lg">
                     <Crown className="w-3.5 h-3.5 fill-current" />
-                 
                   </div>
 
                   <div className="relative mt-2 mb-3">
@@ -250,13 +357,18 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                       %
                     </span>
                   </div>
-                </div>
+                </a>
               )}
 
               {/* Hạng 3 (Đồng - Quý Quân) */}
               {rank3 && (
-                <div
-                  onClick={() => handleOpenProfile(rank3)}
+                <a
+                  href={buildLeaderboardUrl(mode, period, rank3.uid)}
+                  onClick={(e) =>
+                    handleLinkClick(e, buildLeaderboardUrl(mode, period, rank3.uid), () =>
+                      handleOpenProfile(rank3, 'stats', false)
+                    )
+                  }
                   className="order-3 rounded-3xl bg-gradient-to-b from-stone-800/90 via-stone-900/95 to-stone-950 border border-amber-800/60 p-5 flex flex-col items-center text-center cursor-pointer hover:border-amber-700 transition-all shadow-xl hover:-translate-y-1 group relative overflow-hidden"
                 >
                   <div className="relative mb-2.5">
@@ -283,7 +395,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                       : 0}
                     %
                   </div>
-                </div>
+                </a>
               )}
 
             </div>
@@ -355,12 +467,20 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                       </td>
 
                       <td className="py-3 px-3 font-sans font-semibold text-stone-100 group-hover:text-amber-300 transition-colors">
-                        <div className="flex items-center gap-2">
+                        <a
+                          href={buildLeaderboardUrl(mode, period, row.uid)}
+                          onClick={(e) =>
+                            handleLinkClick(e, buildLeaderboardUrl(mode, period, row.uid), () =>
+                              handleOpenProfile(row, 'stats', false)
+                            )
+                          }
+                          className="flex items-center gap-2"
+                        >
                           <span className="w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center text-xs">
                             🐵
                           </span>
                           <span>{row.displayName || row.username}</span>
-                        </div>
+                        </a>
                       </td>
 
                       <td className="py-3 px-3 font-sans text-stone-400 text-xs">{rankTitle}</td>
@@ -422,17 +542,24 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               </div>
 
               <button
-                onClick={() => setSelectedPlayer(null)}
+                onClick={handleCloseProfile}
                 className="p-1.5 rounded-xl bg-stone-950/80 hover:bg-stone-800 text-stone-300 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Tab chuyển Thống kê / Lịch sử đấu */}
+            {/* Tab chuyển Thống kê / Lịch sử đấu có đường dẫn trực tiếp */}
             <div className="flex items-center gap-2 p-1 rounded-2xl bg-stone-950 border border-stone-800 text-xs">
-              <button
-                onClick={() => setPlayerTab('stats')}
+              <a
+                href={buildLeaderboardUrl(mode, period, selectedPlayer.uid, 'stats')}
+                onClick={(e) =>
+                  handleLinkClick(
+                    e,
+                    buildLeaderboardUrl(mode, period, selectedPlayer.uid, 'stats'),
+                    () => setPlayerTab('stats')
+                  )
+                }
                 className={`flex-1 py-2 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   playerTab === 'stats'
                     ? 'bg-amber-600 text-white shadow-md'
@@ -441,9 +568,16 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               >
                 <BarChart2 className="w-3.5 h-3.5" />
                 <span>Thống kê</span>
-              </button>
-              <button
-                onClick={() => setPlayerTab('history')}
+              </a>
+              <a
+                href={buildLeaderboardUrl(mode, period, selectedPlayer.uid, 'history')}
+                onClick={(e) =>
+                  handleLinkClick(
+                    e,
+                    buildLeaderboardUrl(mode, period, selectedPlayer.uid, 'history'),
+                    () => setPlayerTab('history')
+                  )
+                }
                 className={`flex-1 py-2 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   playerTab === 'history'
                     ? 'bg-amber-600 text-white shadow-md'
@@ -452,56 +586,144 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
               >
                 <History className="w-3.5 h-3.5" />
                 <span>Lịch sử ({playerGames.length})</span>
-              </button>
+              </a>
             </div>
 
             {/* Nội dung Tab Thống kê */}
-            {playerTab === 'stats' && (
-              <div className="space-y-4 py-2 overflow-y-auto">
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
-                    <div className="text-lg font-black text-emerald-400 font-mono-num">
-                      {selectedPlayer.wins || 0}
-                    </div>
-                    <div className="text-[11px] text-stone-400 mt-0.5">Thắng</div>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
-                    <div className="text-lg font-black text-stone-300 font-mono-num">
-                      {selectedPlayer.draws || 0}
-                    </div>
-                    <div className="text-[11px] text-stone-400 mt-0.5">Hòa</div>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
-                    <div className="text-lg font-black text-red-400 font-mono-num">
-                      {selectedPlayer.losses || 0}
-                    </div>
-                    <div className="text-[11px] text-stone-400 mt-0.5">Thua</div>
-                  </div>
-                </div>
+            {playerTab === 'stats' && (() => {
+              const uId = String(selectedPlayer.uid || '').toLowerCase();
+              const uName = String(selectedPlayer.username || '').toLowerCase();
+              const dName = String(selectedPlayer.displayName || '').toLowerCase();
+              const pureUid = uId.startsWith('admin_')
+                ? uId.slice(6)
+                : uId.startsWith('u_')
+                ? uId.slice(2)
+                : uId;
 
-                <div className="p-4 rounded-2xl bg-stone-950/70 border border-stone-800 space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-stone-300">
-                    <span>Tổng số trận đã đấu:</span>
-                    <span className="font-bold font-mono-num">{selectedPlayer.gamesPlayed || 0} ván</span>
+              const modeGames = [...playerGames]
+                .filter((g) => (g.mode || 'standard') === mode)
+                .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+              let curStreak = 0;
+              let maxStreakFromGames = 0;
+              for (const g of modeGames) {
+                const rUid = String(g.redUid || '').toLowerCase();
+                const bUid = String(g.blackUid || '').toLowerCase();
+                const rName = String(g.redName || '').toLowerCase();
+                const bName = String(g.blackName || '').toLowerCase();
+
+                const isRed =
+                  (Boolean(rUid) &&
+                    (rUid === uId ||
+                      rUid === uName ||
+                      rUid === `admin_${uName}` ||
+                      rUid === `u_${uName}` ||
+                      rUid === pureUid)) ||
+                  (Boolean(uName) && rName === uName) ||
+                  (Boolean(dName) && rName === dName);
+
+                const isBlack =
+                  (Boolean(bUid) &&
+                    (bUid === uId ||
+                      bUid === uName ||
+                      bUid === `admin_${uName}` ||
+                      bUid === `u_${uName}` ||
+                      bUid === pureUid)) ||
+                  (Boolean(uName) && bName === uName) ||
+                  (Boolean(dName) && bName === dName);
+
+                const winnerNorm = String(g.winner || '').trim().toLowerCase();
+                const isRedWin = winnerNorm === 'r' || winnerNorm === 'red';
+                const isBlackWin = winnerNorm === 'b' || winnerNorm === 'black';
+                const isDrawResult =
+                  winnerNorm === 'draw' ||
+                  winnerNorm === 'd' ||
+                  winnerNorm === 'tie' ||
+                  winnerNorm === 'hòa' ||
+                  winnerNorm === 'hoa';
+
+                let outcome: 'win' | 'draw' | 'loss' = 'loss';
+                if (isDrawResult) {
+                  outcome = 'draw';
+                } else if (isRed && isRedWin) {
+                  outcome = 'win';
+                } else if (isBlack && isBlackWin) {
+                  outcome = 'win';
+                } else if (isRed && isBlackWin) {
+                  outcome = 'loss';
+                } else if (isBlack && isRedWin) {
+                  outcome = 'loss';
+                } else {
+                  const eloDelta = isRed ? g.redEloDelta : isBlack ? g.blackEloDelta : undefined;
+                  if (typeof eloDelta === 'number') {
+                    outcome = eloDelta > 0 ? 'win' : eloDelta < 0 ? 'loss' : 'draw';
+                  } else {
+                    outcome = 'draw';
+                  }
+                }
+
+                if (outcome === 'win') {
+                  curStreak += 1;
+                  if (curStreak > maxStreakFromGames) maxStreakFromGames = curStreak;
+                } else {
+                  curStreak = 0;
+                }
+              }
+
+              const longestWinStreak = Math.max(
+                Number(selectedPlayer.longestWinStreak || 0),
+                Number(selectedPlayer.winStreak || 0),
+                maxStreakFromGames,
+                Number(selectedPlayer.wins || 0) > 0 ? 1 : 0
+              );
+
+              return (
+                <div className="space-y-4 py-2 overflow-y-auto">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
+                      <div className="text-lg font-black text-emerald-400 font-mono-num">
+                        {selectedPlayer.wins || 0}
+                      </div>
+                      <div className="text-[11px] text-stone-400 mt-0.5">Thắng</div>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
+                      <div className="text-lg font-black text-stone-300 font-mono-num">
+                        {selectedPlayer.draws || 0}
+                      </div>
+                      <div className="text-[11px] text-stone-400 mt-0.5">Hòa</div>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-stone-950/80 border border-stone-800">
+                      <div className="text-lg font-black text-red-400 font-mono-num">
+                        {selectedPlayer.losses || 0}
+                      </div>
+                      <div className="text-[11px] text-stone-400 mt-0.5">Thua</div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-stone-300">
-                    <span>Tỷ lệ thắng:</span>
-                    <span className="font-bold text-emerald-400 font-mono-num">
-                      {selectedPlayer.gamesPlayed
-                        ? Math.round(((selectedPlayer.wins || 0) / selectedPlayer.gamesPlayed) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-stone-300">
-                    <span>Chuỗi thắng dài nhất:</span>
-                    <span className="font-bold text-amber-400 font-mono-num">
-                      {selectedPlayer.winStreak ?? 0} ván
-                    </span>
+
+                  <div className="p-4 rounded-2xl bg-stone-950/70 border border-stone-800 space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-stone-300">
+                      <span>Tổng số trận đã đấu:</span>
+                      <span className="font-bold font-mono-num">{selectedPlayer.gamesPlayed || 0} ván</span>
+                    </div>
+                    <div className="flex items-center justify-between text-stone-300">
+                      <span>Tỷ lệ thắng:</span>
+                      <span className="font-bold text-emerald-400 font-mono-num">
+                        {selectedPlayer.gamesPlayed
+                          ? Math.round(((selectedPlayer.wins || 0) / selectedPlayer.gamesPlayed) * 100)
+                          : 0}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-stone-300">
+                      <span>Chuỗi thắng dài nhất:</span>
+                      <span className="font-bold text-amber-400 font-mono-num">
+                        {longestWinStreak} ván
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Nội dung Tab Lịch sử đấu */}
             {playerTab === 'history' && (
