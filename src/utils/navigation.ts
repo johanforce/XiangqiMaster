@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type MainTab = 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin';
+export type MainTab = 'home' | 'ai' | 'ranked' | 'viewer' | 'library' | 'leaderboard' | 'admin';
 
 export function navigateUrl(url: string, replace = false) {
   const current = window.location.pathname + window.location.search;
@@ -32,7 +32,9 @@ export function getMainTabFromPath(pathname: string): MainTab {
   if (clean.startsWith('/ai')) return 'ai';
   if (clean.startsWith('/ranked')) return 'ranked';
   if (clean.startsWith('/viewer')) return 'viewer';
+  if (clean.startsWith('/library')) return 'library';
   if (clean.startsWith('/leaderboard')) return 'leaderboard';
   if (clean.startsWith('/admin')) return 'admin';
   return 'home';
 }
+

@@ -77,5 +77,11 @@ service cloud.firestore {
     match /ranked_matches/{matchId} {
       allow read, write: if true;
     }
+
+    // Tàng Thư (Library articles)
+    match /articles/{articleId} {
+      allow read, write: if true;
+    }
   }
 }
+

@@ -160,6 +160,25 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["antiBoostWindowGames", "antiBoostThreshold", "antiBoostMaxPenalty", "decayDays", "decayPenalty", "resetDays", "cleanupHour", "updatedAt"]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "Tàng Thư (Library) article with rich commentary, initial FEN, notation text, and pre-parsed step-by-step moves.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "category": { "type": "string", "maxLength": 64 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "maxLength": 50000 },
+        "initialFen": { "type": "string", "maxLength": 200 },
+        "notationText": { "type": "string", "maxLength": 10000 },
+        "authorUid": { "type": "string", "maxLength": 64 },
+        "authorName": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "title", "category", "content", "initialFen", "notationText", "authorUid", "authorName", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -198,6 +217,11 @@
     "/adminConfig/{configId}": {
       "schema": { "$ref": "#/entities/AdminConfig" },
       "description": "System configuration"
+    },
+    "/articles/{articleId}": {
+      "schema": { "$ref": "#/entities/Article" },
+      "description": "Tàng Thư library articles with Xiangqi board & notation"
     }
   }
 }
+

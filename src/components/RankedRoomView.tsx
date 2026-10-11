@@ -1844,33 +1844,35 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex-1 max-h-[360px] overflow-y-auto grid grid-cols-2 gap-1.5 text-xs font-mono-num p-2.5 rounded-xl bg-stone-950/80 border border-stone-800/80 backdrop-blur-xs">
-                {moves.map((m: any, idx: number) => {
-                  const moveUrl = `/ranked/room/${activeRoom.code}?tab=notation&ply=${idx + 1}`;
-                  return (
-                    <a
-                      key={idx}
-                      href={moveUrl}
-                      onClick={(e) =>
-                        handleLinkClick(e, moveUrl, () => {
-                          setReviewMode(true);
-                          setReviewPly(idx + 1);
-                        })
-                      }
-                      className={`px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between ${
-                        reviewMode && reviewPly === idx + 1
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'hover:bg-stone-800/60 text-stone-300'
-                      }`}
-                    >
-                      <span className="text-stone-500">
-                        {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
-                      </span>
-                      <span className="font-semibold text-stone-200">{m.wxf}</span>
-                      <span className="text-stone-400 text-[10px]">({m.viet})</span>
-                    </a>
-                  );
-                })}
+              <div className="h-[340px] max-h-[340px] overflow-y-auto overscroll-contain p-2.5 rounded-xl bg-stone-950/80 border border-stone-800/80 backdrop-blur-xs">
+                <div className="grid grid-cols-2 gap-1.5 auto-rows-max content-start text-xs font-mono-num">
+                  {moves.map((m: any, idx: number) => {
+                    const moveUrl = `/ranked/room/${activeRoom.code}?tab=notation&ply=${idx + 1}`;
+                    return (
+                      <a
+                        key={idx}
+                        href={moveUrl}
+                        onClick={(e) =>
+                          handleLinkClick(e, moveUrl, () => {
+                            setReviewMode(true);
+                            setReviewPly(idx + 1);
+                          })
+                        }
+                        className={`min-h-[34px] shrink-0 px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between ${
+                          reviewMode && reviewPly === idx + 1
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'hover:bg-stone-800/60 text-stone-300'
+                        }`}
+                      >
+                        <span className="text-stone-500 shrink-0">
+                          {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
+                        </span>
+                        <span className="font-semibold text-stone-200 truncate mx-1">{m.wxf}</span>
+                        <span className="text-stone-400 text-[10px] truncate">({m.viet})</span>
+                      </a>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

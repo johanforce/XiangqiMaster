@@ -20,15 +20,16 @@ import {
   Users,
   Compass,
   CheckCircle2,
+  Library,
 } from 'lucide-react';
 import { UserProfile } from './AuthModal';
 import { getEloRankTitle } from '../shared/elo';
 import { Logo } from './Logo';
-import { handleLinkClick } from '../utils/navigation';
+import { handleLinkClick, MainTab } from '../utils/navigation';
 
 interface HomeViewProps {
   currentUser: UserProfile | null;
-  onNavigate: (tab: 'home' | 'ai' | 'ranked' | 'viewer' | 'leaderboard' | 'admin') => void;
+  onNavigate: (tab: MainTab) => void;
   onOpenAuth: () => void;
 }
 
@@ -39,7 +40,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 }) => {
   const [topPlayers, setTopPlayers] = useState<any[]>([]);
   const [loadingTop, setLoadingTop] = useState(true);
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [latestArticles, setLatestArticles] = useState<any[]>([]);
+  const [loadingArticles, setLoadingArticles] = useState(true);
 
   useEffect(() => {
     fetch('/api/leaderboard?mode=standard&period=all', { cache: 'no-store' })
@@ -51,6 +53,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
       })
       .catch(() => {})
       .finally(() => setLoadingTop(false));
+
+    fetch('/api/articles', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.articles) {
+          setLatestArticles(data.articles.slice(0, 3));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingArticles(false));
   }, []);
 
   return (
@@ -95,22 +107,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <a
-              href="/ai"
-              onClick={(e) => handleLinkClick(e, '/ai')}
+              href="/ranked"
+              onClick={(e) => handleLinkClick(e, '/ranked')}
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-sm shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:shadow-[0_0_35px_rgba(245,158,11,0.5)] transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
             >
-              <Bot className="w-4 h-4" />
-              <span>Đấu với AI ngay</span>
+              <Swords className="w-4 h-4" />
+              <span>Đấu Xếp Hạng ngay</span>
               <ArrowRight className="w-4 h-4 ml-1" />
             </a>
 
             <a
-              href="/ranked"
-              onClick={(e) => handleLinkClick(e, '/ranked')}
+              href="/ai"
+              onClick={(e) => handleLinkClick(e, '/ai')}
               className="px-6 py-3.5 rounded-2xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-100 font-bold text-sm backdrop-blur-md transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
             >
-              <Swords className="w-4 h-4 text-amber-400" />
-              <span>Đấu Xếp Hạng</span>
+              <Bot className="w-4 h-4 text-amber-400" />
+              <span>Đấu với Máy (AI)</span>
             </a>
 
             <a
@@ -120,6 +132,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               <BookOpen className="w-4 h-4" />
               <span>Xem Kỳ Phổ</span>
+            </a>
+
+            <a
+              href="/library"
+              onClick={(e) => handleLinkClick(e, '/library')}
+              className="px-5 py-3.5 rounded-2xl bg-amber-950/40 hover:bg-amber-900/40 border border-amber-500/40 text-amber-300 text-sm font-semibold transition-colors flex items-center gap-2"
+            >
+              <Library className="w-4 h-4 text-amber-400" />
+              <span>Tàng Thư Các</span>
             </a>
           </div>
 
@@ -158,7 +179,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: AI Match */}
+          {/* Card 1: Ranked Online (Highlighted Primary Mode) */}
+          <a
+            href="/ranked"
+            onClick={(e) => handleLinkClick(e, '/ranked')}
+            className="group relative rounded-2xl bg-gradient-to-br from-amber-950/40 via-stone-900 to-stone-900 hover:from-amber-950/60 border border-amber-500/60 hover:border-amber-400 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between shadow-[0_0_20px_rgba(245,158,11,0.15)] hover:shadow-xl hover:-translate-y-1"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                  <Swords className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500 text-stone-950 font-bold uppercase tracking-wider">
+                  Nổi bật
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-amber-300 group-hover:text-amber-200 transition-colors">
+                Đấu Xếp Hạng Online
+              </h3>
+              <p className="text-xs text-stone-300 leading-relaxed">
+                Đấu trực tuyến thời gian thực với đồng hồ bấm giờ chuẩn quốc tế: Cờ chớp 5p+3s, Cờ tiêu chuẩn 30p. Ghép phòng nhanh qua mã.
+              </p>
+            </div>
+            <div className="pt-4 mt-2 border-t border-amber-500/30 flex items-center justify-between text-xs text-amber-400 font-semibold">
+              <span>Tranh hạng ngay</span>
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </a>
+
+          {/* Card 2: AI Match */}
           <a
             href="/ai"
             onClick={(e) => handleLinkClick(e, '/ai')}
@@ -177,29 +226,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
             <div className="pt-4 mt-2 border-t border-stone-800/60 flex items-center justify-between text-xs text-amber-400 font-semibold">
               <span>Thử sức ngay</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </a>
-
-          {/* Card 2: Ranked Online */}
-          <a
-            href="/ranked/standard"
-            onClick={(e) => handleLinkClick(e, '/ranked/standard')}
-            className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-red-500/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1"
-          >
-            <div className="space-y-3">
-              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 group-hover:scale-110 transition-transform">
-                <Swords className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-stone-100 group-hover:text-red-300 transition-colors">
-                Đấu Xếp Hạng Online
-              </h3>
-              <p className="text-xs text-stone-400 leading-relaxed">
-                Đấu trực tuyến thời gian thực với đồng hồ bấm giờ chuẩn quốc tế: Cờ chớp 5p+3s, Cờ tiêu chuẩn 30p. Ghép phòng nhanh qua mã.
-              </p>
-            </div>
-            <div className="pt-4 mt-2 border-t border-stone-800/60 flex items-center justify-between text-xs text-red-400 font-semibold">
-              <span>Tranh hạng ngay</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </a>
@@ -241,15 +267,137 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 Kỳ Phổ & Nghiên Cứu
               </h3>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Nạp và phân tích biên bản WXF, PGN, ICCS. Tua tự động, xem từng nước đi, lưu trữ ván đấu để phân tích đòn thế sâu sắc.
+                Nạp và phân tích biên bản WXF, PGN, ICCS. Tua tự động, xem từng nước đi để phân tích đòn thế sâu sắc.
               </p>
             </div>
             <div className="pt-4 mt-2 border-t border-stone-800/60 flex items-center justify-between text-xs text-emerald-400 font-semibold">
-              <span>Mở thư viện kỳ phổ</span>
+              <span>Mở trình xem kỳ phổ</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </a>
+
+          {/* Card 5: Tàng Thư (Library) */}
+          <a
+            href="/library"
+            onClick={(e) => handleLinkClick(e, '/library')}
+            className="group relative rounded-2xl bg-stone-900/80 hover:bg-stone-900 border border-stone-800 hover:border-amber-400/50 p-5 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 md:col-span-2 lg:col-span-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0 group-hover:scale-110 transition-transform">
+                  <Library className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-stone-100 group-hover:text-amber-300 transition-colors">
+                      Tàng Thư Kỳ Đạo (Bí Kíp & Bàn Cờ Minh Họa)
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
+                      Mới
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400 leading-relaxed max-w-3xl">
+                    Kho tàng bài viết chuyên sâu về Khai cuộc, Trung cuộc, Tàn cuộc, Sát pháp và bình chú danh cục. Kết hợp bàn cờ và ký phổ đi theo từng bước giúp kỳ thủ lĩnh hội trọn vẹn ý đồ chiến thuật.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold shrink-0">
+                <span>Khám phá Tàng Thư</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </a>
         </div>
+      </section>
+
+      {/* 2B. TÀNG THƯ CÁC SHOWCASE ON HOME PAGE */}
+      <section className="rounded-3xl bg-stone-900/90 border border-stone-800 p-6 sm:p-8 space-y-5 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-800/80 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Library className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-stone-100">
+                Tàng Thư Kỳ Đạo · Bài Viết & Ký Phổ Mới Nhất
+              </h2>
+              <p className="text-xs text-stone-400">
+                Nghiên cứu lý thuyết kèm bàn cờ minh họa trực quan từng bước
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="/library"
+            onClick={(e) => handleLinkClick(e, '/library')}
+            className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <span>Vào Tàng Thư Các</span>
+            <ChevronRight className="w-4 h-4" />
+          </a>
+        </div>
+
+        {loadingArticles ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="h-36 rounded-2xl bg-stone-800/50 animate-pulse" />
+            <div className="h-36 rounded-2xl bg-stone-800/50 animate-pulse" />
+            <div className="h-36 rounded-2xl bg-stone-800/50 animate-pulse" />
+          </div>
+        ) : latestArticles.length === 0 ? (
+          <div className="rounded-2xl bg-stone-950/70 border border-stone-800/80 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="text-sm font-bold text-stone-200">
+                Kho tàng bí kíp Khai cuộc · Trung cuộc · Tàn cuộc · Sát pháp
+              </div>
+              <p className="text-xs text-stone-400">
+                Tra cứu các bài viết phân tích thế trận có kèm bàn cờ và ký phổ diễn biến theo từng bước đi.
+              </p>
+            </div>
+            <a
+              href="/library"
+              onClick={(e) => handleLinkClick(e, '/library')}
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shrink-0 transition-colors"
+            >
+              Mở Tàng Thư
+            </a>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {latestArticles.map((art) => {
+              const artUrl = `/library/${encodeURIComponent(art.id)}`;
+              const moveCount = art.moveCount ?? (Array.isArray(art.moves) ? art.moves.length : 0);
+              return (
+                <a
+                  key={art.id}
+                  href={artUrl}
+                  onClick={(e) => handleLinkClick(e, artUrl)}
+                  className="group rounded-2xl bg-stone-950/80 border border-stone-800 hover:border-amber-500/50 p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                        {art.category || 'Khai cuộc'}
+                      </span>
+                      <span className="font-mono-num text-stone-400">
+                        {moveCount > 0 ? `${moveCount} bước` : 'Thế cờ'}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-bold text-stone-100 group-hover:text-amber-300 transition-colors line-clamp-2">
+                      {art.title}
+                    </h3>
+                    <p className="text-xs text-stone-400 line-clamp-2 leading-relaxed">
+                      {art.summary || art.content}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-[11px] text-amber-400 font-medium">
+                    <span>{art.authorName || 'Kỳ Đàn'}</span>
+                    <span>Xem bài & bàn cờ →</span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* 3. SPOTLIGHT: SO TÀI ĐỈNH CAO & THẨM MỸ NGHỆ THUẬT */}
@@ -438,16 +586,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <a
+            href="/ranked"
+            onClick={(e) => handleLinkClick(e, '/ranked')}
+            className="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg transition-colors flex items-center gap-1.5"
+          >
+            <Swords className="w-4 h-4" />
+            <span>Đấu Xếp Hạng ngay</span>
+          </a>
+          <a
             href="/ai"
             onClick={(e) => handleLinkClick(e, '/ai')}
-            className="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg transition-colors"
+            className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 font-bold text-xs border border-stone-700 transition-colors"
           >
-            Đấu với Máy ngay
+            Đấu với Máy (AI)
           </a>
           {!currentUser && (
             <button
               onClick={onOpenAuth}
-              className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 font-bold text-xs border border-stone-700 transition-colors"
+              className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs border border-amber-500/40 transition-colors"
             >
               Tạo tài khoản miễn phí
             </button>

@@ -65,13 +65,15 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
     const parsed = replayFromNotationText(text);
     setInitialFen(parsed.initialFen);
     setMoves(parsed.moves);
+    const lastPly = parsed.moves.length;
     if (keepUrlPly) {
-      const p = Number(new URLSearchParams(window.location.search).get('ply'));
-      const validPly = !Number.isNaN(p) && p >= 0 ? Math.min(parsed.moves.length, p) : 0;
+      const plyParam = new URLSearchParams(window.location.search).get('ply');
+      const p = plyParam !== null ? Number(plyParam) : NaN;
+      const validPly = !Number.isNaN(p) && p >= 0 ? Math.min(lastPly, p) : lastPly;
       setPlyIndex(validPly);
     } else {
-      setPlyIndex(0);
-      navigateUrl(buildViewerUrl(notationFormat, 0), true);
+      setPlyIndex(lastPly);
+      navigateUrl(buildViewerUrl(notationFormat, lastPly), true);
     }
     setAutoPlay(false);
   };
@@ -316,45 +318,47 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
             FEN: {currentFen}
           </div>
 
-          {/* Interactive Move List */}
-          <div className="max-h-72 overflow-y-auto rounded-xl bg-stone-950/80 border border-stone-800/80 p-2 grid grid-cols-2 gap-1 text-xs font-mono-num">
+          {/* Interactive Move List (Dedicated Scroll Container so rows never compress) */}
+          <div className="h-72 max-h-72 overflow-y-auto overscroll-contain rounded-xl bg-stone-950/80 border border-stone-800/80 p-2.5 text-xs font-mono-num">
             {moves.length === 0 ? (
-              <div className="col-span-2 py-8 text-center text-stone-500 font-sans">
+              <div className="h-full flex items-center justify-center py-8 text-center text-stone-500 font-sans">
                 Dán kỳ phổ vào ô bên trên rồi bấm &ldquo;Nạp kỳ phổ&rdquo; để xem các nước đi
               </div>
             ) : (
-              moves.map((m, idx) => {
-                const active = plyIndex === idx + 1;
-                const label =
-                  notationFormat === 'wxf'
-                    ? m.wxf
-                    : notationFormat === 'viet'
-                    ? m.viet
-                    : m.iccs;
-                const moveUrl = buildViewerUrl(notationFormat, idx + 1);
-                return (
-                  <a
-                    key={m.ply}
-                    href={moveUrl}
-                    onClick={(e) =>
-                      handleLinkClick(e, moveUrl, () => {
-                        setAutoPlay(false);
-                        setPlyIndex(idx + 1);
-                      })
-                    }
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                      active
-                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
-                        : 'text-stone-300 hover:bg-stone-800/70'
-                    }`}
-                  >
-                    <span className="text-stone-500">
-                      {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
-                    </span>
-                    <span className="truncate ml-1.5">{label}</span>
-                  </a>
-                );
-              })
+              <div className="grid grid-cols-2 gap-1.5 auto-rows-max content-start">
+                {moves.map((m, idx) => {
+                  const active = plyIndex === idx + 1;
+                  const label =
+                    notationFormat === 'wxf'
+                      ? m.wxf
+                      : notationFormat === 'viet'
+                      ? m.viet
+                      : m.iccs;
+                  const moveUrl = buildViewerUrl(notationFormat, idx + 1);
+                  return (
+                    <a
+                      key={m.ply}
+                      href={moveUrl}
+                      onClick={(e) =>
+                        handleLinkClick(e, moveUrl, () => {
+                          setAutoPlay(false);
+                          setPlyIndex(idx + 1);
+                        })
+                      }
+                      className={`min-h-[34px] shrink-0 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                        active
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
+                          : 'text-stone-300 hover:bg-stone-800/70'
+                      }`}
+                    >
+                      <span className="text-stone-500 shrink-0">
+                        {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
+                      </span>
+                      <span className="truncate ml-1.5">{label}</span>
+                    </a>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

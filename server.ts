@@ -1699,6 +1699,159 @@ async function startServer() {
     }
   });
 
+  // ==================== TÀNG THƯ (LIBRARY ARTICLES) API ====================
+
+  app.get('/api/articles', async (req, res) => {
+    try {
+      const q = String(req.query.q || '').trim().toLowerCase();
+      const category = String(req.query.category || '').trim();
+      const list = await getCollectionRealtime('articles');
+
+      const filtered = list
+        .filter((a) => {
+          if (category && category !== 'all' && a.category !== category) return false;
+          if (!q) return true;
+          const hay = [
+            a.title || '',
+            a.summary || '',
+            a.content || '',
+            a.category || '',
+            a.authorName || '',
+            a.notationText || '',
+          ]
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(q);
+        })
+        .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+
+      return res.json({ articles: filtered });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi tải danh sách Tàng Thư' });
+    }
+  });
+
+  app.get('/api/articles/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      const article = await getDocRealtime('articles', id);
+      if (!article) {
+        return res.status(404).json({ error: 'Không tìm thấy bài viết trong Tàng Thư' });
+      }
+      return res.json({ article });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi tải chi tiết bài viết' });
+    }
+  });
+
+  app.post('/api/admin/articles', async (req, res) => {
+    try {
+      if (!(await verifyAdminRequest(req, res))) return;
+      const adminUid = String(req.headers['x-admin-uid'] || req.body?.adminUid || '');
+      const adminUser = await getUserByUidRealtime(adminUid);
+
+      const title = String(req.body?.title || '').trim();
+      const category = String(req.body?.category || 'Khai cuộc').trim();
+      const summary = String(req.body?.summary || '').trim();
+      const content = String(req.body?.content || '').trim();
+      const initialFen = String(req.body?.initialFen || INITIAL_FEN).trim() || INITIAL_FEN;
+      const notationText = String(req.body?.notationText || '').trim();
+      const moves = Array.isArray(req.body?.moves) ? req.body.moves : [];
+
+      if (!title) {
+        return res.status(400).json({ error: 'Tiêu đề bài viết không được để trống' });
+      }
+      if (!content) {
+        return res.status(400).json({ error: 'Nội dung bài viết không được để trống' });
+      }
+
+      const now = Date.now();
+      const id = `art_${now}_${Math.random().toString(36).slice(2, 7)}`;
+
+      const articleDoc = {
+        id,
+        title: title.slice(0, 160),
+        category: category.slice(0, 64),
+        summary: (summary || content.replace(/[#*_>`~\n]+/g, ' ').trim()).slice(0, 300),
+        content: content.slice(0, 50000),
+        initialFen: initialFen.slice(0, 200),
+        notationText: notationText.slice(0, 10000),
+        moves,
+        moveCount: moves.length,
+        authorUid: adminUid,
+        authorName: adminUser?.displayName || adminUser?.username || ADMIN_DISPLAY_NAME,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await setDocRealtime('articles', id, articleDoc, false);
+      return res.json({ ok: true, article: articleDoc });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi tạo bài viết Tàng Thư' });
+    }
+  });
+
+  app.put('/api/admin/articles/:id', async (req, res) => {
+    try {
+      if (!(await verifyAdminRequest(req, res))) return;
+      const id = String(req.params.id || '').trim();
+      const existing = await getDocRealtime('articles', id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Không tìm thấy bài viết cần sửa' });
+      }
+
+      const title = String(req.body?.title ?? existing.title ?? '').trim();
+      const category = String(req.body?.category ?? existing.category ?? 'Khai cuộc').trim();
+      const summary = String(req.body?.summary ?? existing.summary ?? '').trim();
+      const content = String(req.body?.content ?? existing.content ?? '').trim();
+      const initialFen =
+        String(req.body?.initialFen ?? existing.initialFen ?? INITIAL_FEN).trim() || INITIAL_FEN;
+      const notationText = String(req.body?.notationText ?? existing.notationText ?? '').trim();
+      const moves = Array.isArray(req.body?.moves) ? req.body.moves : existing.moves || [];
+
+      if (!title) {
+        return res.status(400).json({ error: 'Tiêu đề bài viết không được để trống' });
+      }
+      if (!content) {
+        return res.status(400).json({ error: 'Nội dung bài viết không được để trống' });
+      }
+
+      const now = Date.now();
+      const updatedDoc = {
+        ...existing,
+        id,
+        title: title.slice(0, 160),
+        category: category.slice(0, 64),
+        summary: (summary || content.replace(/[#*_>`~\n]+/g, ' ').trim()).slice(0, 300),
+        content: content.slice(0, 50000),
+        initialFen: initialFen.slice(0, 200),
+        notationText: notationText.slice(0, 10000),
+        moves,
+        moveCount: moves.length,
+        updatedAt: now,
+      };
+
+      await setDocRealtime('articles', id, updatedDoc, false);
+      return res.json({ ok: true, article: updatedDoc });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi cập nhật bài viết Tàng Thư' });
+    }
+  });
+
+  app.delete('/api/admin/articles/:id', async (req, res) => {
+    try {
+      if (!(await verifyAdminRequest(req, res))) return;
+      const id = String(req.params.id || '').trim();
+      if (!id) {
+        return res.status(400).json({ error: 'Thiếu mã bài viết' });
+      }
+      await deleteDocRealtime('articles', id);
+      return res.json({ ok: true });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi xóa bài viết Tàng Thư' });
+    }
+  });
+
   // ==================== CRON ENDPOINTS (CLEANUP 22:00 & RATING DECAY 00:05) ====================
 
   async function runRoomCleanupJob() {
