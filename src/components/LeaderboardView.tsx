@@ -14,8 +14,9 @@ import {
   BarChart2,
   Calendar,
   User,
+  Info,
 } from 'lucide-react';
-import { RatedMode, getEloRankTitle } from '../shared/elo';
+import { RatedMode, getEloRankTier, ELO_RANK_TIERS } from '../shared/elo';
 import { navigateUrl, handleLinkClick } from '../utils/navigation';
 
 interface LeaderboardViewProps {
@@ -53,6 +54,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
   const [playerTab, setPlayerTab] = useState<'stats' | 'history'>(initialUrlState.playerTab);
   const [playerGames, setPlayerGames] = useState<any[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
+  const [rankInfoOpen, setRankInfoOpen] = useState(false);
 
   const buildLeaderboardUrl = (
     m: RatedMode = mode,
@@ -178,9 +180,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
                   Kỳ Đàn Đỉnh Cao
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setRankInfoOpen(true)}
+                  title="Xem bảng phân chia cấp bậc Elo"
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-colors cursor-pointer"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
               </div>
               <p className="text-xs text-stone-400 mt-0.5">
-                Tôn vinh các Đại Sư và Kiện Tướng cờ tướng hàng đầu hệ thống
+                Tôn vinh các Đại Sư và Kì Tiên cờ tướng hàng đầu hệ thống
               </p>
             </div>
           </div>
@@ -297,8 +307,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   <div className="text-sm font-extrabold text-stone-100 group-hover:text-amber-300 transition-colors truncate max-w-[180px]">
                     {rank2.displayName || rank2.username}
                   </div>
-                  <div className="text-[11px] text-slate-300 font-semibold mt-0.5">
-                    {getEloRankTitle(rank2.elo)}
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-bold border ${
+                        getEloRankTier(rank2.elo, rank2.hiddenFromLeaderboard).badgeColor
+                      }`}
+                    >
+                      {getEloRankTier(rank2.elo, rank2.hiddenFromLeaderboard).title}
+                    </span>
                   </div>
                   <div className="mt-2 text-lg font-black font-mono-num text-amber-300">
                     {rank2.elo} <span className="text-xs font-normal text-stone-400">Elo</span>
@@ -340,8 +356,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   <div className="text-base font-black text-amber-200 group-hover:text-amber-300 transition-colors truncate max-w-[200px]">
                     {rank1.displayName || rank1.username}
                   </div>
-                  <div className="text-xs text-amber-400/90 font-bold mt-0.5">
-                    {getEloRankTitle(rank1.elo)}
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold border ${
+                        getEloRankTier(rank1.elo, rank1.hiddenFromLeaderboard).badgeColor
+                      }`}
+                    >
+                      {getEloRankTier(rank1.elo, rank1.hiddenFromLeaderboard).title}
+                    </span>
                   </div>
                   <div className="mt-2 text-2xl font-black font-mono-num text-amber-300">
                     {rank1.elo} <span className="text-xs font-normal text-stone-400">Elo</span>
@@ -382,8 +404,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                   <div className="text-sm font-extrabold text-stone-100 group-hover:text-amber-300 transition-colors truncate max-w-[180px]">
                     {rank3.displayName || rank3.username}
                   </div>
-                  <div className="text-[11px] text-amber-600/90 font-semibold mt-0.5">
-                    {getEloRankTitle(rank3.elo)}
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-bold border ${
+                        getEloRankTier(rank3.elo, rank3.hiddenFromLeaderboard).badgeColor
+                      }`}
+                    >
+                      {getEloRankTier(rank3.elo, rank3.hiddenFromLeaderboard).title}
+                    </span>
                   </div>
                   <div className="mt-2 text-lg font-black font-mono-num text-amber-300">
                     {rank3.elo} <span className="text-xs font-normal text-stone-400">Elo</span>
@@ -416,6 +444,15 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
             <h3 className="text-sm font-bold text-stone-200 uppercase tracking-wider">
               Danh Sách Xếp Hạng Kỳ Thủ
             </h3>
+            <button
+              type="button"
+              onClick={() => setRankInfoOpen(true)}
+              title="Bảng phân chia cấp bậc Elo"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-stone-800/90 hover:bg-stone-700 border border-stone-700 text-amber-300 text-[11px] font-medium transition-colors cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>Cấp bậc</span>
+            </button>
           </div>
           <span className="text-xs text-stone-400 font-mono-num">
             Tổng cộng: {entries.length} kỳ thủ
@@ -440,7 +477,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 <tr className="border-b border-stone-800 text-stone-400 text-xs">
                   <th className="py-3 px-3 font-semibold">Hạng</th>
                   <th className="py-3 px-3 font-semibold">Kỳ thủ</th>
-                  <th className="py-3 px-3 font-semibold">Cấp bậc</th>
+                  <th className="py-3 px-3 font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setRankInfoOpen(true)}
+                      className="inline-flex items-center gap-1 hover:text-amber-300 transition-colors cursor-pointer"
+                      title="Xem bảng phân chia cấp bậc"
+                    >
+                      <span>Cấp bậc</span>
+                      <Info className="w-3.5 h-3.5 text-amber-400/80" />
+                    </button>
+                  </th>
                   <th className="py-3 px-3 font-semibold text-right">Elo</th>
                   <th className="py-3 px-3 font-semibold text-right">Số ván</th>
                   <th className="py-3 px-3 font-semibold text-right">Tỷ lệ thắng</th>
@@ -450,7 +497,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 {entries.map((row, index) => {
                   const games = row.gamesPlayed || 0;
                   const winRate = games > 0 ? Math.round(((row.wins || 0) / games) * 100) : 0;
-                  const rankTitle = getEloRankTitle(row.elo, row.hiddenFromLeaderboard);
+                  const rankTier = getEloRankTier(row.elo, row.hiddenFromLeaderboard);
                   const isTop3 = index < 3;
 
                   return (
@@ -483,7 +530,13 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                         </a>
                       </td>
 
-                      <td className="py-3 px-3 font-sans text-stone-400 text-xs">{rankTitle}</td>
+                      <td className="py-3 px-3 font-sans">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold border whitespace-nowrap ${rankTier.badgeColor}`}
+                        >
+                          {rankTier.title}
+                        </span>
+                      </td>
 
                       <td className="py-3 px-3 text-right font-extrabold text-amber-300">
                         {row.elo}
@@ -531,8 +584,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                     <h3 className="text-base font-extrabold text-stone-100">
                       {selectedPlayer.displayName || selectedPlayer.username}
                     </h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/35 font-bold">
-                      {getEloRankTitle(selectedPlayer.elo)}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold border ${
+                        getEloRankTier(selectedPlayer.elo, selectedPlayer.hiddenFromLeaderboard).badgeColor
+                      }`}
+                    >
+                      {getEloRankTier(selectedPlayer.elo, selectedPlayer.hiddenFromLeaderboard).title}
                     </span>
                   </div>
                   <p className="text-xs text-stone-300 mt-1 font-mono-num">
@@ -885,6 +942,85 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
           </div>
         </div>
       )}
+
+      {/* 5. Dialog Bảng Phân Chia Cấp Bậc Elo */}
+      {rankInfoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+          onClick={() => setRankInfoOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-3xl bg-stone-900 border border-stone-800 p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-stone-100">
+                    Bảng Phân Chia Cấp Bậc Elo
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    Hệ thống danh hiệu kỳ đàn theo điểm số Elo (từ cao xuống thấp)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRankInfoOpen(false)}
+                className="p-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto overflow-y-auto pr-1">
+              <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr className="border-b border-stone-800 text-stone-400 text-xs whitespace-nowrap">
+                    <th className="py-2.5 px-3 font-semibold">Mốc Elo</th>
+                    <th className="py-2.5 px-3 font-semibold">Danh hiệu</th>
+                    <th className="py-2.5 px-3 font-semibold">Mô tả</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-800/60">
+                  {ELO_RANK_TIERS.map((tier, idx) => (
+                    <tr key={idx} className="hover:bg-stone-800/40 transition-colors whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono-num font-bold text-amber-300 whitespace-nowrap">
+                        {tier.range}
+                      </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold border whitespace-nowrap ${tier.badgeColor}`}
+                        >
+                          {tier.title}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-xs text-stone-400 whitespace-nowrap">
+                        {tier.desc}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-2 border-t border-stone-800 flex items-center justify-between text-[11px] text-stone-400">
+              <span>Điểm khởi đầu mặc định: 1300 Elo (Unrank)</span>
+              <button
+                type="button"
+                onClick={() => setRankInfoOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

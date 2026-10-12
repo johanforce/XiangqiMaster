@@ -111,13 +111,17 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
   });
 
   it('maps Elo to Vietnamese rank titles accurately', () => {
-    expect(getEloRankTitle(1050)).toBe('Tập sự');
-    expect(getEloRankTitle(1200)).toBe('Nghiệp dư');
-    expect(getEloRankTitle(1350)).toBe('Khá');
-    expect(getEloRankTitle(1550)).toBe('Giỏi');
-    expect(getEloRankTitle(1800)).toBe('Cao thủ');
-    expect(getEloRankTitle(2100)).toBe('Kỳ thủ');
-    expect(getEloRankTitle(2350)).toBe('Kiện tướng');
-    expect(getEloRankTitle(1600, true)).toBe('Chưa xếp hạng');
+    expect(getEloRankTitle(1300)).toBe('Unrank');
+    expect(getEloRankTitle(1320)).toBe('Gián đất');
+    expect(getEloRankTitle(1380)).toBe('Vịt chặt chân');
+    expect(getEloRankTitle(1450)).toBe('Ngan');
+    expect(getEloRankTitle(1550)).toBe('Ngỗng');
+    expect(getEloRankTitle(1650)).toBe('Kỳ thủ');
+    expect(getEloRankTitle(1750)).toBe('Cao thủ');
+    expect(getEloRankTitle(1850)).toBe('Kỳ thủ');
+    expect(getEloRankTitle(1950)).toBe('Đại sư');
+    expect(getEloRankTitle(2250)).toBe('Kì tiên');
+    expect(getEloRankTitle(1600, true)).toBe('Unrank');
   });
 });
+

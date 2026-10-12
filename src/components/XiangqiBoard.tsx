@@ -359,7 +359,7 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
               漢界
             </text>
 
-            {/* Last Move Origin Marker rendered directly on the SVG intersection (100% exact coordinate lock) */}
+            {/* Last Move Origin Marker rendered directly on the SVG intersection (100% exact coordinate lock & theme-aware palette) */}
             {lastMove && (() => {
               const fromCol = flipped ? 8 - lastMove.from.col : lastMove.from.col;
               const fromRow = flipped ? 9 - lastMove.from.row : lastMove.from.row;
@@ -367,20 +367,42 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
               const cy = fromRow * 100;
               return (
                 <g key="last-move-from-svg">
+                  {/* Subtle contrast backdrop disc so the marker separates cleanly from the board background */}
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r="24"
+                    fill={theme.moveFromBg}
+                  />
+                  {/* Outer theme-colored dashed ring */}
                   <circle
                     cx={cx}
                     cy={cy}
                     r="22"
-                    fill="rgba(245, 158, 11, 0.16)"
-                    stroke="#D97706"
-                    strokeWidth="2.5"
-                    strokeDasharray="6 4"
+                    fill="none"
+                    stroke={theme.moveFromRing}
+                    strokeWidth="3"
+                    strokeDasharray="7 4"
+                    strokeLinecap="round"
                   />
+                  {/* Inner crisp high-contrast ring */}
                   <circle
                     cx={cx}
                     cy={cy}
-                    r="6"
-                    fill="#F59E0B"
+                    r="14"
+                    fill="none"
+                    stroke={theme.moveFromInner}
+                    strokeWidth="1.5"
+                    opacity="0.9"
+                  />
+                  {/* Center intersection pin */}
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r="5.5"
+                    fill={theme.moveFromDot}
+                    stroke={theme.moveFromInner}
+                    strokeWidth="1.5"
                   />
                 </g>
               );
@@ -433,9 +455,15 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
                     onDrop={(e) => handleDrop(e, row, col)}
                     className="relative flex items-center justify-center w-full h-full cursor-pointer group"
                   >
-                    {/* Last Move Destination Halo (Subtle, non-glaring ring around the moved piece) */}
+                    {/* Last Move Destination Halo (Theme-matched ring around the moved piece) */}
                     {isLastTo && (
-                      <span className="pointer-events-none absolute w-[92%] aspect-square rounded-full border-2 border-amber-500/75 bg-amber-500/10" />
+                      <span
+                        className="pointer-events-none absolute w-[92%] aspect-square rounded-full border-2"
+                        style={{
+                          borderColor: theme.moveToBorder,
+                          backgroundColor: theme.moveToBg,
+                        }}
+                      />
                     )}
 
                     {/* AI Hint Move Indicator */}

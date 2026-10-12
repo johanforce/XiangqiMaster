@@ -40,12 +40,14 @@ import {
   PieceColor,
 } from '../shared/xiangqi';
 import { XiangqiBoard } from './XiangqiBoard';
-import { BOARD_THEMES } from '../utils/themes';
+import { BOARD_THEMES, BoardTheme } from '../utils/themes';
 import { sound } from '../utils/sound';
 import { navigateUrl, handleLinkClick } from '../utils/navigation';
 
 interface AdminDashboardViewProps {
   adminUid: string;
+  theme?: BoardTheme;
+  pieceCharMode?: 'hanzi' | 'viet';
   incomingLoginRequests?: any[] | null;
   onToast: (msg: string) => void;
 }
@@ -84,6 +86,8 @@ function parseAdminUrl(): {
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   adminUid,
+  theme = BOARD_THEMES.classic_wood,
+  pieceCharMode = 'hanzi',
   incomingLoginRequests,
   onToast,
 }) => {
@@ -1345,8 +1349,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                     <XiangqiBoard
                       board={editorBoardState.board}
                       turn={editorBoardState.turn}
-                      theme={BOARD_THEMES.classic_wood}
-                      pieceCharMode="hanzi"
+                      theme={theme}
+                      pieceCharMode={pieceCharMode}
                       interactive={true}
                       allowedColor="both"
                       lastMove={editorLastMove}

@@ -32,6 +32,14 @@ export interface BoardTheme {
   pieceBlackRim: string;
   pieceBlackText: string;
 
+  // Move trace styling (tailored per theme to contrast with boardBg & gridLine)
+  moveFromBg: string;
+  moveFromRing: string;
+  moveFromInner: string;
+  moveFromDot: string;
+  moveToBorder: string;
+  moveToBg: string;
+
   swatchColors: [string, string, string];
 }
 
@@ -61,6 +69,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackRim: '#D4AF37',
     pieceBlackText: '#F3CF68',
 
+    moveFromBg: 'rgba(51, 24, 8, 0.24)',
+    moveFromRing: '#B91C1C',
+    moveFromInner: '#FFFDF8',
+    moveFromDot: '#C52828',
+    moveToBorder: '#C52828',
+    moveToBg: 'rgba(197, 40, 40, 0.16)',
+
     swatchColors: ['#C99355', '#4E2B10', '#C52828'],
   },
 
@@ -88,6 +103,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackBorder: '#2DD4BF',
     pieceBlackRim: '#2DD4BF',
     pieceBlackText: '#5EEAD4',
+
+    moveFromBg: 'rgba(15, 39, 34, 0.18)',
+    moveFromRing: '#0F766E',
+    moveFromInner: '#FFFFFF',
+    moveFromDot: '#C52838',
+    moveToBorder: '#0D9488',
+    moveToBg: 'rgba(13, 148, 136, 0.18)',
 
     swatchColors: ['#D6EAE3', '#183B34', '#C52838'],
   },
@@ -117,6 +139,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackRim: '#A8A29E',
     pieceBlackText: '#FAFAF9',
 
+    moveFromBg: 'rgba(38, 35, 34, 0.14)',
+    moveFromRing: '#991B1B',
+    moveFromInner: '#FAF9F6',
+    moveFromDot: '#991B1B',
+    moveToBorder: '#991B1B',
+    moveToBg: 'rgba(153, 27, 27, 0.15)',
+
     swatchColors: ['#E4DFD5', '#262322', '#991B1B'],
   },
 
@@ -144,6 +173,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackBorder: '#D97706',
     pieceBlackRim: '#F59E0B',
     pieceBlackText: '#FDE68A',
+
+    moveFromBg: 'rgba(254, 243, 199, 0.20)',
+    moveFromRing: '#FEF3C7',
+    moveFromInner: '#F59E0B',
+    moveFromDot: '#FDE68A',
+    moveToBorder: '#FDE68A',
+    moveToBg: 'rgba(253, 230, 138, 0.18)',
 
     swatchColors: ['#6B1D1D', '#F59E0B', '#FEF3C7'],
   },
@@ -173,6 +209,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackRim: '#4EA8DE',
     pieceBlackText: '#7EC8F2',
 
+    moveFromBg: 'rgba(56, 189, 248, 0.18)',
+    moveFromRing: '#38BDF8',
+    moveFromInner: '#E0F2FE',
+    moveFromDot: '#38BDF8',
+    moveToBorder: '#38BDF8',
+    moveToBg: 'rgba(56, 189, 248, 0.18)',
+
     swatchColors: ['#121722', '#4EA8DE', '#D9534F'],
   },
 
@@ -200,6 +243,13 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     pieceBlackBorder: '#DDD7CE',
     pieceBlackRim: '#2D2A26',
     pieceBlackText: '#1C1A17',
+
+    moveFromBg: 'rgba(45, 42, 38, 0.14)',
+    moveFromRing: '#B3261E',
+    moveFromInner: '#FFFFFF',
+    moveFromDot: '#B3261E',
+    moveToBorder: '#B3261E',
+    moveToBg: 'rgba(179, 38, 30, 0.15)',
 
     swatchColors: ['#EFECE6', '#5C554B', '#B3261E'],
   },

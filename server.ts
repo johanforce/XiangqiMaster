@@ -3,6 +3,7 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { fork, ChildProcess } from 'child_process';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
 
@@ -20,6 +21,11 @@ import {
   formatMoveNotation,
   FormattedMove,
 } from './src/shared/xiangqi';
+import {
+  parseUciMove,
+  findBestMove,
+  AIDifficulty,
+} from './src/workers/ai.worker';
 import {
   RatedMode,
   EloConfig,
@@ -1968,6 +1974,148 @@ async function startServer() {
     }
     const result = await runRatingDecayJob();
     return res.json({ ok: true, ...result });
+  });
+
+  // ==================== FAIRY-STOCKFISH WASM ENGINE SERVICE ====================
+  let fairyChild: ChildProcess | null = null;
+  let fairyReqCounter = 1;
+  const fairyPending = new Map<number, (uci: string | null) => void>();
+
+  function ensureFairyChildProcess(): ChildProcess | null {
+    if (fairyChild && !fairyChild.killed && fairyChild.connected) {
+      return fairyChild;
+    }
+    try {
+      const runnerPath = path.resolve(
+        process.cwd(),
+        'public',
+        'engine',
+        'fairy',
+        'node-engine-runner.js'
+      );
+      if (!fs.existsSync(runnerPath)) return null;
+
+      // Fork a clean Node process without tsx loader flags or server CLI args (--port 3000)
+      const child = fork(runnerPath, [], {
+        execArgv: [],
+        stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+      });
+
+      child.on('message', (msg: any) => {
+        if (msg && typeof msg.id === 'number') {
+          const cb = fairyPending.get(msg.id);
+          if (cb) {
+            fairyPending.delete(msg.id);
+            cb(typeof msg.uci === 'string' ? msg.uci : null);
+          }
+        }
+      });
+
+      const cleanup = () => {
+        if (fairyChild === child) {
+          fairyChild = null;
+        }
+        for (const [, cb] of fairyPending) {
+          cb(null);
+        }
+        fairyPending.clear();
+      };
+
+      child.on('exit', cleanup);
+      child.on('error', cleanup);
+      fairyChild = child;
+      return child;
+    } catch {
+      return null;
+    }
+  }
+
+  // Pre-warm the Fairy-Stockfish WASM engine process in the background
+  ensureFairyChildProcess();
+
+  function queryServerFairyUci(fen: string, difficulty: AIDifficulty): Promise<string | null> {
+    return new Promise((resolve) => {
+      const child = ensureFairyChildProcess();
+      if (!child || !child.connected) {
+        resolve(null);
+        return;
+      }
+
+      const cfgMap: Record<AIDifficulty, { depth: number; time: number; skill: number }> = {
+        novice: { depth: 2, time: 200, skill: 0 },
+        veteran: { depth: 4, time: 380, skill: 7 },
+        master: { depth: 6, time: 650, skill: 14 },
+        grandmaster: { depth: 7, time: 950, skill: 20 },
+      };
+      const cfg = cfgMap[difficulty] || cfgMap.veteran;
+      const reqId = fairyReqCounter++;
+
+      const timeout = setTimeout(() => {
+        if (fairyPending.has(reqId)) {
+          fairyPending.delete(reqId);
+          resolve(null);
+        }
+      }, cfg.time + 1500);
+
+      fairyPending.set(reqId, (uci) => {
+        clearTimeout(timeout);
+        resolve(uci);
+      });
+
+      try {
+        child.send({
+          cmd: 'search',
+          id: reqId,
+          fen,
+          depth: cfg.depth,
+          time: cfg.time,
+          skill: cfg.skill,
+        });
+      } catch {
+        clearTimeout(timeout);
+        fairyPending.delete(reqId);
+        resolve(null);
+      }
+    });
+  }
+
+  app.post('/api/ai/move', async (req, res) => {
+    try {
+      const fen = String(req.body?.fen || INITIAL_FEN).trim();
+      const rawDiff = String(req.body?.difficulty || 'veteran');
+      const difficulty: AIDifficulty =
+        rawDiff === 'novice' ||
+        rawDiff === 'veteran' ||
+        rawDiff === 'master' ||
+        rawDiff === 'grandmaster'
+          ? rawDiff
+          : 'veteran';
+
+      const { board, turn } = parseFen(fen);
+      const bestUci = await queryServerFairyUci(fen, difficulty);
+
+      if (bestUci) {
+        const parsedMove = parseUciMove(bestUci, board, turn);
+        if (parsedMove) {
+          return res.json({
+            ok: true,
+            uci: bestUci,
+            move: parsedMove,
+            engineUsed: 'fairy_stockfish_wasm',
+          });
+        }
+      }
+
+      const fallback = findBestMove(fen, difficulty, false);
+      return res.json({
+        ok: true,
+        uci: null,
+        move: fallback ? { from: fallback.from, to: fallback.to } : null,
+        engineUsed: 'builtin_fallback',
+      });
+    } catch (error) {
+      return res.status(500).json({ error: 'AI move calculation failed' });
+    }
   });
 
   let lastCleanupDate = '';

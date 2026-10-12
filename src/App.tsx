@@ -274,11 +274,27 @@ export default function App() {
           resolve(m ? { from: m.from, to: m.to } : null);
           return;
         }
+        let settled = false;
         const reqId = Date.now() + Math.random();
+        const fallbackTimer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          workerRef.current?.removeEventListener('message', handler);
+          const m = findBestMove(fen, difficulty, false);
+          resolve(m ? { from: m.from, to: m.to } : null);
+        }, 3500);
+
         const handler = (e: MessageEvent) => {
-          if (e.data?.id === reqId) {
+          if (e.data?.id === reqId && !settled) {
+            settled = true;
+            clearTimeout(fallbackTimer);
             workerRef.current?.removeEventListener('message', handler);
-            resolve(e.data.move ? { from: e.data.move.from, to: e.data.move.to } : null);
+            if (e.data.move?.from && e.data.move?.to) {
+              resolve({ from: e.data.move.from, to: e.data.move.to });
+            } else {
+              const m = findBestMove(fen, difficulty, false);
+              resolve(m ? { from: m.from, to: m.to } : null);
+            }
           }
         };
         workerRef.current.addEventListener('message', handler);
@@ -1334,6 +1350,8 @@ export default function App() {
           (currentUser?.role === 'admin' ? (
             <AdminDashboardView
               adminUid={currentUser.uid}
+              theme={currentTheme}
+              pieceCharMode={pieceCharMode}
               incomingLoginRequests={adminLoginReqs}
               onToast={showToast}
             />

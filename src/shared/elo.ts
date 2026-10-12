@@ -246,17 +246,127 @@ export function evaluateInactivityDecay(
   };
 }
 
-/**
- * Returns Vietnamese rank title based on Elo:
- * Tập sự → Nghiệp dư → Khá → Giỏi → Cao thủ → Kỳ thủ → Kiện tướng
- */
-export function getEloRankTitle(elo: number, hiddenFromLeaderboard = false): string {
-  if (hiddenFromLeaderboard) return 'Chưa xếp hạng';
-  if (elo >= 2300) return 'Kiện tướng';
-  if (elo >= 2000) return 'Kỳ thủ';
-  if (elo >= 1700) return 'Cao thủ';
-  if (elo >= 1500) return 'Giỏi';
-  if (elo >= 1300) return 'Khá';
-  if (elo >= 1100) return 'Nghiệp dư';
-  return 'Tập sự';
+export interface EloRankTier {
+  range: string;
+  minElo: number;
+  maxElo: number | null;
+  title: string;
+  badgeColor: string;
+  desc: string;
 }
+
+export const ELO_RANK_TIERS: EloRankTier[] = [
+  {
+    range: '> 2200',
+    minElo: 2201,
+    maxElo: null,
+    title: 'Kì tiên',
+    badgeColor: 'text-rose-300 bg-rose-950/70 border-rose-500/60',
+    desc: 'Cảnh giới tối cao của cờ tướng',
+  },
+  {
+    range: '1901 – 2000',
+    minElo: 1901,
+    maxElo: 2200,
+    title: 'Đại sư',
+    badgeColor: 'text-amber-300 bg-amber-950/60 border-amber-600/50',
+    desc: 'Trình độ Đại Sư danh trấn kỳ đàn',
+  },
+  {
+    range: '1801 – 1900',
+    minElo: 1801,
+    maxElo: 1900,
+    title: 'Kỳ thủ',
+    badgeColor: 'text-purple-300 bg-purple-950/60 border-purple-700/50',
+    desc: 'Bản lĩnh kỳ đàn thượng thừa',
+  },
+  {
+    range: '1701 – 1800',
+    minElo: 1701,
+    maxElo: 1800,
+    title: 'Cao thủ',
+    badgeColor: 'text-indigo-300 bg-indigo-950/60 border-indigo-700/50',
+    desc: 'Chiến thuật sắc bén, công thủ toàn diện',
+  },
+  {
+    range: '1601 – 1700',
+    minElo: 1601,
+    maxElo: 1700,
+    title: 'Kỳ thủ',
+    badgeColor: 'text-sky-300 bg-sky-950/60 border-sky-700/50',
+    desc: 'Nắm vững khai – trung – tàn cuộc',
+  },
+  {
+    range: '1501 – 1600',
+    minElo: 1501,
+    maxElo: 1600,
+    title: 'Ngỗng',
+    badgeColor: 'text-teal-300 bg-teal-950/60 border-teal-700/50',
+    desc: 'Sức cờ cứng cáp, khó bị bắt nạt',
+  },
+  {
+    range: '1421 – 1500',
+    minElo: 1421,
+    maxElo: 1500,
+    title: 'Ngan',
+    badgeColor: 'text-emerald-300 bg-emerald-950/60 border-emerald-700/50',
+    desc: 'Đã biết mổ quân và giữ thế',
+  },
+  {
+    range: '1351 – 1420',
+    minElo: 1351,
+    maxElo: 1420,
+    title: 'Vịt chặt chân',
+    badgeColor: 'text-lime-300 bg-lime-950/60 border-lime-700/50',
+    desc: 'Đang tập tễnh làm quen thế trận',
+  },
+  {
+    range: '1301 – 1350',
+    minElo: 1301,
+    maxElo: 1350,
+    title: 'Gián đất',
+    badgeColor: 'text-stone-300 bg-stone-800/90 border-stone-600',
+    desc: 'Mới bước chân vào giang hồ',
+  },
+  {
+    range: '1300 (≤ 1300)',
+    minElo: 0,
+    maxElo: 1300,
+    title: 'Unrank',
+    badgeColor: 'text-stone-400 bg-stone-800/80 border-stone-700',
+    desc: 'Mức điểm khởi đầu / Chưa phân hạng',
+  },
+];
+
+/**
+ * Returns Vietnamese rank tier based on Elo:
+ * > 2200: Kì tiên
+ * 1901–2000 (đến 2200): Đại sư
+ * 1801–1900: Kỳ thủ
+ * 1701–1800: Cao thủ
+ * 1601–1700: Kỳ thủ
+ * 1501–1600: Ngỗng
+ * 1421–1500: Ngan
+ * 1351–1420: Vịt chặt chân
+ * 1301–1350: Gián đất
+ * ≤ 1300: Unrank
+ */
+export function getEloRankTier(elo: number, hiddenFromLeaderboard = false): EloRankTier {
+  if (hiddenFromLeaderboard || elo <= 1300) return ELO_RANK_TIERS[9];
+  if (elo > 2200) return ELO_RANK_TIERS[0];
+  if (elo >= 1901) return ELO_RANK_TIERS[1];
+  if (elo >= 1801) return ELO_RANK_TIERS[2];
+  if (elo >= 1701) return ELO_RANK_TIERS[3];
+  if (elo >= 1601) return ELO_RANK_TIERS[4];
+  if (elo >= 1501) return ELO_RANK_TIERS[5];
+  if (elo >= 1421) return ELO_RANK_TIERS[6];
+  if (elo >= 1351) return ELO_RANK_TIERS[7];
+  return ELO_RANK_TIERS[8];
+}
+
+export function getEloRankTitle(elo: number, hiddenFromLeaderboard = false): string {
+  return getEloRankTier(elo, hiddenFromLeaderboard).title;
+}
+
+
+
