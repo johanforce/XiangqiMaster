@@ -81,30 +81,89 @@ export default function App() {
   );
   const [viewerInitialPgn, setViewerInitialPgn] = useState<string>('');
 
-  // User & Session state (Realtime, no localStorage cache)
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [sessionId, setSessionId] = useState<string>('');
+  // User & Session state (persisted in localStorage so page reload keeps login session, verified in realtime)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('xq_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [sessionId, setSessionId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('xq_session') || '';
+    } catch {
+      return '';
+    }
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Preferences
-  const [themeId, setThemeId] = useState<BoardThemeId>('classic_wood');
-  const [pieceCharMode, setPieceCharMode] = useState<'hanzi' | 'viet'>('hanzi');
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [themeId, setThemeId] = useState<BoardThemeId>(() => {
+    try {
+      const saved = localStorage.getItem('xq_theme') as BoardThemeId;
+      if (saved && BOARD_THEMES[saved]) return saved;
+    } catch {
+      // Ignore
+    }
+    return 'classic_wood';
+  });
+  const [pieceCharMode, setPieceCharMode] = useState<'hanzi' | 'viet'>(() => {
+    try {
+      const saved = localStorage.getItem('xq_char');
+      if (saved === 'hanzi' || saved === 'viet') return saved;
+    } catch {
+      // Ignore
+    }
+    return 'hanzi';
+  });
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('xq_sound');
+      if (saved !== null) return saved === 'true';
+    } catch {
+      // Ignore
+    }
+    return true;
+  });
   const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
-  // Clear any legacy localStorage cache on mount
+  // Sync auth & preferences state to localStorage so reload preserves login
   useEffect(() => {
     try {
-      localStorage.removeItem('xq_user');
-      localStorage.removeItem('xq_session');
-      localStorage.removeItem('xq_theme');
-      localStorage.removeItem('xq_char');
-      localStorage.removeItem('xq_sound');
+      if (currentUser) {
+        localStorage.setItem('xq_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('xq_user');
+      }
     } catch {
-      // Ignore storage cleanup errors
+      // Ignore storage errors
     }
-  }, []);
+  }, [currentUser]);
+
+  useEffect(() => {
+    try {
+      if (sessionId) {
+        localStorage.setItem('xq_session', sessionId);
+      } else {
+        localStorage.removeItem('xq_session');
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('xq_theme', themeId);
+      localStorage.setItem('xq_char', pieceCharMode);
+      localStorage.setItem('xq_sound', String(soundEnabled));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [themeId, pieceCharMode, soundEnabled]);
 
   // 1-line Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -115,25 +174,35 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => setToastMsg(null), 3200);
   }, []);
 
-  // Realtime fetch of current user profile & preferences from API when switching tabs or opening modal
+  // Realtime fetch of current user profile & preferences from API on reload, tab switch, or modal toggle
   const refreshCurrentUserRealtime = useCallback(
-    async (uid: string) => {
+    async (uid: string, currentSessId?: string) => {
       if (!uid) return;
       try {
-        const res = await fetch(`/api/auth/me/${encodeURIComponent(uid)}`, {
+        const query = currentSessId ? `?sessionId=${encodeURIComponent(currentSessId)}` : '';
+        const res = await fetch(`/api/auth/me/${encodeURIComponent(uid)}${query}`, {
           cache: 'no-store',
         });
         if (!res.ok) {
-          if (res.status === 403 || res.status === 404) {
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
             setCurrentUser(null);
             setSessionId('');
             setActiveRoom(null);
+            try {
+              localStorage.removeItem('xq_user');
+              localStorage.removeItem('xq_session');
+            } catch {
+              // Ignore
+            }
           }
           return;
         }
         const data = await res.json();
         if (data?.user) {
           setCurrentUser(data.user);
+          if (data.user.activeSessionId && !currentSessId) {
+            setSessionId(data.user.activeSessionId);
+          }
           if (data.user.theme && BOARD_THEMES[data.user.theme as BoardThemeId]) {
             setThemeId(data.user.theme as BoardThemeId);
           }
@@ -153,9 +222,9 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser?.uid) {
-      void refreshCurrentUserRealtime(currentUser.uid);
+      void refreshCurrentUserRealtime(currentUser.uid, sessionId || currentUser.activeSessionId);
     }
-  }, [activeTab, authModalOpen, currentUser?.uid, refreshCurrentUserRealtime]);
+  }, [activeTab, authModalOpen, currentUser?.uid, sessionId, refreshCurrentUserRealtime]);
 
   // Socket & Realtime state
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -362,6 +431,12 @@ export default function App() {
       setCurrentUser(null);
       setSessionId('');
       setActiveRoom(null);
+      try {
+        localStorage.removeItem('xq_user');
+        localStorage.removeItem('xq_session');
+      } catch {
+        // Ignore
+      }
       showToast(payload?.reason || 'Phiên đăng nhập đã bị thay thế');
     });
 
@@ -375,30 +450,12 @@ export default function App() {
     };
   }, [currentUser?.uid, showToast]);
 
-  // Helper to persist finished AI game
+  // AI games are local practice matches and are never uploaded to the database
   const saveGameToServer = useCallback(
-    (winner: 'red' | 'black' | 'draw', reason: string, currentMoves = moves, finalFenStr = currentFen) => {
-      const aiLabel = AI_LEVELS.find((l) => l.id === aiDifficulty)?.name || 'Máy';
-      fetch('/api/games', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'ai',
-          redUid: playerSide === 'r' ? currentUser?.uid || 'guest' : 'ai',
-          redName: playerSide === 'r' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
-          blackUid: playerSide === 'b' ? currentUser?.uid || 'guest' : 'ai',
-          blackName:
-            playerSide === 'b' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`,
-          winner,
-          reason,
-          initialFen: INITIAL_FEN,
-          finalFen: finalFenStr,
-          moves: currentMoves,
-        }),
-      }).catch(() => {});
+    (_winner: 'red' | 'black' | 'draw', _reason: string, _currentMoves = moves, _finalFenStr = currentFen) => {
+      // No-op: AI matches must not be saved to database even when logged in
     },
-    [aiDifficulty, currentUser, currentFen, moves, playerSide]
+    [currentFen, moves]
   );
 
   // Execute a move in AI mode
@@ -445,8 +502,6 @@ export default function App() {
           (status.winner === 'red' && playerSide === 'r') ||
           (status.winner === 'black' && playerSide === 'b');
         sound.playGameEnd(won);
-
-        saveGameToServer(status.winner as any, status.reason, nextMoves, nextFen);
       }
     },
     [
@@ -456,7 +511,6 @@ export default function App() {
       fenHistory,
       checkHistory,
       playerSide,
-      saveGameToServer,
     ]
   );
 
@@ -544,6 +598,12 @@ export default function App() {
     setCurrentUser(null);
     setSessionId('');
     setActiveRoom(null);
+    try {
+      localStorage.removeItem('xq_user');
+      localStorage.removeItem('xq_session');
+    } catch {
+      // Ignore
+    }
     if (activeTab === 'admin') {
       navigateUrl('/ai');
     }

@@ -79,37 +79,34 @@ async function getDocRealtime(col: string, id: string): Promise<any | null> {
 
 async function getCollectionRealtime(col: string): Promise<any[]> {
   const colRef = fsCollection(firestoreDb, col);
+  const filterDoc = (d: any, list: any[]) => {
+    if (
+      d.id === 'kythu_test' ||
+      d.id === 'u_1791663983740_8yh2p' ||
+      d.id.includes('kythu_test') ||
+      d.id.includes('seed') ||
+      d.id.startsWith('game_1791664')
+    ) {
+      return;
+    }
+    const data = d.data();
+    if (
+      col === 'games' &&
+      (data?.mode === 'ai' || data?.redUid === 'ai' || data?.blackUid === 'ai')
+    ) {
+      return;
+    }
+    list.push({ id: d.id, ...data });
+  };
   try {
     const snap = await fsGetDocsFromServer(colRef);
     const list: any[] = [];
-    snap.forEach((d) => {
-      if (
-        d.id === 'kythu_test' ||
-        d.id === 'u_1791663983740_8yh2p' ||
-        d.id.includes('kythu_test') ||
-        d.id.includes('seed') ||
-        d.id.startsWith('game_1791664')
-      ) {
-        return;
-      }
-      list.push({ id: d.id, ...d.data() });
-    });
+    snap.forEach((d) => filterDoc(d, list));
     return list;
   } catch {
     const snap = await fsGetDocs(colRef);
     const list: any[] = [];
-    snap.forEach((d) => {
-      if (
-        d.id === 'kythu_test' ||
-        d.id === 'u_1791663983740_8yh2p' ||
-        d.id.includes('kythu_test') ||
-        d.id.includes('seed') ||
-        d.id.startsWith('game_1791664')
-      ) {
-        return;
-      }
-      list.push({ id: d.id, ...d.data() });
-    });
+    snap.forEach((d) => filterDoc(d, list));
     return list;
   }
 }
@@ -424,6 +421,24 @@ async function ensureFirestoreSeeded() {
         await setDocRealtime('users', uid, updates, true);
       }
       await setDocRealtime('admins', uid, { uid, createdAt: adminUser.createdAt || now });
+    }
+
+    // Clean up any legacy AI games that were previously saved to Firestore
+    try {
+      const rawGamesSnap = await fsGetDocsFromServer(fsCollection(firestoreDb, 'games'));
+      const aiCleanupPromises: Promise<any>[] = [];
+      rawGamesSnap.forEach((d) => {
+        const gData = d.data();
+        if (gData?.mode === 'ai' || gData?.redUid === 'ai' || gData?.blackUid === 'ai') {
+          aiCleanupPromises.push(deleteDocRealtime('games', d.id).catch(() => {}));
+          aiCleanupPromises.push(deleteDocRealtime('moves', d.id).catch(() => {}));
+        }
+      });
+      if (aiCleanupPromises.length > 0) {
+        await Promise.all(aiCleanupPromises);
+      }
+    } catch {
+      // Ignore cleanup errors
     }
 
     // Ensure all existing users in Firestore have a password field if missing
@@ -979,7 +994,9 @@ async function startServer() {
       const reqData = await getDocRealtime('loginRequests', reqId);
 
       // Admin is exempt from multi-device login block (replaces old session immediately)
-      if (user.role !== 'admin' && user.isLogin) {
+      const hasActiveSocket =
+        userSockets.has(uid) && (userSockets.get(uid)?.size || 0) > 0;
+      if (user.role !== 'admin' && user.isLogin && hasActiveSocket) {
         // Step 2: User entered password + _resetacc
         if (hasResetSuffix) {
           const nextReq = {
@@ -1087,6 +1104,19 @@ async function startServer() {
       if (!user) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
       if (user.isLocked) {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
+      }
+      const clientSessionId = String(req.query.sessionId || '').trim();
+      if (
+        clientSessionId &&
+        user.activeSessionId &&
+        user.activeSessionId !== clientSessionId
+      ) {
+        return res.status(401).json({ error: 'Phiên đăng nhập đã được thay thế ở thiết bị khác' });
+      }
+      if (!user.isLogin) {
+        const targetUid = user.uid || req.params.uid;
+        await setDocRealtime('users', targetUid, { isLogin: true, updatedAt: Date.now() }, true);
+        user.isLogin = true;
       }
       return res.json({ user: sanitizeUserForClient(user) });
     } catch (error) {
@@ -1273,6 +1303,11 @@ async function startServer() {
         finalFen = INITIAL_FEN,
         moves = [],
       } = req.body;
+
+      // Never persist AI matches to the database (even when logged in)
+      if (mode === 'ai' || redUid === 'ai' || blackUid === 'ai') {
+        return res.json({ ok: true, skipped: true });
+      }
 
       const now = Date.now();
       const gameId = `game_${now}_${Math.random().toString(36).slice(2, 7)}`;
