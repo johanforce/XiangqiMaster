@@ -4,22 +4,24 @@ import {
   calculateMatchElo,
   evaluateInactivityDecay,
   getEloRankTitle,
+  MIN_RATED_ELO,
+  MIN_HELL_ELO_WIN_GAIN,
 } from './elo';
 
-describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
+describe('FIDE Elo, Hell Elo Debt, Anti-Boosting & Inactivity Decay Engine', () => {
   it('selects correct K-factor (40 for provisional/<30 games, 20 standard, 10 for >=2400)', () => {
-    expect(getKFactor(1200, 0)).toBe(40);
+    expect(getKFactor(1300, 0)).toBe(40);
     expect(getKFactor(1500, 29)).toBe(40);
     expect(getKFactor(1500, 30)).toBe(20);
     expect(getKFactor(2400, 50)).toBe(10);
     expect(getKFactor(2450, 50, true)).toBe(40); // Provisional overrides
   });
 
-  it('calculates standard FIDE Elo changes for equal 1200 players', () => {
+  it('calculates standard FIDE Elo changes for equal 1350 players', () => {
     const res = calculateMatchElo({
-      redElo: 1200,
+      redElo: 1350,
       redGames: 10,
-      blackElo: 1200,
+      blackElo: 1350,
       blackGames: 10,
       outcome: 'red',
       redUid: 'u1',
@@ -28,14 +30,62 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(res.redDelta).toBe(20); // K=40 * (1 - 0.5) = +20
     expect(res.blackDelta).toBe(-20);
     expect(res.redBoostPenalty).toBe(0);
+    expect(res.blackDebtAfter).toBe(0);
+  });
+
+  it('clamps Elo loss at minimum 1301, tracks Elo debt, and deducts debt on subsequent win with +10 minimum in Hell Elo', () => {
+    // 1. Player at 1315 loses 20 points -> drops to 1301 (deducts 14), owes 6 Elo debt
+    const loss1 = calculateMatchElo({
+      redElo: 1315,
+      redGames: 10,
+      redEloDebt: 0,
+      blackElo: 1315,
+      blackGames: 10,
+      blackEloDebt: 0,
+      outcome: 'black',
+      redUid: 'u1',
+      blackUid: 'u2',
+    });
+    expect(loss1.redAfter).toBe(MIN_RATED_ELO); // 1301
+    expect(loss1.redDebtAfter).toBe(6);
+
+    // 2. Next match: Player at 1301 with 6 debt wins +20 -> 20 - 6 = +14 added (1315), debt cleared
+    const winAfterSmallDebt = calculateMatchElo({
+      redElo: loss1.redAfter,
+      redGames: 11,
+      redEloDebt: loss1.redDebtAfter,
+      blackElo: 1301,
+      blackGames: 11,
+      outcome: 'red',
+      redUid: 'u1',
+      blackUid: 'u2',
+    });
+    expect(winAfterSmallDebt.redDelta).toBe(14);
+    expect(winAfterSmallDebt.redAfter).toBe(1315);
+    expect(winAfterSmallDebt.redDebtAfter).toBe(0);
+
+    // 3. Deep Hell Elo: Player at 1301 with 120 Elo debt (lost 6 games in a row) wins a match
+    // Even with huge debt, minimum gain on a win in Hell Elo is +10
+    const winInDeepHellElo = calculateMatchElo({
+      redElo: 1301,
+      redGames: 20,
+      redEloDebt: 120,
+      blackElo: 1301,
+      blackGames: 20,
+      outcome: 'red',
+      redUid: 'u1',
+      blackUid: 'u2',
+    });
+    expect(winInDeepHellElo.redDelta).toBe(MIN_HELL_ELO_WIN_GAIN); // +10
+    expect(winInDeepHellElo.redAfter).toBe(1311);
+    expect(winInDeepHellElo.redDebtAfter).toBe(100); // 120 - 20 = 100
   });
 
   it('applies anti-boosting penalty on 3rd (n=2) and 4th+ (n>=3) matches in last 5 games', () => {
-    // n = 2 (met twice in last 5 games -> 3rd match): winner loses 1 point from gain
     const thirdMatch = calculateMatchElo({
-      redElo: 1200,
+      redElo: 1400,
       redGames: 10,
-      blackElo: 1200,
+      blackElo: 1400,
       blackGames: 10,
       outcome: 'red',
       redUid: 'u1',
@@ -46,13 +96,12 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(thirdMatch.repeatCountN).toBe(2);
     expect(thirdMatch.redBoostPenalty).toBe(1);
     expect(thirdMatch.redDelta).toBe(19);
-    expect(thirdMatch.blackDelta).toBe(-20); // Loser still loses full amount
+    expect(thirdMatch.blackDelta).toBe(-20);
 
-    // n = 3 (met 3 times in last 5 games -> 4th match): winner loses 2 points from gain
     const fourthMatch = calculateMatchElo({
-      redElo: 1200,
+      redElo: 1400,
       redGames: 10,
-      blackElo: 1200,
+      blackElo: 1400,
       blackGames: 10,
       outcome: 'red',
       redUid: 'u1',
@@ -64,11 +113,11 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(fourthMatch.redDelta).toBe(18);
   });
 
-  it('guarantees winner always receives at least +1 even with anti-boosting penalty and enforces floor 100', () => {
+  it('guarantees winner always receives at least +1 even with anti-boosting penalty and enforces floor 1301', () => {
     const hugeGap = calculateMatchElo({
       redElo: 2500,
       redGames: 50,
-      blackElo: 110,
+      blackElo: 1301,
       blackGames: 50,
       outcome: 'red',
       redUid: 'u1',
@@ -76,10 +125,10 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
       redRecentOpponents: ['u2', 'u2', 'u2', 'u2'],
     });
     expect(hugeGap.redDelta).toBeGreaterThanOrEqual(1);
-    expect(hugeGap.blackAfter).toBeGreaterThanOrEqual(100);
+    expect(hugeGap.blackAfter).toBe(1301);
   });
 
-  it('evaluates 7-day decay (-20 once, floor 800) and >14-day reset (to 1300 provisional & hidden)', () => {
+  it('evaluates 7-day decay (-20 once, floor 1301) and >14-day reset (to 1300 provisional & hidden)', () => {
     const dayMs = 86400000;
     const now = 1700000000000;
 
@@ -91,6 +140,14 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(decayRes.action).toBe('decay');
     expect(decayRes.afterElo).toBe(1330);
     expect(decayRes.decayApplied).toBe(true);
+
+    // 7 days inactive near floor 1310: floors at 1301 and adds 11 to eloDebt
+    const floorDecay = evaluateInactivityDecay(
+      { elo: 1310, eloDebt: 0, gamesPlayed: 12, lastRatedGameAt: now - 7 * dayMs, decayApplied: false },
+      now
+    );
+    expect(floorDecay.afterElo).toBe(1301);
+    expect(floorDecay.eloDebt).toBe(11);
 
     // Already decayed at 8 days: no repeat deduction
     const noRepeat = evaluateInactivityDecay(
@@ -106,6 +163,7 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     );
     expect(resetRes.action).toBe('reset');
     expect(resetRes.afterElo).toBe(1300);
+    expect(resetRes.eloDebt).toBe(0);
     expect(resetRes.provisional).toBe(true);
     expect(resetRes.hiddenFromLeaderboard).toBe(true);
   });
@@ -124,4 +182,5 @@ describe('FIDE Elo, Anti-Boosting & Inactivity Decay Engine', () => {
     expect(getEloRankTitle(1600, true)).toBe('Unrank');
   });
 });
+
 

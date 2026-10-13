@@ -25,6 +25,7 @@ import {
   SkipForward,
   Save,
   Eye,
+  AlertTriangle,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
 import {
@@ -217,12 +218,14 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     };
   }, [articles]);
 
-  // Inline states for password reset / Elo edit instead of window.prompt
+  // Inline states for password reset / Elo edit / Delete confirmation instead of window.prompt/confirm
   const [editingEloUid, setEditingEloUid] = useState<string | null>(null);
   const [editEloMode, setEditEloMode] = useState<RatedMode>('blitz');
   const [editEloVal, setEditEloVal] = useState<number>(1300);
   const [resetPassUid, setResetPassUid] = useState<string | null>(null);
   const [resetPassVal, setResetPassVal] = useState('123456');
+  const [userToDelete, setUserToDelete] = useState<any | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   const fetchOverview = async () => {
     try {
@@ -271,12 +274,29 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         onToast(data.error || 'Lỗi thao tác');
         return;
       }
-      onToast('Đã cập nhật');
+      onToast(
+        action === 'delete_user'
+          ? 'Đã xóa tài khoản và toàn bộ dữ liệu trên Bảng xếp hạng'
+          : 'Đã cập nhật'
+      );
       setEditingEloUid(null);
       setResetPassUid(null);
+      if (action === 'delete_user') {
+        setUserToDelete(null);
+      }
       fetchOverview();
     } catch {
       onToast('Lỗi kết nối');
+    }
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete || deletingUser) return;
+    setDeletingUser(true);
+    try {
+      await handleUserAction(userToDelete.uid, 'delete_user');
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -599,9 +619,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                               )}
                             </button>
                             <button
-                              onClick={() => handleUserAction(u.uid, 'delete_user')}
+                              type="button"
+                              onClick={() => setUserToDelete(u)}
                               title="Xóa tài khoản"
-                              className="p-1.5 rounded-lg bg-red-950/60 text-red-400 hover:bg-red-900/60"
+                              className="p-1.5 rounded-lg bg-red-950/60 text-red-400 hover:bg-red-900/60 cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1551,6 +1572,92 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           </div>
         );
       })()}
+
+      {/* Modal xác nhận xóa tài khoản */}
+      {userToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+          onClick={() => {
+            if (!deletingUser) setUserToDelete(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-stone-900 border border-red-900/60 p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-red-950/80 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-stone-100">
+                    Xác nhận xóa tài khoản
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Thao tác này không thể hoàn tác
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-stone-950 border border-stone-800 p-3.5 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-stone-400">Tài khoản:</span>
+                <span className="font-bold text-stone-100">
+                  {userToDelete.displayName || userToDelete.username}{' '}
+                  <span className="text-stone-400 font-normal">(@{userToDelete.username})</span>
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-stone-400">Điểm Elo (Chớp / TC / Úp):</span>
+                <span className="font-mono-num text-amber-300 font-semibold">
+                  {userToDelete.ratings?.blitz ?? 1300} / {userToDelete.ratings?.standard ?? 1300} /{' '}
+                  {userToDelete.ratings?.dark ?? 1300}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản{' '}
+              <span className="font-bold text-red-400">
+                {userToDelete.displayName || userToDelete.username}
+              </span>
+              ? Toàn bộ thông tin tài khoản, điểm xếp hạng Elo, lịch sử đấu và thành tích liên quan
+              trên <span className="font-semibold text-amber-300">Bảng xếp hạng (Leaderboard)</span>{' '}
+              sẽ bị xóa vĩnh viễn.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-lg shadow-red-950/50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{deletingUser ? 'Đang xóa...' : 'Xác nhận xóa'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

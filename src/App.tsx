@@ -403,7 +403,7 @@ export default function App() {
 
     s.on('chat:message', (msg: any) => {
       setActiveRoom((prev: any) =>
-        prev ? { ...prev, chat: [...(prev.chat || []), msg].slice(-60) } : prev
+        prev ? { ...prev, chat: [...(prev.chat || []), msg].slice(-300) } : prev
       );
     });
 
@@ -630,135 +630,197 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Navigation Bar */}
-      <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-xs sticky top-0 z-30">
-        {/* Zone 1: Brand Wordmark & Official Logo */}
-        <a
-          href="/"
-          onClick={(e) => handleLinkClick(e, '/')}
-          className="hover:opacity-95 transition-opacity shrink-0 flex items-center"
-        >
-          <Logo size="sm" variant="full" theme="dark" />
-        </a>
-
-        {/* Zone 2: Concise Single-Line Navigation Links */}
-        <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+      {/* Top Navigation Bar: Ẩn thanh header chính khi ở trong phòng chờ / trận đấu xếp hạng để tập trung, tránh bấm tab gây lỗi */}
+      {!(activeTab === 'ranked' && activeRoom) ? (
+        <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-xs sticky top-0 z-30">
+          {/* Zone 1: Brand Wordmark & Official Logo */}
           <a
             href="/"
             onClick={(e) => handleLinkClick(e, '/')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'home'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
+            className="hover:opacity-95 transition-opacity shrink-0 flex items-center"
           >
-            <Home className="w-4 h-4" />
-            <span>Trang chủ</span>
+            <Logo size="sm" variant="full" theme="dark" />
           </a>
 
-          <a
-            href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
-            onClick={(e) =>
-              handleLinkClick(e, `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`)
-            }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'ai'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
-          >
-            <Bot className="w-4 h-4" />
-            <span>Chơi với máy</span>
-          </a>
-
-          <a
-            href={activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'}
-            onClick={(e) =>
-              handleLinkClick(
-                e,
-                activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'
-              )
-            }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'ranked'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
-          >
-            <Swords className="w-4 h-4" />
-            <span>Đấu xếp hạng</span>
-          </a>
-
-          <a
-            href="/viewer"
-            onClick={(e) => handleLinkClick(e, '/viewer')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'viewer'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Kỳ phổ</span>
-          </a>
-
-          <a
-            href="/library"
-            onClick={(e) => handleLinkClick(e, '/library')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'library'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
-          >
-            <Library className="w-4 h-4" />
-            <span>Tàng thư</span>
-          </a>
-
-          <a
-            href="/leaderboard"
-            onClick={(e) => handleLinkClick(e, '/leaderboard')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === 'leaderboard'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-400 hover:text-stone-100'
-            }`}
-          >
-            <Trophy className="w-4 h-4" />
-            <span>Xếp hạng</span>
-          </a>
-
-          {currentUser?.role === 'admin' && (
+          {/* Zone 2: Concise Single-Line Navigation Links */}
+          <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth">
             <a
-              href="/admin/users"
-              onClick={(e) => handleLinkClick(e, '/admin/users')}
+              href="/"
+              onClick={(e) => handleLinkClick(e, '/')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                activeTab === 'admin'
-                  ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40 font-semibold'
+                activeTab === 'home'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Quản trị</span>
+              <Home className="w-4 h-4" />
+              <span>Trang chủ</span>
             </a>
-          )}
-        </nav>
 
-        {/* Zone 3: Theme, Audio & Account Action */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => {
-              const next = pieceCharMode === 'hanzi' ? 'viet' : 'hanzi';
-              setPieceCharMode(next);
-              savePreferences(themeId, next, soundEnabled);
-            }}
-            title="Chuyển chữ Hán / chữ Việt trên quân cờ"
-            className="min-w-[38px] min-h-[38px] px-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-bold text-amber-400 flex items-center justify-center gap-1 transition-colors"
-          >
-            <Languages className="w-3.5 h-3.5" />
-            <span>{pieceCharMode === 'hanzi' ? '漢' : 'Việt'}</span>
-          </button>
+            <a
+              href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
+              onClick={(e) =>
+                handleLinkClick(e, `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`)
+              }
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === 'ai'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  : 'text-stone-400 hover:text-stone-100'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              <span>Chơi với máy</span>
+            </a>
 
+            <a
+              href={activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'}
+              onClick={(e) =>
+                handleLinkClick(
+                  e,
+                  activeRoom?.code ? `/ranked/room/${activeRoom.code}` : '/ranked'
+                )
+              }
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === 'ranked'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  : 'text-stone-400 hover:text-stone-100'
+              }`}
+            >
+              <Swords className="w-4 h-4" />
+              <span>Đấu xếp hạng</span>
+            </a>
+
+            <a
+              href="/viewer"
+              onClick={(e) => handleLinkClick(e, '/viewer')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === 'viewer'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  : 'text-stone-400 hover:text-stone-100'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Kỳ phổ</span>
+            </a>
+
+            <a
+              href="/library"
+              onClick={(e) => handleLinkClick(e, '/library')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === 'library'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  : 'text-stone-400 hover:text-stone-100'
+              }`}
+            >
+              <Library className="w-4 h-4" />
+              <span>Tàng thư</span>
+            </a>
+
+            <a
+              href="/leaderboard"
+              onClick={(e) => handleLinkClick(e, '/leaderboard')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === 'leaderboard'
+                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  : 'text-stone-400 hover:text-stone-100'
+              }`}
+            >
+              <Trophy className="w-4 h-4" />
+              <span>Xếp hạng</span>
+            </a>
+
+            {currentUser?.role === 'admin' && (
+              <a
+                href="/admin/users"
+                onClick={(e) => handleLinkClick(e, '/admin/users')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  activeTab === 'admin'
+                    ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40 font-semibold'
+                    : 'text-stone-400 hover:text-stone-100'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Quản trị</span>
+              </a>
+            )}
+          </nav>
+
+          {/* Zone 3: Theme, Audio & Account Action */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => {
+                const next = pieceCharMode === 'hanzi' ? 'viet' : 'hanzi';
+                setPieceCharMode(next);
+                savePreferences(themeId, next, soundEnabled);
+              }}
+              title="Chuyển chữ Hán / chữ Việt trên quân cờ"
+              className="min-w-[38px] min-h-[38px] px-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-bold text-amber-400 flex items-center justify-center gap-1 transition-colors"
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>{pieceCharMode === 'hanzi' ? '漢' : 'Việt'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                savePreferences(themeId, pieceCharMode, next);
+              }}
+              title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
+              className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-stone-500" />}
+            </button>
+
+            <button
+              onClick={() => setThemeDrawerOpen((o) => !o)}
+              title="Đổi giao diện bàn cờ (6 chủ đề)"
+              className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+
+            {currentUser ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  title={
+                    currentUser.isCreateAccount
+                      ? 'Tài khoản đã duyệt'
+                      : 'Tài khoản đang chờ quản trị viên duyệt'
+                  }
+                  className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-semibold text-stone-100">{currentUser.displayName || currentUser.username}</span>
+                  {!currentUser.isCreateAccount && (
+                    <span className="text-[10px] text-amber-400 font-normal">· Chờ duyệt</span>
+                  )}
+                  {currentUser.role === 'admin' && (
+                    <span className="text-[10px] text-amber-400/90 font-normal">· Admin</span>
+                  )}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  title="Đăng xuất"
+                  className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-red-400 flex items-center justify-center transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
+              >
+                Đăng nhập
+              </button>
+            )}
+          </div>
+        </header>
+      ) : (
+        /* 2 icon âm thanh và theme ở góc khi ở trong phòng chờ hoặc trong trận đấu */
+        <div className="fixed top-3 right-4 z-40 flex items-center gap-2">
           <button
             onClick={() => {
               const next = !soundEnabled;
@@ -766,57 +828,24 @@ export default function App() {
               savePreferences(themeId, pieceCharMode, next);
             }}
             title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+            className="w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 text-stone-200 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-stone-500" />}
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 text-amber-400" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-stone-500" />
+            )}
           </button>
 
           <button
             onClick={() => setThemeDrawerOpen((o) => !o)}
             title="Đổi giao diện bàn cờ (6 chủ đề)"
-            className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+            className="w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 text-amber-400 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors"
           >
             <Palette className="w-4 h-4" />
           </button>
-
-          {currentUser ? (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setAuthModalOpen(true)}
-                title={
-                  currentUser.isCreateAccount
-                    ? 'Tài khoản đã duyệt'
-                    : 'Tài khoản đang chờ quản trị viên duyệt'
-                }
-                className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <User className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-semibold text-stone-100">{currentUser.displayName || currentUser.username}</span>
-                {!currentUser.isCreateAccount && (
-                  <span className="text-[10px] text-amber-400 font-normal">· Chờ duyệt</span>
-                )}
-                {currentUser.role === 'admin' && (
-                  <span className="text-[10px] text-amber-400/90 font-normal">· Admin</span>
-                )}
-              </button>
-              <button
-                onClick={handleLogout}
-                title="Đăng xuất"
-                className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-red-400 flex items-center justify-center transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setAuthModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
-            >
-              Đăng nhập
-            </button>
-          )}
         </div>
-      </header>
+      )}
 
       {/* Instant 6-Theme Swatch Bar */}
       {themeDrawerOpen && (

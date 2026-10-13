@@ -25,6 +25,7 @@ import {
   Swords,
   Radio,
   Trophy,
+  AlertTriangle,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
 import { parseFen, Pos } from '../shared/xiangqi';
@@ -96,8 +97,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     return t === 'spectators' || t === 'chat' ? t : 'notation';
   });
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastSeenChatLengthRef = useRef(0);
+  const joiningRoomRef = useRef<string | null>(null);
 
   // Sync Ranked view state from URL changes
   useEffect(() => {
@@ -133,11 +136,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     if (
       urlCode &&
       !activeRoom &&
+      joiningRoomRef.current !== urlCode &&
       socket &&
       socket.connected &&
       currentUser &&
       currentUser.isCreateAccount
     ) {
+      joiningRoomRef.current = urlCode;
       socket.emit(
         'room:join',
         {
@@ -147,6 +152,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           asSpectator: false,
         },
         (res: any) => {
+          joiningRoomRef.current = null;
           if (res?.room) {
             setActiveRoom(res.room);
           } else if (res?.error) {
@@ -437,8 +443,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         if (res?.error) {
           onToast(res.error);
         } else if (res?.room) {
+          joiningRoomRef.current = res.room.code;
           setActiveRoom(res.room);
           navigateUrl(`/ranked/room/${res.room.code}`);
+          joiningRoomRef.current = null;
           onToast(`Đã tạo phòng ${res.room.code}`);
         }
       }
@@ -448,6 +456,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   const handleJoinRoom = (code: string, asSpectator = false) => {
     if (!socket || !code.trim()) return;
     const cleanCode = code.trim().toUpperCase();
+    joiningRoomRef.current = cleanCode;
     socket.emit(
       'room:join',
       {
@@ -457,6 +466,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         asSpectator,
       },
       (res: any) => {
+        joiningRoomRef.current = null;
         if (res?.error) {
           onToast(res.error);
         } else if (res?.room) {
@@ -495,6 +505,22 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     socket.emit('room:start', { code: activeRoom.code, uid: currentUser.uid }, (res: any) => {
       if (res?.error) onToast(res.error);
     });
+  };
+
+  const handleReturnToWaitingRoom = () => {
+    if (!socket || !activeRoom) return;
+    socket.emit(
+      'room:return_to_waiting',
+      { code: activeRoom.code, uid: currentUser.uid },
+      (res: any) => {
+        if (res?.error) {
+          onToast(res.error);
+        } else {
+          setReviewMode(false);
+          onToast('Đã quay lại phòng chờ');
+        }
+      }
+    );
   };
 
   const handleBoardMove = (from: Pos, to: Pos) => {
@@ -919,10 +945,25 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   // VIEW 2: PHÒNG CHỜ (WAITING ROOM) - 2 ghế + 6 khán giả, chat liên tục, KHÔNG có bàn cờ
   // =========================================================================
   if (activeRoom.status === 'waiting') {
-    const isHost = activeRoom.hostUid === currentUser.uid;
-    const isRed = activeRoom.redPlayer?.uid === currentUser.uid;
-    const isBlack = activeRoom.blackPlayer?.uid === currentUser.uid;
-    const bothReady = Boolean(activeRoom.redPlayer && activeRoom.blackPlayer);
+    const isRed =
+      activeRoom.redPlayer?.uid === currentUser.uid ||
+      (activeRoom.redPlayer?.username &&
+        activeRoom.redPlayer.username.toLowerCase() === currentUser.username.toLowerCase());
+    const isBlack =
+      !isRed &&
+      (activeRoom.blackPlayer?.uid === currentUser.uid ||
+        (activeRoom.blackPlayer?.username &&
+          activeRoom.blackPlayer.username.toLowerCase() === currentUser.username.toLowerCase()));
+    const isHost =
+      activeRoom.hostUid === currentUser.uid ||
+      (![activeRoom.redPlayer?.uid, activeRoom.blackPlayer?.uid].includes(activeRoom.hostUid) && isRed);
+    const bothReady = Boolean(
+      activeRoom.redPlayer &&
+        activeRoom.blackPlayer &&
+        activeRoom.redPlayer.uid !== activeRoom.blackPlayer.uid &&
+        String(activeRoom.redPlayer.username || '').toLowerCase() !==
+          String(activeRoom.blackPlayer.username || '').toLowerCase()
+    );
 
     const modeLabel =
       activeRoom.mode === 'blitz'
@@ -1165,11 +1206,11 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
               {/* Nút Bắt đầu ván đấu lớn hoàng gia */}
               <div className="pt-2">
-                {isHost ? (
+                {isRed || isBlack || isHost ? (
                   <button
                     onClick={handleStartMatch}
                     disabled={!bothReady}
-                    className="w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 disabled:from-stone-800 disabled:to-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all active:scale-98"
+                    className="w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 disabled:from-stone-800 disabled:to-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all active:scale-98 cursor-pointer"
                   >
                     <Play className="w-5 h-5 fill-current" />
                     <span>{bothReady ? 'BẮT ĐẦU VÁN ĐẤU (KHAI CUỘC)' : 'CHỜ ĐỐI THỦ VÀO GHẾ ĐỂ BẮT ĐẦU'}</span>
@@ -1178,7 +1219,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <div className="w-full py-3.5 rounded-2xl bg-stone-950/90 border border-stone-800 text-center text-xs text-stone-300 font-semibold flex items-center justify-center gap-2 shadow-inner">
                     <span>
                       {bothReady
-                        ? 'Đã đủ 2 kỳ thủ. Chờ chủ phòng phát lệnh khai cuộc…'
+                        ? 'Đã đủ 2 kỳ thủ. Chờ phát lệnh khai cuộc…'
                         : 'Chờ đối thủ vào phòng…'}
                     </span>
                   </div>
@@ -1243,14 +1284,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
           </div>
 
-          {/* Cột phải: KHUNG CHAT LIÊN TỤC có hình nền */}
+          {/* Cột phải: KHUNG CHAT LIÊN TỤC có hình nền - Chiều cao cố định không co giãn */}
           <div
-            className="lg:col-span-5 rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-2xl flex flex-col min-h-[500px] bg-cover bg-center"
+            className="lg:col-span-5 rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-2xl flex flex-col h-[560px] max-h-[560px] bg-cover bg-center shrink-0"
             style={{
               backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.90) 0%, rgba(12, 10, 9, 0.96) 100%), url('/images/leaderboard_bg.jpg')`,
             }}
           >
-            <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2.5 flex items-center justify-between">
+            <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2.5 flex items-center justify-between shrink-0">
               <span className="flex items-center gap-1.5">
                 <Send className="w-3.5 h-3.5" />
                 <span>TRÒ CHUYỆN PHÒNG</span>
@@ -1260,10 +1301,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               </span>
             </div>
 
-            {/* Vùng tin nhắn liên tục */}
+            {/* Vùng tin nhắn liên tục - Cố định chiều cao, cuộn mượt mà không đẩy layout */}
             <div
               ref={chatScrollRef}
-              className="flex-1 h-80 overflow-y-auto space-y-2.5 bg-stone-950/85 p-3.5 rounded-2xl border border-stone-800/80 text-xs shadow-inner backdrop-blur-xs"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2.5 bg-stone-950/85 p-3.5 rounded-2xl border border-stone-800/80 text-xs shadow-inner backdrop-blur-xs focus:outline-none"
             >
               {(activeRoom.chat || []).length === 0 ? (
                 <div className="h-full flex items-center justify-center text-stone-500 text-[11px] text-center px-4">
@@ -1276,7 +1317,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                       {c.text}
                     </div>
                   ) : (
-                    <div key={c.id} className="leading-relaxed bg-stone-900/60 p-2 rounded-xl border border-stone-800/60">
+                    <div key={c.id} className="leading-relaxed bg-stone-900/60 p-2 rounded-xl border border-stone-800/60 break-words">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <span className="font-bold text-amber-400">{c.senderName}</span>
                         {c.isSpectator ? (
@@ -1297,13 +1338,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
 
             {/* Thanh Emoji */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 no-scrollbar">
               {EMOJIS.map((em) => (
                 <button
                   key={em}
                   type="button"
                   onClick={() => handleSendChat(em, 'emoji')}
-                  className="px-2.5 py-1.5 rounded-xl bg-stone-950/90 hover:bg-stone-800 border border-stone-800 text-sm transition-colors shadow-xs active:scale-95"
+                  className="px-2.5 py-1.5 rounded-xl bg-stone-950/90 hover:bg-stone-800 border border-stone-800 text-sm transition-colors shadow-xs active:scale-95 shrink-0"
                 >
                   {em}
                 </button>
@@ -1311,13 +1352,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
 
             {/* Thanh Tin nhắn nhanh */}
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 no-scrollbar">
               {QUICK_MESSAGES.map((qm) => (
                 <button
                   key={qm}
                   type="button"
                   onClick={() => handleSendChat(qm, 'quick')}
-                  className="px-2.5 py-1 rounded-lg bg-stone-950/90 hover:bg-stone-800 border border-stone-800 text-[11px] text-stone-300 transition-colors shadow-xs active:scale-95"
+                  className="px-2.5 py-1 rounded-lg bg-stone-950/90 hover:bg-stone-800 border border-stone-800 text-[11px] text-stone-300 transition-colors shadow-xs active:scale-95 shrink-0 whitespace-nowrap"
                 >
                   {qm}
                 </button>
@@ -1330,7 +1371,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 e.preventDefault();
                 handleSendChat(chatInput, 'text');
               }}
-              className="flex items-center gap-2 pt-1"
+              className="flex items-center gap-2 pt-1 shrink-0"
             >
               <input
                 type="text"
@@ -1625,23 +1666,32 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               </div>
             )}
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
               <button
                 onClick={() => {
                   setReviewMode(true);
                   setReviewPly(moves.length);
                 }}
-                className="flex-1 min-h-[40px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 min-h-[42px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Xem lại tàn cuộc</span>
               </button>
               <button
+                onClick={handleReturnToWaitingRoom}
+                className="flex-1 min-h-[42px] rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                title="Quay lại phòng chờ để chuẩn bị ván đấu tiếp theo cùng đối thủ và khán giả"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Về phòng chờ (Chơi tiếp)</span>
+              </button>
+              <button
                 onClick={handleLeaveRoom}
-                className="flex-1 min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="px-3.5 min-h-[42px] rounded-xl bg-stone-900 hover:bg-red-950/80 hover:text-red-200 text-stone-400 text-xs font-medium flex items-center justify-center gap-1.5 border border-stone-800 transition-colors cursor-pointer"
+                title="Rời phòng về sảnh chính"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Thoát ra phòng chờ</span>
+                <span>Rời sảnh</span>
               </button>
             </div>
           </div>
@@ -1679,8 +1729,8 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           true
         )}
 
-        {/* Nút hành động chính chuẩn giao diện */}
-        <div className="w-full grid grid-cols-2 gap-3">
+        {/* Nút hành động chính chuẩn Google Material UI */}
+        <div className="w-full grid grid-cols-3 gap-2.5">
           <button
             onClick={() =>
               socket?.emit('game:draw_offer', {
@@ -1689,10 +1739,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               })
             }
             disabled={activeRoom.status !== 'playing' || !myColor}
-            className="min-h-[46px] rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-40 shadow-md"
+            className="min-h-[46px] rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-sm active:scale-95 cursor-pointer"
           >
-            <Handshake className="w-4 h-4 text-amber-400" />
-            <span>Xin Hòa Cờ</span>
+            <Handshake className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Xin Hòa</span>
           </button>
           <button
             onClick={() =>
@@ -1702,15 +1752,30 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               })
             }
             disabled={activeRoom.status !== 'playing' || !myColor}
-            className="min-h-[46px] rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-40 shadow-md"
+            className="min-h-[46px] rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-sm active:scale-95 cursor-pointer"
           >
-            <Flag className="w-4 h-4 text-red-400" />
+            <Flag className="w-4 h-4 text-red-400 shrink-0" />
             <span>Đầu Hàng</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeRoom.status === 'playing' && Boolean(myColor)) {
+                setShowLeaveConfirm(true);
+              } else {
+                handleLeaveRoom();
+              }
+            }}
+            className="min-h-[46px] rounded-xl bg-stone-900/90 hover:bg-red-950/70 border border-stone-800 hover:border-red-500/50 text-stone-300 hover:text-red-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Thoát khỏi trận đấu"
+          >
+            <LogOut className="w-4 h-4 text-stone-400 shrink-0" />
+            <span>Thoát Trận</span>
           </button>
         </div>
 
         {/* Thanh công cụ phụ */}
-        <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-stone-900/80 border border-stone-800/80 rounded-xl px-3 py-2 text-xs">
+        <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-stone-900/80 border border-stone-800/80 rounded-xl px-3.5 py-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-mono-num font-bold text-amber-400 px-2 py-0.5 rounded bg-stone-950 border border-stone-800">
               Phòng: {activeRoom.code}
@@ -1748,19 +1813,66 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
-            <button
-              onClick={handleLeaveRoom}
-              title="Rời phòng"
-              className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-red-300"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Cột phải: 3 Tab (Ký Phổ, Khán Giả, Trò Chuyện) */}
+      {/* Cột phải: Header thông tin phòng & Thoát trận (Google Material Design) + 3 Tab */}
       <div className="lg:col-span-5 space-y-3">
+        {/* Google Material 3 Room Info Card with Prominent Side Thoát Trận Button */}
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-900/90 border border-stone-800 shadow-lg backdrop-blur-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold shrink-0 shadow-inner">
+              {activeRoom.mode === 'blitz' ? (
+                <Flame className="w-5 h-5 text-amber-400" />
+              ) : activeRoom.mode === 'dark' ? (
+                <EyeOff className="w-5 h-5 text-amber-400" />
+              ) : (
+                <Clock className="w-5 h-5 text-amber-400" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono-num font-extrabold text-amber-300 text-sm tracking-wide">
+                  PHÒNG {activeRoom.code}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-800 text-stone-300 border border-stone-700">
+                  {activeRoom.mode === 'blitz'
+                    ? 'Cờ chớp'
+                    : activeRoom.mode === 'dark'
+                    ? 'Cờ úp'
+                    : 'Tiêu chuẩn'}
+                </span>
+              </div>
+              <div className="text-[11px] text-stone-400 flex items-center gap-2 mt-0.5">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]" />
+                  <span>{activeRoom.status === 'playing' ? 'Đang thi đấu' : 'Ván cờ kết thúc'}</span>
+                </span>
+                <span>·</span>
+                <span>{activeRoom.spectators?.length || 0}/6 Khán giả</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Nút Thoát Trận bên cạnh theo chuẩn Google Material 3 Design */}
+          <button
+            type="button"
+            onClick={() => {
+              if (activeRoom.status === 'playing' && Boolean(myColor)) {
+                setShowLeaveConfirm(true);
+              } else {
+                handleLeaveRoom();
+              }
+            }}
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-stone-800 hover:bg-red-950/80 text-stone-200 hover:text-red-200 border border-stone-700 hover:border-red-500/50 text-xs font-semibold tracking-wide transition-all duration-200 shadow-sm hover:shadow active:scale-95 cursor-pointer group"
+            title="Thoát khỏi trận đấu"
+          >
+            <LogOut className="w-3.5 h-3.5 text-stone-400 group-hover:text-red-300 transition-colors" />
+            <span>Thoát trận</span>
+          </button>
+        </div>
+
         {/* 3 Tab bấm chuyển có đường dẫn trực tiếp */}
         <div className="flex items-center gap-2 bg-stone-950/60 p-1 rounded-2xl border border-stone-800">
           <a
@@ -1919,21 +2031,25 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Trò Chuyện (Kênh chat liên tục từ phòng chờ) */}
+        {/* Tab 3: Trò Chuyện (Kênh chat liên tục từ phòng chờ) - Chiều cao cố định không scale */}
         {sideTab === 'chat' && (
           <div
             style={{
               backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('/images/leaderboard_bg.jpg')`,
             }}
-            className="rounded-2xl bg-cover bg-center border border-stone-800 p-4 space-y-3 shadow-xl"
+            className="rounded-2xl bg-cover bg-center border border-stone-800 p-4 space-y-3 shadow-xl h-[480px] max-h-[480px] flex flex-col shrink-0"
           >
-            <div className="text-xs font-bold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2">
-              Trò chuyện trong phòng
+            <div className="text-xs font-bold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2 flex items-center justify-between shrink-0">
+              <span className="flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5" />
+                <span>Trò chuyện trong phòng</span>
+              </span>
+              <span className="text-[10px] text-stone-400 font-normal">Kênh trực tiếp</span>
             </div>
 
             <div
               ref={chatScrollRef}
-              className="h-56 overflow-y-auto space-y-2 bg-stone-950/80 p-3 rounded-xl border border-stone-800/80 text-xs"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 bg-stone-950/80 p-3 rounded-xl border border-stone-800/80 text-xs shadow-inner focus:outline-none"
             >
               {(activeRoom.chat || []).length === 0 ? (
                 <div className="h-full flex items-center justify-center text-stone-500 text-[11px]">
@@ -1942,14 +2058,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               ) : (
                 (activeRoom.chat || []).map((c: any) =>
                   c.type === 'system' ? (
-                    <div key={c.id} className="text-[11px] text-stone-500 italic text-center py-0.5">
+                    <div key={c.id} className="text-[11px] text-stone-400 italic text-center py-1 bg-stone-900/50 rounded-lg">
                       {c.text}
                     </div>
                   ) : (
-                    <div key={c.id} className="leading-relaxed">
+                    <div key={c.id} className="leading-relaxed bg-stone-900/50 p-2 rounded-lg border border-stone-800/50 break-words">
                       <span className="font-semibold text-amber-400">{c.senderName}</span>
                       {c.isSpectator && (
-                        <span className="ml-1 text-[10px] text-stone-500">· Xem</span>
+                        <span className="ml-1 text-[10px] text-stone-400">· Xem</span>
                       )}
                       <span className="text-stone-500 mx-1">:</span>
                       <span className="text-stone-200">{c.text}</span>
@@ -1960,13 +2076,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
 
             {/* Thanh Emoji */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 no-scrollbar">
               {EMOJIS.map((em) => (
                 <button
                   key={em}
                   type="button"
                   onClick={() => handleSendChat(em, 'emoji')}
-                  className="px-2.5 py-1 rounded-lg bg-stone-950 hover:bg-stone-800 border border-stone-800 text-sm transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-stone-950 hover:bg-stone-800 border border-stone-800 text-sm transition-colors shrink-0"
                 >
                   {em}
                 </button>
@@ -1974,13 +2090,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
 
             {/* Thanh Tin nhắn nhanh */}
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 no-scrollbar">
               {QUICK_MESSAGES.map((qm) => (
                 <button
                   key={qm}
                   type="button"
                   onClick={() => handleSendChat(qm, 'quick')}
-                  className="px-2.5 py-1 rounded-lg bg-stone-950 hover:bg-stone-800 border border-stone-800 text-[11px] text-stone-300 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-stone-950 hover:bg-stone-800 border border-stone-800 text-[11px] text-stone-300 transition-colors shrink-0 whitespace-nowrap"
                 >
                   {qm}
                 </button>
@@ -1993,7 +2109,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 e.preventDefault();
                 handleSendChat(chatInput, 'text');
               }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0 pt-0.5"
             >
               <input
                 type="text"
@@ -2005,7 +2121,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <button
                 type="submit"
                 title="Gửi"
-                className="min-w-[40px] min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center transition-colors"
+                className="min-w-[40px] min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center transition-colors shrink-0"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -2013,6 +2129,60 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           </div>
         )}
       </div>
+      {/* Modal xác nhận thoát trận đấu (Google Material 3 Dialog) */}
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-stone-900 border border-red-900/60 p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-red-950/80 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-100">
+                  Thoát trận đấu?
+                </h3>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Ván cờ xếp hạng đang diễn ra
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed">
+              Bạn đang thi đấu chính thức. Nếu thoát trận ngay bây giờ, bạn sẽ bị xử{' '}
+              <span className="font-bold text-red-400">thua cuộc (Đầu hàng)</span> và bị trừ điểm
+              Elo tương ứng.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="px-4 py-2.5 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Tiếp tục đấu
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLeaveConfirm(false);
+                  socket?.emit('game:resign', { code: activeRoom.code, uid: currentUser.uid });
+                  handleLeaveRoom();
+                }}
+                className="px-4 py-2.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-md shadow-red-950/50"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Xác nhận thoát</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -16,6 +16,8 @@ export interface EloConfig {
 }
 
 export const DEFAULT_INITIAL_ELO = 1300;
+export const MIN_RATED_ELO = 1301;
+export const MIN_HELL_ELO_WIN_GAIN = 10;
 
 export const DEFAULT_ELO_CONFIG: EloConfig = {
   antiBoostWindowGames: 5,
@@ -54,9 +56,11 @@ export interface EloMatchInput {
   redElo: number;
   redGames: number;
   redProvisional?: boolean;
+  redEloDebt?: number;
   blackElo: number;
   blackGames: number;
   blackProvisional?: boolean;
+  blackEloDebt?: number;
   outcome: 'red' | 'black' | 'draw';
   /**
    * Recent opponent UIDs in the last N rated games of the same mode for Red and Black
@@ -73,31 +77,118 @@ export interface EloMatchResult {
   redAfter: number;
   redDelta: number;
   redBoostPenalty: number;
+  redDebtBefore: number;
+  redDebtAfter: number;
   blackBefore: number;
   blackAfter: number;
   blackDelta: number;
   blackBoostPenalty: number;
+  blackDebtBefore: number;
+  blackDebtAfter: number;
   repeatCountN: number;
 }
 
+function resolvePlayerPostMatchElo(
+  beforeElo: number,
+  debtBefore: number,
+  rawDelta: number,
+  isWin: boolean,
+  isLoss: boolean
+): { afterElo: number; delta: number; debtAfter: number } {
+  const cleanDebt = Math.max(0, Math.round(Number(debtBefore || 0)));
+  const safeBefore = beforeElo < DEFAULT_INITIAL_ELO ? MIN_RATED_ELO : beforeElo;
+
+  if (isWin) {
+    const winGain = Math.max(1, rawDelta);
+    if (cleanDebt > 0) {
+      // Khi đang nợ Elo (Hell Elo): lấy số điểm Elo thắng trừ đi số Elo đang nợ rồi mới cộng Elo.
+      // Số điểm tối thiểu nhận được từ 1 trận thắng bị Hell Elo là +10 Elo.
+      const netGain = Math.max(MIN_HELL_ELO_WIN_GAIN, winGain - cleanDebt);
+      const afterElo = Math.max(MIN_RATED_ELO, safeBefore + netGain);
+      const debtAfter = Math.max(0, cleanDebt - winGain);
+      return {
+        afterElo,
+        delta: afterElo - safeBefore,
+        debtAfter,
+      };
+    }
+
+    const afterElo = Math.max(MIN_RATED_ELO, safeBefore + winGain);
+    return {
+      afterElo,
+      delta: afterElo - safeBefore,
+      debtAfter: 0,
+    };
+  }
+
+  if (isLoss || rawDelta < 0) {
+    const lossAmount = Math.max(0, Math.abs(rawDelta));
+    const availableToDeduct = Math.max(0, safeBefore - MIN_RATED_ELO);
+    if (lossAmount <= availableToDeduct) {
+      const afterElo = safeBefore - lossAmount;
+      return {
+        afterElo,
+        delta: afterElo - safeBefore,
+        debtAfter: cleanDebt,
+      };
+    } else {
+      // Hết điểm để trừ -> giữ ở mức Elo thấp nhất 1301 và tích lũy phần điểm thiếu vào nợ Elo
+      const unpaidLoss = lossAmount - availableToDeduct;
+      const afterElo = MIN_RATED_ELO;
+      return {
+        afterElo,
+        delta: afterElo - safeBefore,
+        debtAfter: cleanDebt + unpaidLoss,
+      };
+    }
+  }
+
+  // Trường hợp Hòa có điểm cộng dương (rawDelta >= 0)
+  if (rawDelta > 0) {
+    if (cleanDebt > 0) {
+      const paid = Math.min(cleanDebt, rawDelta);
+      const netGain = rawDelta - paid;
+      const afterElo = Math.max(MIN_RATED_ELO, safeBefore + netGain);
+      return {
+        afterElo,
+        delta: afterElo - safeBefore,
+        debtAfter: cleanDebt - paid,
+      };
+    }
+    const afterElo = Math.max(MIN_RATED_ELO, safeBefore + rawDelta);
+    return {
+      afterElo,
+      delta: afterElo - safeBefore,
+      debtAfter: 0,
+    };
+  }
+
+  const afterElo = Math.max(MIN_RATED_ELO, safeBefore);
+  return {
+    afterElo,
+    delta: afterElo - safeBefore,
+    debtAfter: cleanDebt,
+  };
+}
+
 /**
- * Calculates FIDE Elo changes for both players including Anti-Boosting penalty:
- * - Floor is 100.
- * - Anti-boosting: look at the last `antiBoostWindowGames` (default 5) rated games in the same mode
- *   for BOTH players, count how many times they played this exact opponent, take the larger count `n`.
- * - If `n >= antiBoostThreshold` (default 2, i.e., 3rd match onwards), the WINNER's positive Elo gain
- *   is reduced: n = 2 reduces by 1 point, n >= 3 reduces by `antiBoostMaxPenalty` (default 2 points),
- *   but a winner always receives at least +1.
- * - The loser still loses the full amount; draws are calculated normally.
+ * Calculates FIDE Elo changes for both players including:
+ * - Minimum rated Elo floor of 1301 (`MIN_RATED_ELO`).
+ * - Elo debt (`eloDebt`) accumulation when a loss exceeds deductible points above 1301.
+ * - Hell Elo win resolution: `effectiveGain = Math.max(10, winGain - eloDebt)`.
+ * - Anti-boosting penalty for repeated matchups within `antiBoostWindowGames`.
  */
 export function calculateMatchElo(input: EloMatchInput): EloMatchResult {
   const cfg: EloConfig = { ...DEFAULT_ELO_CONFIG, ...(input.config || {}) };
 
-  const kRed = getKFactor(input.redElo, input.redGames, input.redProvisional);
-  const kBlack = getKFactor(input.blackElo, input.blackGames, input.blackProvisional);
+  const safeRedBefore = input.redElo < DEFAULT_INITIAL_ELO ? MIN_RATED_ELO : input.redElo;
+  const safeBlackBefore = input.blackElo < DEFAULT_INITIAL_ELO ? MIN_RATED_ELO : input.blackElo;
 
-  const eRed = getExpectedScore(input.redElo, input.blackElo);
-  const eBlack = getExpectedScore(input.blackElo, input.redElo);
+  const kRed = getKFactor(safeRedBefore, input.redGames, input.redProvisional);
+  const kBlack = getKFactor(safeBlackBefore, input.blackGames, input.blackProvisional);
+
+  const eRed = getExpectedScore(safeRedBefore, safeBlackBefore);
+  const eBlack = getExpectedScore(safeBlackBefore, safeRedBefore);
 
   const sRed = input.outcome === 'red' ? 1 : input.outcome === 'black' ? 0 : 0.5;
   const sBlack = 1 - sRed;
@@ -145,18 +236,38 @@ export function calculateMatchElo(input: EloMatchInput): EloMatchResult {
     if (input.outcome === 'black' && rawBlackDelta < 1) rawBlackDelta = 1;
   }
 
-  const redAfter = Math.max(100, input.redElo + rawRedDelta);
-  const blackAfter = Math.max(100, input.blackElo + rawBlackDelta);
+  const redDebtBefore = Math.max(0, Math.round(Number(input.redEloDebt || 0)));
+  const blackDebtBefore = Math.max(0, Math.round(Number(input.blackEloDebt || 0)));
+
+  const redResolved = resolvePlayerPostMatchElo(
+    safeRedBefore,
+    redDebtBefore,
+    rawRedDelta,
+    input.outcome === 'red',
+    input.outcome === 'black'
+  );
+
+  const blackResolved = resolvePlayerPostMatchElo(
+    safeBlackBefore,
+    blackDebtBefore,
+    rawBlackDelta,
+    input.outcome === 'black',
+    input.outcome === 'red'
+  );
 
   return {
-    redBefore: input.redElo,
-    redAfter,
-    redDelta: redAfter - input.redElo,
+    redBefore: safeRedBefore,
+    redAfter: redResolved.afterElo,
+    redDelta: redResolved.delta,
     redBoostPenalty,
-    blackBefore: input.blackElo,
-    blackAfter,
-    blackDelta: blackAfter - input.blackElo,
+    redDebtBefore,
+    redDebtAfter: redResolved.debtAfter,
+    blackBefore: safeBlackBefore,
+    blackAfter: blackResolved.afterElo,
+    blackDelta: blackResolved.delta,
     blackBoostPenalty,
+    blackDebtBefore,
+    blackDebtAfter: blackResolved.debtAfter,
     repeatCountN,
   };
 }
@@ -166,13 +277,14 @@ export function calculateMatchElo(input: EloMatchInput): EloMatchResult {
  * - Only applies to players with at least 1 rated game (`gamesPlayed >= 1` and `lastRatedGameAt > 0`).
  * - `inactiveDays = Math.floor((nowMs - lastRatedGameAt) / 86400000)`
  * - If `inactiveDays > resetDays` (default 14): reset Elo to DEFAULT_INITIAL_ELO (1300), `provisional = true`,
- *   `hiddenFromLeaderboard = true`, `gamesPlayedSinceReset = 0`.
+ *   `hiddenFromLeaderboard = true`, `eloDebt = 0`.
  * - Else if `inactiveDays >= decayDays` (default 7) and `!decayApplied`:
- *   subtract `decayPenalty` (default 20) once, floor 800, set `decayApplied = true`.
+ *   subtract `decayPenalty` (default 20) once, floor at MIN_RATED_ELO (1301), any excess added to `eloDebt`, set `decayApplied = true`.
  */
 export function evaluateInactivityDecay(
   rating: {
     elo: number;
+    eloDebt?: number;
     gamesPlayed: number;
     lastRatedGameAt?: number;
     decayApplied?: boolean;
@@ -185,16 +297,20 @@ export function evaluateInactivityDecay(
   action: 'none' | 'decay' | 'reset';
   afterElo: number;
   delta: number;
+  eloDebt: number;
   decayApplied: boolean;
   hiddenFromLeaderboard: boolean;
   provisional: boolean;
 } {
   const cfg: EloConfig = { ...DEFAULT_ELO_CONFIG, ...config };
+  const currentDebt = Math.max(0, Math.round(Number(rating.eloDebt || 0)));
+
   if (!rating.gamesPlayed || rating.gamesPlayed < 1 || !rating.lastRatedGameAt) {
     return {
       action: 'none',
       afterElo: rating.elo,
       delta: 0,
+      eloDebt: currentDebt,
       decayApplied: Boolean(rating.decayApplied),
       hiddenFromLeaderboard: Boolean(rating.hiddenFromLeaderboard),
       provisional: Boolean(rating.provisional),
@@ -209,6 +325,7 @@ export function evaluateInactivityDecay(
         action: 'none',
         afterElo: DEFAULT_INITIAL_ELO,
         delta: 0,
+        eloDebt: 0,
         decayApplied: true,
         hiddenFromLeaderboard: true,
         provisional: true,
@@ -218,6 +335,7 @@ export function evaluateInactivityDecay(
       action: 'reset',
       afterElo: DEFAULT_INITIAL_ELO,
       delta: DEFAULT_INITIAL_ELO - rating.elo,
+      eloDebt: 0,
       decayApplied: true,
       hiddenFromLeaderboard: true,
       provisional: true,
@@ -225,11 +343,15 @@ export function evaluateInactivityDecay(
   }
 
   if (inactiveDays >= cfg.decayDays && !rating.decayApplied) {
-    const afterElo = Math.max(800, rating.elo - cfg.decayPenalty);
+    const safeElo = Math.max(MIN_RATED_ELO, rating.elo);
+    const deductible = Math.max(0, safeElo - MIN_RATED_ELO);
+    const afterElo = safeElo - Math.min(deductible, cfg.decayPenalty);
+    const unpaid = Math.max(0, cfg.decayPenalty - deductible);
     return {
       action: 'decay',
       afterElo,
       delta: afterElo - rating.elo,
+      eloDebt: currentDebt + unpaid,
       decayApplied: true,
       hiddenFromLeaderboard: Boolean(rating.hiddenFromLeaderboard),
       provisional: Boolean(rating.provisional),
@@ -240,6 +362,7 @@ export function evaluateInactivityDecay(
     action: 'none',
     afterElo: rating.elo,
     delta: 0,
+    eloDebt: currentDebt,
     decayApplied: Boolean(rating.decayApplied),
     hiddenFromLeaderboard: Boolean(rating.hiddenFromLeaderboard),
     provisional: Boolean(rating.provisional),

@@ -31,6 +31,7 @@ import {
   EloConfig,
   DEFAULT_ELO_CONFIG,
   DEFAULT_INITIAL_ELO,
+  MIN_RATED_ELO,
   calculateMatchElo,
   evaluateInactivityDecay,
 } from './src/shared/elo';
@@ -193,6 +194,29 @@ async function getUserModeRatingRealtime(
   const docId = `${uid}_${mode}`;
   const existing = await getDocRealtime('ratings', docId);
   if (existing) {
+    const gamesPlayed = Number(existing.gamesPlayed || 0);
+    const curElo = Number(existing.elo ?? DEFAULT_INITIAL_ELO);
+    const curDebt = Math.max(0, Math.round(Number(existing.eloDebt || 0)));
+    if (gamesPlayed > 0 && !existing.hiddenFromLeaderboard && curElo < MIN_RATED_ELO) {
+      const deficit = Math.max(0, MIN_RATED_ELO - curElo);
+      existing.elo = MIN_RATED_ELO;
+      existing.eloDebt = curDebt + deficit;
+      await setDocRealtime(
+        'ratings',
+        docId,
+        { elo: existing.elo, eloDebt: existing.eloDebt },
+        true
+      ).catch(() => {});
+    } else if (curElo < DEFAULT_INITIAL_ELO) {
+      existing.elo = DEFAULT_INITIAL_ELO;
+      existing.eloDebt = 0;
+      await setDocRealtime(
+        'ratings',
+        docId,
+        { elo: DEFAULT_INITIAL_ELO, eloDebt: 0 },
+        true
+      ).catch(() => {});
+    }
     return existing;
   }
   const now = Date.now();
@@ -204,6 +228,7 @@ async function getUserModeRatingRealtime(
     displayName: displayName || username,
     mode,
     elo: DEFAULT_INITIAL_ELO,
+    eloDebt: 0,
     peakElo: DEFAULT_INITIAL_ELO,
     gamesPlayed: 0,
     wins: 0,
@@ -460,7 +485,7 @@ async function ensureFirestoreSeeded() {
       }
     }
 
-    // Backfill & repair winStreak / longestWinStreak / currentWinStreak in ratings collection
+    // Backfill & repair winStreak / longestWinStreak / currentWinStreak and minimum 1301 Elo floor in ratings collection
     for (const r of allRatings) {
       const rId = r.id || r.docId || `${r.uid}_${r.mode}`;
       const u = usersByUid.get(r.uid) || {};
@@ -472,12 +497,32 @@ async function ensureFirestoreSeeded() {
         allGames,
         r
       );
+      const gamesPlayed = Number(r.gamesPlayed || 0);
+      const curElo = Number(r.elo ?? DEFAULT_INITIAL_ELO);
+      const curDebt = Math.max(0, Math.round(Number(r.eloDebt || 0)));
+      const patches: Record<string, any> = {};
+
       if (
         r.winStreak !== streaks.winStreak ||
         r.longestWinStreak !== streaks.longestWinStreak ||
         r.currentWinStreak !== streaks.currentWinStreak
       ) {
-        await setDocRealtime('ratings', rId, streaks, true);
+        Object.assign(patches, streaks);
+      }
+
+      if (gamesPlayed > 0 && !r.hiddenFromLeaderboard && curElo < MIN_RATED_ELO) {
+        const deficit = Math.max(0, MIN_RATED_ELO - curElo);
+        patches.elo = MIN_RATED_ELO;
+        patches.eloDebt = curDebt + deficit;
+      } else if (curElo < DEFAULT_INITIAL_ELO) {
+        patches.elo = DEFAULT_INITIAL_ELO;
+        patches.eloDebt = 0;
+      } else if (r.eloDebt === undefined) {
+        patches.eloDebt = 0;
+      }
+
+      if (Object.keys(patches).length > 0) {
+        await setDocRealtime('ratings', rId, patches, true);
       }
     }
 
@@ -591,14 +636,8 @@ const liveRooms = new Map<string, LiveRoom>();
 const userSockets = new Map<string, Set<string>>();
 const chatRateLimit = new Map<string, number>();
 
-const BAD_WORDS = ['dm', 'dmm', 'vcl', 'vl', 'cc', 'fuck', 'shit', 'ngu'];
 function sanitizeChatText(input: string): string {
-  let out = input.trim().slice(0, 120);
-  for (const w of BAD_WORDS) {
-    const reg = new RegExp(`\\b${w}\\b`, 'gi');
-    out = out.replace(reg, '***');
-  }
-  return out;
+  return input.trim().slice(0, 120);
 }
 
 function getTimeControlForMode(mode: RatedMode, cfg?: Record<string, any>) {
@@ -623,7 +662,63 @@ function getTimeControlForMode(mode: RatedMode, cfg?: Record<string, any>) {
   };
 }
 
+function isSameAccount(
+  p: RoomParticipant | null | undefined,
+  uid: string,
+  username?: string
+): boolean {
+  if (!p) return false;
+  if (uid && p.uid && p.uid === uid) return true;
+  const normA = String(p.username || '').trim().toLowerCase();
+  const normB = String(username || '').trim().toLowerCase();
+  if (normA && normB && normA === normB) return true;
+  return false;
+}
+
+function deduplicateRoomParticipants(room: LiveRoom) {
+  // 1. Red and Black cannot belong to the same account
+  if (
+    room.redPlayer &&
+    room.blackPlayer &&
+    isSameAccount(room.blackPlayer, room.redPlayer.uid, room.redPlayer.username)
+  ) {
+    room.blackPlayer = null;
+  }
+
+  // 2. Spectators cannot contain Red, Black, or duplicate spectator accounts
+  const uniqueSpecs: RoomParticipant[] = [];
+  for (const s of room.spectators || []) {
+    if (!s) continue;
+    if (room.redPlayer && isSameAccount(s, room.redPlayer.uid, room.redPlayer.username)) {
+      continue;
+    }
+    if (room.blackPlayer && isSameAccount(s, room.blackPlayer.uid, room.blackPlayer.username)) {
+      continue;
+    }
+    if (uniqueSpecs.some((existing) => isSameAccount(existing, s.uid, s.username))) {
+      continue;
+    }
+    uniqueSpecs.push(s);
+  }
+  room.spectators = uniqueSpecs;
+
+  // 3. Ensure room always has a valid hostUid present among active players/spectators
+  const activeParticipants = [
+    room.redPlayer?.uid,
+    room.blackPlayer?.uid,
+    ...room.spectators.map((s) => s.uid),
+  ].filter(Boolean);
+  if (!room.hostUid || !activeParticipants.includes(room.hostUid)) {
+    room.hostUid =
+      room.redPlayer?.uid ||
+      room.blackPlayer?.uid ||
+      room.spectators[0]?.uid ||
+      '';
+  }
+}
+
 function serializeRoomForClient(room: LiveRoom) {
+  deduplicateRoomParticipants(room);
   const isDark = room.mode === 'dark';
   const maskHidden = isDark && room.status === 'playing';
   const clientFen = boardToFen(room.board, room.turn, maskHidden);
@@ -647,7 +742,7 @@ function serializeRoomForClient(room: LiveRoom) {
     winner: room.winner || 'ongoing',
     endReason: room.endReason || '',
     eloResult: room.eloResult || null,
-    chat: room.chat.slice(-50),
+    chat: [...room.chat],
   };
 }
 
@@ -763,6 +858,10 @@ async function hydrateLiveRoomsFromFirestore() {
           updatedAt: snap.updatedAt || now,
         };
 
+        deduplicateRoomParticipants(room);
+        if (room.status === 'playing' && (!room.redPlayer || !room.blackPlayer)) {
+          room.status = 'waiting';
+        }
         liveRooms.set(code, room);
         count++;
       } catch (e) {
@@ -1499,6 +1598,14 @@ async function startServer() {
 
       const entries = ratingsList
         .filter((r) => {
+          const u = usersMap.get(r.uid);
+          if (!u) {
+            const orphanId = r.id || r.docId || (r.uid && r.mode ? `${r.uid}_${r.mode}` : '');
+            if (orphanId) {
+              void deleteDocRealtime('ratings', orphanId).catch(() => {});
+            }
+            return false;
+          }
           if (r.mode !== mode) return false;
           if (r.hiddenFromLeaderboard) return false;
           if (minTime > 0 && (r.lastRatedGameAt || 0) < minTime) return false;
@@ -1637,7 +1744,10 @@ async function startServer() {
         await setDocRealtime('users', uid, { password: newPass, updatedAt: now }, true);
       } else if (action === 'update_elo') {
         const mode = (payload?.mode as RatedMode) || 'blitz';
-        const newElo = Math.max(100, Math.min(3500, Number(payload?.elo || DEFAULT_INITIAL_ELO)));
+        const newElo = Math.max(
+          DEFAULT_INITIAL_ELO,
+          Math.min(3500, Number(payload?.elo || DEFAULT_INITIAL_ELO))
+        );
         const rKey = `${uid}_${mode}`;
         const existingRating = await getUserModeRatingRealtime(
           uid,
@@ -1650,6 +1760,7 @@ async function startServer() {
         const ratingUpdates = {
           ...existingRating,
           elo: newElo,
+          eloDebt: 0,
           peakElo: Math.max(newElo, existingRating.peakElo || DEFAULT_INITIAL_ELO),
           hiddenFromLeaderboard: false,
           updatedAt: now,
@@ -1678,12 +1789,118 @@ async function startServer() {
         if (userData.role === 'admin') {
           return res.status(400).json({ error: 'Không thể xóa tài khoản Admin' });
         }
-        await Promise.all([
-          deleteDocRealtime('usernames', String(userData.username || '').toLowerCase()).catch(
-            () => {}
-          ),
-          deleteDocRealtime('users', uid).catch(() => {}),
+
+        const uidLower = uid.toLowerCase();
+        const usernameLower = String(userData.username || '').trim().toLowerCase();
+        const displayNameLower = String(userData.displayName || '').trim().toLowerCase();
+
+        const [ratingsList, ratingHistoryList, loginRequestsList, gamesList] = await Promise.all([
+          getCollectionRealtime('ratings'),
+          getCollectionRealtime('ratingHistory'),
+          getCollectionRealtime('loginRequests'),
+          getCollectionRealtime('games'),
         ]);
+
+        const deletePromises: Promise<any>[] = [
+          deleteDocRealtime('users', uid).catch(() => {}),
+          deleteDocRealtime('usernames', usernameLower).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_blitz`).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_standard`).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_dark`).catch(() => {}),
+        ];
+
+        // Delete any matching rating documents on Leaderboard
+        for (const r of ratingsList) {
+          const rUid = String(r.uid || '').toLowerCase();
+          const rUser = String(r.username || '').trim().toLowerCase();
+          const rId = String(r.id || r.docId || '');
+          if (
+            rUid === uidLower ||
+            (usernameLower && rUser === usernameLower) ||
+            rId.startsWith(`${uid}_`)
+          ) {
+            if (rId) {
+              deletePromises.push(deleteDocRealtime('ratings', rId).catch(() => {}));
+            }
+          }
+        }
+
+        // Delete all rating history entries for this account
+        for (const h of ratingHistoryList) {
+          const hUid = String(h.uid || '').toLowerCase();
+          const hUser = String(h.username || '').trim().toLowerCase();
+          if (hUid === uidLower || (usernameLower && hUser === usernameLower)) {
+            if (h.id) {
+              deletePromises.push(deleteDocRealtime('ratingHistory', h.id).catch(() => {}));
+            }
+          }
+        }
+
+        // Delete any login requests for this account
+        for (const reqDoc of loginRequestsList) {
+          const reqUid = String(reqDoc.uid || '').toLowerCase();
+          const reqUser = String(reqDoc.username || '').trim().toLowerCase();
+          if (reqUid === uidLower || (usernameLower && reqUser === usernameLower)) {
+            if (reqDoc.id) {
+              deletePromises.push(deleteDocRealtime('loginRequests', reqDoc.id).catch(() => {}));
+            }
+          }
+        }
+
+        // Delete games and moves associated with this account on Leaderboard profile
+        for (const g of gamesList) {
+          const rUid = String(g.redUid || '').toLowerCase();
+          const bUid = String(g.blackUid || '').toLowerCase();
+          const rName = String(g.redName || '').trim().toLowerCase();
+          const bName = String(g.blackName || '').trim().toLowerCase();
+          const matchesUser =
+            rUid === uidLower ||
+            bUid === uidLower ||
+            (usernameLower && (rName === usernameLower || bName === usernameLower)) ||
+            (displayNameLower && (rName === displayNameLower || bName === displayNameLower));
+          if (matchesUser && g.id) {
+            deletePromises.push(deleteDocRealtime('games', g.id).catch(() => {}));
+            deletePromises.push(deleteDocRealtime('moves', g.id).catch(() => {}));
+          }
+        }
+
+        // Remove user from any active rooms
+        for (const [roomCode, room] of liveRooms.entries()) {
+          let changed = false;
+          if (isSameAccount(room.redPlayer, uid, userData.username)) {
+            room.redPlayer = null;
+            changed = true;
+          }
+          if (isSameAccount(room.blackPlayer, uid, userData.username)) {
+            room.blackPlayer = null;
+            changed = true;
+          }
+          const beforeSpecLen = room.spectators.length;
+          room.spectators = room.spectators.filter(
+            (s) => !isSameAccount(s, uid, userData.username)
+          );
+          if (room.spectators.length !== beforeSpecLen) {
+            changed = true;
+          }
+          if (changed) {
+            if (!room.redPlayer && !room.blackPlayer && room.spectators.length === 0) {
+              liveRooms.delete(roomCode);
+              deletePromises.push(deleteDocRealtime('rooms', roomCode).catch(() => {}));
+            } else {
+              if (room.hostUid === uid) {
+                room.hostUid =
+                  room.redPlayer?.uid ||
+                  room.blackPlayer?.uid ||
+                  room.spectators[0]?.uid ||
+                  '';
+              }
+              io.to(roomCode).emit('room:state', serializeRoomForClient(room));
+            }
+          }
+        }
+
+        await Promise.all(deletePromises);
+        broadcastRoomListUpdate();
         emitToUser(uid, 'session:kicked', { reason: 'Tài khoản đã bị xóa' });
       }
 
@@ -1926,6 +2143,7 @@ async function startServer() {
       const res = evaluateInactivityDecay(
         {
           elo: r.elo,
+          eloDebt: r.eloDebt,
           gamesPlayed: r.gamesPlayed,
           lastRatedGameAt: r.lastRatedGameAt,
           decayApplied: r.decayApplied,
@@ -1942,6 +2160,7 @@ async function startServer() {
         const updatedRating = {
           ...r,
           elo: res.afterElo,
+          eloDebt: res.eloDebt,
           decayApplied: res.decayApplied,
           hiddenFromLeaderboard: res.hiddenFromLeaderboard,
           provisional: res.provisional,
@@ -2218,9 +2437,11 @@ async function startServer() {
           redElo: redData.elo ?? DEFAULT_INITIAL_ELO,
           redGames: redData.gamesPlayed ?? 0,
           redProvisional: redData.provisional,
+          redEloDebt: Number(redData.eloDebt || 0),
           blackElo: blackData.elo ?? DEFAULT_INITIAL_ELO,
           blackGames: blackData.gamesPlayed ?? 0,
           blackProvisional: blackData.provisional,
+          blackEloDebt: Number(blackData.eloDebt || 0),
           outcome: winner,
           redUid: room.redPlayer.uid,
           blackUid: room.blackPlayer.uid,
@@ -2258,6 +2479,7 @@ async function startServer() {
         const updatedRedRating = {
           ...redData,
           elo: eloRes.redAfter,
+          eloDebt: eloRes.redDebtAfter,
           peakElo: Math.max(redData.peakElo || DEFAULT_INITIAL_ELO, eloRes.redAfter),
           gamesPlayed: nextRedGames,
           wins: (redData.wins || 0) + (winner === 'red' ? 1 : 0),
@@ -2280,6 +2502,7 @@ async function startServer() {
         const updatedBlackRating = {
           ...blackData,
           elo: eloRes.blackAfter,
+          eloDebt: eloRes.blackDebtAfter,
           peakElo: Math.max(blackData.peakElo || DEFAULT_INITIAL_ELO, eloRes.blackAfter),
           gamesPlayed: nextBlackGames,
           wins: (blackData.wins || 0) + (winner === 'black' ? 1 : 0),
@@ -2621,45 +2844,60 @@ async function startServer() {
           const displayName = user.displayName || username;
           const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName);
 
-          if (room.redPlayer?.uid === uid) {
+          // Re-check room state after async awaits and enforce single-seat-per-account invariant
+          deduplicateRoomParticipants(room);
+
+          const isAlreadyRed = isSameAccount(room.redPlayer, uid, username);
+          const isAlreadyBlack = isSameAccount(room.blackPlayer, uid, username);
+          const existingSpec = room.spectators.find((s) => isSameAccount(s, uid, username));
+          const wasAlreadyInRoom = Boolean(isAlreadyRed || isAlreadyBlack || existingSpec);
+
+          if (isAlreadyRed && room.redPlayer) {
+            room.redPlayer.uid = uid;
+            room.redPlayer.username = username;
             room.redPlayer.connected = true;
             room.redPlayer.elo = elo;
             room.redPlayer.displayName = displayName;
             room.redPlayer.disconnectDeadline = undefined;
-          } else if (room.blackPlayer?.uid === uid) {
+          } else if (isAlreadyBlack && room.blackPlayer) {
+            room.blackPlayer.uid = uid;
+            room.blackPlayer.username = username;
             room.blackPlayer.connected = true;
             room.blackPlayer.elo = elo;
             room.blackPlayer.displayName = displayName;
             room.blackPlayer.disconnectDeadline = undefined;
+          } else if (existingSpec) {
+            existingSpec.uid = uid;
+            existingSpec.username = username;
+            existingSpec.connected = true;
+            existingSpec.elo = elo;
+            existingSpec.displayName = displayName;
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.redPlayer) {
             room.redPlayer = { uid, username, displayName, elo, connected: true };
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.blackPlayer) {
             room.blackPlayer = { uid, username, displayName, elo, connected: true };
           } else {
-            const existingSpec = room.spectators.find((s) => s.uid === uid);
-            if (existingSpec) {
-              existingSpec.connected = true;
-              existingSpec.elo = elo;
-              existingSpec.displayName = displayName;
-            } else {
-              if (room.spectators.length >= 6) {
-                return cb?.({ error: 'Phòng đã đủ 2 người chơi và 6 người xem' });
-              }
-              room.spectators.push({ uid, username, displayName, elo, connected: true });
+            if (room.spectators.length >= 6) {
+              return cb?.({ error: 'Phòng đã đủ 2 người chơi và 6 người xem' });
             }
+            room.spectators.push({ uid, username, displayName, elo, connected: true });
           }
+
+          deduplicateRoomParticipants(room);
 
           currentRoomCode = code;
           socket.join(code);
-          const now = Date.now();
-          room.chat.push({
-            id: `sys_${now}_${Math.random()}`,
-            senderUid: 'system',
-            senderName: 'Hệ thống',
-            text: `${displayName} vào phòng`,
-            type: 'system',
-            timestamp: now,
-          });
+          if (!wasAlreadyInRoom) {
+            const now = Date.now();
+            room.chat.push({
+              id: `sys_${now}_${Math.random()}`,
+              senderUid: 'system',
+              senderName: 'Hệ thống',
+              text: `${displayName} vào phòng`,
+              type: 'system',
+              timestamp: now,
+            });
+          }
 
           await persistRoomSnapshotRealtime(room);
           const serialized = serializeRoomForClient(room);
@@ -2691,30 +2929,47 @@ async function startServer() {
           const displayName = user?.displayName || username;
           const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName);
 
-          const isRed = room.redPlayer?.uid === uid;
-          const isBlack = room.blackPlayer?.uid === uid;
-          const specIdx = room.spectators.findIndex((s) => s.uid === uid);
-          const isSpec = specIdx !== -1;
+          deduplicateRoomParticipants(room);
+
+          const isRed = isSameAccount(room.redPlayer, uid, username);
+          const isBlack = isSameAccount(room.blackPlayer, uid, username);
+          const isSpec = room.spectators.some((s) => isSameAccount(s, uid, username));
 
           if (targetSeat === 'red') {
             if (isRed) return cb?.({ room: serializeRoomForClient(room) });
-            if (room.redPlayer) return cb?.({ error: 'Ghế Đỏ đã có người ngồi' });
+            if (room.redPlayer && !isSameAccount(room.redPlayer, uid, username)) {
+              return cb?.({ error: 'Ghế Đỏ đã có người ngồi' });
+            }
             if (isBlack) room.blackPlayer = null;
-            if (isSpec) room.spectators.splice(specIdx, 1);
+            if (isSpec) {
+              room.spectators = room.spectators.filter((s) => !isSameAccount(s, uid, username));
+            }
             room.redPlayer = { uid, username, displayName, elo, connected: true };
           } else if (targetSeat === 'black') {
             if (isBlack) return cb?.({ room: serializeRoomForClient(room) });
-            if (room.blackPlayer) return cb?.({ error: 'Ghế Đen đã có người ngồi' });
+            if (room.blackPlayer && !isSameAccount(room.blackPlayer, uid, username)) {
+              return cb?.({ error: 'Ghế Đen đã có người ngồi' });
+            }
             if (isRed) room.redPlayer = null;
-            if (isSpec) room.spectators.splice(specIdx, 1);
+            if (isSpec) {
+              room.spectators = room.spectators.filter((s) => !isSameAccount(s, uid, username));
+            }
             room.blackPlayer = { uid, username, displayName, elo, connected: true };
           } else if (targetSeat === 'spectator') {
-            if (isSpec) return cb?.({ room: serializeRoomForClient(room) });
-            if (room.spectators.length >= 6) return cb?.({ error: 'Ghế khán giả đã đầy (6/6)' });
+            if (isSpec && !isRed && !isBlack) {
+              return cb?.({ room: serializeRoomForClient(room) });
+            }
+            const otherSpecs = room.spectators.filter((s) => !isSameAccount(s, uid, username));
+            if (otherSpecs.length >= 6) return cb?.({ error: 'Ghế khán giả đã đầy (6/6)' });
             if (isRed) room.redPlayer = null;
             if (isBlack) room.blackPlayer = null;
-            room.spectators.push({ uid, username, displayName, elo, connected: true });
+            room.spectators = [
+              ...otherSpecs,
+              { uid, username, displayName, elo, connected: true },
+            ];
           }
+
+          deduplicateRoomParticipants(room);
 
           await persistRoomSnapshotRealtime(room);
           const serialized = serializeRoomForClient(room);
@@ -2734,11 +2989,30 @@ async function startServer() {
         const uid = String(payload?.uid || boundUid);
         const room = liveRooms.get(code);
         if (!room) return cb?.({ error: 'Phòng không tồn tại' });
-        if (room.hostUid !== uid) {
-          return cb?.({ error: 'Chỉ chủ phòng mới được bấm Bắt đầu' });
+
+        deduplicateRoomParticipants(room);
+
+        const isAuthorized =
+          room.hostUid === uid ||
+          room.redPlayer?.uid === uid ||
+          room.blackPlayer?.uid === uid;
+        if (!isAuthorized) {
+          return cb?.({ error: 'Chỉ kỳ thủ hoặc chủ phòng mới được bấm Bắt đầu' });
         }
-        if (!room.redPlayer || !room.blackPlayer) {
-          return cb?.({ error: 'Cần đủ 2 người chơi để bắt đầu' });
+
+        if (
+          room.hostUid !== uid &&
+          (room.redPlayer?.uid === uid || room.blackPlayer?.uid === uid)
+        ) {
+          room.hostUid = uid;
+        }
+
+        if (
+          !room.redPlayer ||
+          !room.blackPlayer ||
+          isSameAccount(room.blackPlayer, room.redPlayer.uid, room.redPlayer.username)
+        ) {
+          return cb?.({ error: 'Cần đủ 2 kỳ thủ khác nhau để bắt đầu ván đấu' });
         }
 
         const cfg = await getAdminConfigRealtime();
@@ -2772,6 +3046,73 @@ async function startServer() {
         io.to(code).emit('room:state', serialized);
         broadcastRoomListUpdate();
         cb?.({ room: serialized });
+      }
+    );
+
+    socket.on(
+      'room:return_to_waiting',
+      async (payload: { code: string; uid: string }, cb?: (res: any) => void) => {
+        try {
+          const code = String(payload?.code || currentRoomCode).toUpperCase();
+          const uid = String(payload?.uid || boundUid);
+          const room = liveRooms.get(code);
+          if (!room) return cb?.({ error: 'Phòng không tồn tại' });
+
+          const isParticipant =
+            room.redPlayer?.uid === uid ||
+            room.blackPlayer?.uid === uid ||
+            room.hostUid === uid ||
+            room.spectators.some((s) => s.uid === uid);
+          if (!isParticipant) {
+            return cb?.({ error: 'Bạn không ở trong phòng này' });
+          }
+
+          const cfg = await getAdminConfigRealtime();
+          const tc = getTimeControlForMode(room.mode, cfg);
+          const { board } =
+            room.mode === 'dark' ? createDarkXiangqiBoard() : parseFen(INITIAL_FEN);
+          const now = Date.now();
+
+          room.status = 'waiting';
+          room.board = board;
+          room.turn = 'r';
+          room.initialFen = boardToFen(board, 'r', false);
+          room.fenHistory = [];
+          room.checkHistory = [];
+          room.moves = [];
+          room.redTimeMs = tc.totalMs;
+          room.blackTimeMs = tc.totalMs;
+          room.moveTimeLimitMs = tc.moveLimitMs;
+          room.incrementMs = tc.incrementMs;
+          room.currentMoveRemainingMs = tc.moveLimitMs;
+          room.lastTickAt = now;
+          room.turnDeadline = 0;
+          room.drawOfferBy = null;
+          room.winner = undefined;
+          room.endReason = '';
+          room.eloResult = null;
+          room.cleanupAfterFinish = false;
+          room.updatedAt = now;
+
+          deduplicateRoomParticipants(room);
+
+          room.chat.push({
+            id: `sys_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            senderUid: 'system',
+            senderName: 'Hệ thống',
+            text: 'Ván đấu kết thúc. Toàn bộ kỳ thủ và khán giả đã trở về phòng chờ.',
+            type: 'system',
+            timestamp: now,
+          });
+
+          await persistRoomSnapshotRealtime(room);
+          const serialized = serializeRoomForClient(room);
+          io.to(code).emit('room:state', serialized);
+          broadcastRoomListUpdate();
+          cb?.({ room: serialized });
+        } catch {
+          cb?.({ error: 'Lỗi trở về phòng chờ' });
+        }
       }
     );
 
@@ -2942,7 +3283,7 @@ async function startServer() {
         };
 
         room.chat.push(msg);
-        if (room.chat.length > 80) room.chat.shift();
+        if (room.chat.length > 300) room.chat.shift();
         io.to(code).emit('chat:message', msg);
       }
     );
