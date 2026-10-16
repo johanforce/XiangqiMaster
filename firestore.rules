@@ -82,6 +82,57 @@ service cloud.firestore {
     match /articles/{articleId} {
       allow read, write: if true;
     }
+
+    // =========================================================================
+    // STAGING INDEPENDENT COLLECTIONS (Môi trường Thử nghiệm Staging độc lập)
+    // =========================================================================
+    match /staging_users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /staging_usernames/{username} {
+      allow read, write: if true;
+    }
+
+    match /staging_admins/{adminId} {
+      allow read, write: if true;
+    }
+
+    match /staging_loginRequests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /staging_ratings/{ratingId} {
+      allow read, write: if true;
+    }
+
+    match /staging_games/{gameId} {
+      allow read, write: if true;
+
+      match /moves/{moveId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /staging_moves/{moveId} {
+      allow read, write: if true;
+    }
+
+    match /staging_ratingHistory/{historyId} {
+      allow read, write: if true;
+    }
+
+    match /staging_rooms/{roomCode} {
+      allow read, write: if true;
+    }
+
+    match /staging_adminConfig/{configId} {
+      allow read, write: if true;
+    }
+
+    match /staging_articles/{articleId} {
+      allow read, write: if true;
+    }
   }
 }
 

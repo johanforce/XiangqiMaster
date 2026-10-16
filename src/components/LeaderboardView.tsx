@@ -566,8 +566,8 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
 
       {/* 4. Sheet Hồ Sơ Kỳ Thủ (Player Profile Sheet / Drawer) */}
       {selectedPlayer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="w-full max-w-xl rounded-3xl bg-stone-900 border border-stone-800 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-xl rounded-3xl bg-stone-900 border border-stone-800 p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col my-auto">
             {/* Header hồ sơ with background banner */}
             <div
               className="relative rounded-2xl overflow-hidden p-4 border border-amber-900/40 bg-cover bg-center flex items-start justify-between"
@@ -946,11 +946,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
       {/* 5. Dialog Bảng Phân Chia Cấp Bậc Elo */}
       {rankInfoOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto"
           onClick={() => setRankInfoOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-3xl bg-stone-900 border border-stone-800 p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
+            className="w-full max-w-2xl rounded-3xl bg-stone-900 border border-stone-800 p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">

@@ -113,6 +113,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     standardMoveSec: 120,
     darkMinutes: 15,
     darkMoveSec: 120,
+    stagingPassword: '123456',
   });
 
   const [search, setSearch] = useState('');
@@ -927,6 +928,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 />
               </div>
             </div>
+            <div className="col-span-2">
+              <label className="block text-stone-400 mb-1 flex items-center gap-1.5">
+                <span>Mật khẩu vào Máy Chủ Staging</span>
+              </label>
+              <input
+                type="text"
+                value={config.stagingPassword || '123456'}
+                onChange={(e) => setConfig({ ...config, stagingPassword: e.target.value })}
+                className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3 py-2 text-stone-100 font-mono"
+                placeholder="Nhập mật khẩu staging"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
@@ -1576,13 +1589,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {/* Modal xác nhận xóa tài khoản */}
       {userToDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto"
           onClick={() => {
             if (!deletingUser) setUserToDelete(null);
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-stone-900 border border-red-900/60 p-6 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-2xl bg-stone-900 border border-red-900/60 p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">

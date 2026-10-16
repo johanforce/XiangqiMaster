@@ -26,6 +26,7 @@ import {
   Radio,
   Trophy,
   AlertTriangle,
+  FastForward,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
 import { parseFen, Pos } from '../shared/xiangqi';
@@ -63,7 +64,7 @@ function parseRankedModeFromPath(pathname: string): RatedMode | 'all' {
   return 'all';
 }
 
-function parseRoomCodeFromPath(pathname: string): string | null {
+export function parseRoomCodeFromPath(pathname: string): string | null {
   const m = pathname.match(/^\/ranked\/room\/([A-Za-z0-9]+)/);
   return m ? m[1].toUpperCase() : null;
 }
@@ -119,6 +120,8 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         if (plyParam !== null && !Number.isNaN(Number(plyParam))) {
           setReviewMode(true);
           setReviewPly(Math.max(0, Number(plyParam)));
+        } else {
+          setReviewMode(false);
         }
       }
     };
@@ -163,6 +166,24 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       );
     }
   }, [socket, currentUser, activeRoom, setActiveRoom, onToast]);
+
+  // Ensure socket joins room room on reconnect if already in activeRoom
+  useEffect(() => {
+    if (!socket || !socket.connected || !activeRoom?.code || !currentUser?.uid) return;
+    socket.emit(
+      'room:rejoin',
+      {
+        code: activeRoom.code,
+        uid: currentUser.uid,
+        username: currentUser.username,
+      },
+      (res: any) => {
+        if (res?.room) {
+          setActiveRoom(res.room);
+        }
+      }
+    );
+  }, [socket?.connected, activeRoom?.code, currentUser?.uid, setActiveRoom]);
 
   const fetchOpenRooms = () => {
     if (socket && socket.connected) {
@@ -477,8 +498,27 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     );
   };
 
+  const isUserHost = Boolean(
+    activeRoom &&
+      (activeRoom.hostUid === currentUser.uid ||
+        (Boolean(activeRoom.hostUid) &&
+          ((activeRoom.redPlayer?.uid === activeRoom.hostUid &&
+            (activeRoom.redPlayer?.uid === currentUser.uid ||
+              activeRoom.redPlayer?.username?.toLowerCase() === currentUser.username.toLowerCase())) ||
+           (activeRoom.blackPlayer?.uid === activeRoom.hostUid &&
+            (activeRoom.blackPlayer?.uid === currentUser.uid ||
+              activeRoom.blackPlayer?.username?.toLowerCase() === currentUser.username.toLowerCase())))) ||
+        (!activeRoom.hostUid &&
+          (activeRoom.redPlayer?.uid === currentUser.uid ||
+            activeRoom.redPlayer?.username?.toLowerCase() === currentUser.username.toLowerCase())))
+  );
+
   const handleSwitchSeat = (targetSeat: 'red' | 'black' | 'spectator') => {
     if (!socket || !activeRoom) return;
+    if (isUserHost && targetSeat === 'spectator') {
+      onToast('Chủ phòng không được xuống người xem, chỉ có 2 lựa chọn là Đỏ hoặc Đen');
+      return;
+    }
     socket.emit(
       'room:switch_seat',
       {
@@ -502,6 +542,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
   const handleStartMatch = () => {
     if (!socket || !activeRoom) return;
+    if (!isUserHost) {
+      onToast('Chỉ có chủ phòng mới được phép bắt đầu trận đấu');
+      return;
+    }
     socket.emit('room:start', { code: activeRoom.code, uid: currentUser.uid }, (res: any) => {
       if (res?.error) onToast(res.error);
     });
@@ -573,6 +617,29 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     ].join('\n');
     navigator.clipboard.writeText(`${header}\n\n${pairs.join(' ')}`);
     onToast('Đã sao chép kỳ phổ');
+  };
+
+  const handleReturnToLive = () => {
+    setReviewMode(false);
+    setReviewPly(activeRoom?.moves?.length || 0);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('ply')) {
+      params.delete('ply');
+      const newSearch = params.toString() ? `?${params.toString()}` : '';
+      navigateUrl(`${window.location.pathname}${newSearch}`, true);
+    }
+  };
+
+  const handleSelectMove = (ply: number) => {
+    const total = activeRoom?.moves?.length || 0;
+    // Nếu ván cờ đang diễn ra và người dùng chạm vào nước cuối cùng (hoặc vượt quá),
+    // chuyển ngay về nước hiện tại để mở khóa bàn cờ và cho phép đi tiếp
+    if (activeRoom?.status === 'playing' && ply >= total) {
+      handleReturnToLive();
+      return;
+    }
+    setReviewMode(true);
+    setReviewPly(ply);
   };
 
   // =========================================================================
@@ -956,7 +1023,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           activeRoom.blackPlayer.username.toLowerCase() === currentUser.username.toLowerCase()));
     const isHost =
       activeRoom.hostUid === currentUser.uid ||
-      (![activeRoom.redPlayer?.uid, activeRoom.blackPlayer?.uid].includes(activeRoom.hostUid) && isRed);
+      (Boolean(activeRoom.hostUid) &&
+        ((activeRoom.redPlayer?.uid === activeRoom.hostUid && isRed) ||
+         (activeRoom.blackPlayer?.uid === activeRoom.hostUid && isBlack))) ||
+      (!activeRoom.hostUid && isRed);
     const bothReady = Boolean(
       activeRoom.redPlayer &&
         activeRoom.blackPlayer &&
@@ -1204,23 +1274,23 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 </div>
               </div>
 
-              {/* Nút Bắt đầu ván đấu lớn hoàng gia */}
+              {/* Nút Bắt đầu ván đấu lớn hoàng gia - Chỉ chủ phòng mới được bấm */}
               <div className="pt-2">
-                {isRed || isBlack || isHost ? (
+                {isHost ? (
                   <button
                     onClick={handleStartMatch}
                     disabled={!bothReady}
                     className="w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 disabled:from-stone-800 disabled:to-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all active:scale-98 cursor-pointer"
                   >
                     <Play className="w-5 h-5 fill-current" />
-                    <span>{bothReady ? 'BẮT ĐẦU VÁN ĐẤU (KHAI CUỘC)' : 'CHỜ ĐỐI THỦ VÀO GHẾ ĐỂ BẮT ĐẦU'}</span>
+                    <span>{bothReady ? 'BẮT ĐẦU VÁN ĐẤU (CHỦ PHÒNG KHAI CUỘC)' : 'CHỜ ĐỐI THỦ VÀO GHẾ ĐỂ BẮT ĐẦU'}</span>
                   </button>
                 ) : (
                   <div className="w-full py-3.5 rounded-2xl bg-stone-950/90 border border-stone-800 text-center text-xs text-stone-300 font-semibold flex items-center justify-center gap-2 shadow-inner">
                     <span>
                       {bothReady
-                        ? 'Đã đủ 2 kỳ thủ. Chờ phát lệnh khai cuộc…'
-                        : 'Chờ đối thủ vào phòng…'}
+                        ? 'Đã đủ 2 kỳ thủ. Chờ chủ phòng bắt đầu trận đấu…'
+                        : 'Chờ đủ 2 kỳ thủ và chủ phòng bắt đầu…'}
                     </span>
                   </div>
                 )}
@@ -1239,11 +1309,11 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <Users className="w-4 h-4" />
                   <span>KHÁN ĐÀI THEO DÕI ({activeRoom.spectators?.length || 0}/6)</span>
                 </span>
-                {(isRed || isBlack) && (
+                {(isRed || isBlack) && !isHost && (
                   <button
                     onClick={() => handleSwitchSeat('spectator')}
                     disabled={(activeRoom.spectators?.length || 0) >= 6}
-                    className="text-xs text-amber-400 hover:text-amber-300 font-bold transition-colors"
+                    className="text-xs text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
                   >
                     Xuống khán đài
                   </button>
@@ -1402,17 +1472,27 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   const isBlack = activeRoom.blackPlayer?.uid === currentUser.uid;
   const myColor = isRed ? 'r' : isBlack ? 'b' : undefined;
 
+  const moves = activeRoom.moves || [];
+  const totalMoves = moves.length;
+  // Trạng thái trực tiếp (Live): Không bật reviewMode HOẶC đang trong ván đấu mà con trỏ xem lại ở nước cuối cùng
+  const isLiveState =
+    !reviewMode ||
+    (activeRoom.status === 'playing' && (reviewPly >= totalMoves || (reviewPly === 0 && totalMoves === 0)));
+
   const displayFen =
-    reviewMode && activeRoom.moves?.length > 0
+    !isLiveState && totalMoves > 0
       ? reviewPly === 0
         ? activeRoom.initialFen || undefined
-        : activeRoom.moves[reviewPly - 1]?.fen
+        : moves[reviewPly - 1]?.fen
       : activeRoom.fen;
 
   const { board, turn } = parseFen(displayFen);
-  const moves = activeRoom.moves || [];
   const lastMove =
-    moves.length > 0 ? { from: moves[moves.length - 1].from, to: moves[moves.length - 1].to } : null;
+    !isLiveState && reviewPly > 0 && moves[reviewPly - 1]
+      ? { from: moves[reviewPly - 1].from, to: moves[reviewPly - 1].to }
+      : moves.length > 0
+      ? { from: moves[moves.length - 1].from, to: moves[moves.length - 1].to }
+      : null;
 
   const renderPlayerBar = (
     seat: any,
@@ -1706,6 +1786,28 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           false
         )}
 
+        {/* Banner cảnh báo & NÚT DI CHUYỂN VỀ NƯỚC HIỆN TẠI (khi người chơi đang xem lại nước cũ trong trận đấu) */}
+        {activeRoom.status === 'playing' && !isLiveState && (
+          <div className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-950/85 via-stone-900/95 to-amber-950/85 border border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.25)] text-amber-200">
+            <div className="flex items-center gap-2.5 text-xs font-medium min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span className="truncate">
+                Đang xem lại: <strong className="text-amber-300 font-mono-num font-bold">Nước {reviewPly}/{moves.length}</strong>
+              </span>
+              <span className="text-[11px] text-stone-400 hidden sm:inline">(Tạm khóa để xem)</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleReturnToLive}
+              className="shrink-0 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer transition-all"
+              title="Quay về nước hiện tại để tiếp tục đi cờ"
+            >
+              <FastForward className="w-4 h-4 fill-current shrink-0" />
+              <span>Về nước hiện tại (Đi tiếp)</span>
+            </button>
+          </div>
+        )}
+
         {/* Bàn cờ tướng chuẩn đồ họa */}
         <XiangqiBoard
           board={board}
@@ -1713,7 +1815,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           theme={theme}
           pieceCharMode={pieceCharMode}
           flipped={isBlack}
-          interactive={activeRoom.status === 'playing' && !reviewMode && Boolean(myColor)}
+          interactive={activeRoom.status === 'playing' && isLiveState && Boolean(myColor)}
           allowedColor={myColor || 'r'}
           isDarkXiangqi={activeRoom.mode === 'dark'}
           lastMove={lastMove}
@@ -1786,20 +1888,44 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {reviewMode && !isLiveState && (
+              <button
+                type="button"
+                onClick={handleReturnToLive}
+                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
+                title="Di chuyển ngay về nước hiện tại để đi cờ"
+              >
+                <FastForward className="w-3.5 h-3.5 fill-current" />
+                <span>Nước hiện tại</span>
+              </button>
+            )}
+
             {reviewMode && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 bg-stone-950 px-1.5 py-0.5 rounded-lg border border-stone-800">
                 <button
+                  type="button"
                   onClick={() => setReviewPly((p) => Math.max(0, p - 1))}
-                  className="p-1.5 rounded-lg bg-stone-800 text-stone-200"
+                  disabled={reviewPly <= 0}
+                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-200 transition-colors"
+                  title="Nước trước"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-[11px] font-mono-num px-1.5">
+                <span className="text-[11px] font-mono-num px-1.5 text-stone-300">
                   {reviewPly}/{moves.length}
                 </span>
                 <button
-                  onClick={() => setReviewPly((p) => Math.min(moves.length, p + 1))}
-                  className="p-1.5 rounded-lg bg-stone-800 text-stone-200"
+                  type="button"
+                  onClick={() => {
+                    if (reviewPly + 1 >= moves.length && activeRoom.status === 'playing') {
+                      handleReturnToLive();
+                    } else {
+                      setReviewPly((p) => Math.min(moves.length, p + 1));
+                    }
+                  }}
+                  disabled={reviewPly >= moves.length}
+                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-200 transition-colors"
+                  title="Nước sau"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1809,7 +1935,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             <button
               onClick={handleCopyRoomNotation}
               title="Sao chép kỳ phổ"
-              className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200"
+              className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
@@ -1936,15 +2062,30 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             }}
             className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-4 min-h-[380px] flex flex-col shadow-xl"
           >
-            <div className="border-b border-stone-800/80 pb-3">
-              <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-400">
-                <RotateCcw className="w-4 h-4" />
-                <span>KÝ PHỔ NƯỚC ĐI ({moves.length})</span>
-              </div>
-              <div className="text-[11px] text-stone-300 mt-1">
-                Bấm vào nước cờ để xem lại vị trí trên bàn cờ
+            <div className="border-b border-stone-800/80 pb-3 flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-400">
+                  <RotateCcw className="w-4 h-4" />
+                  <span>KÝ PHỔ NƯỚC ĐI ({moves.length})</span>
+                </div>
+                <div className="text-[11px] text-stone-300 mt-1">
+                  Bấm vào nước cờ để xem lại vị trí trên bàn cờ
+                </div>
               </div>
             </div>
+
+            {/* Nút di chuyển về nước hiện tại khi đang xem lại nước cũ trong trận đấu */}
+            {activeRoom.status === 'playing' && !isLiveState && (
+              <button
+                type="button"
+                onClick={handleReturnToLive}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 active:scale-98 transition-all cursor-pointer animate-pulse"
+                title="Di chuyển ngay về nước hiện tại để mở khóa bàn cờ và đi tiếp"
+              >
+                <FastForward className="w-4 h-4 fill-current shrink-0" />
+                <span>Di chuyển về nước hiện tại (Nước {moves.length})</span>
+              </button>
+            )}
 
             {moves.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-stone-400 py-16">
@@ -1959,6 +2100,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <div className="h-[340px] max-h-[340px] overflow-y-auto overscroll-contain p-2.5 rounded-xl bg-stone-950/80 border border-stone-800/80 backdrop-blur-xs">
                 <div className="grid grid-cols-2 gap-1.5 auto-rows-max content-start text-xs font-mono-num">
                   {moves.map((m: any, idx: number) => {
+                    const isCurrentLiveMove = idx === moves.length - 1;
+                    const isSelected =
+                      (!isLiveState && reviewPly === idx + 1) || (isLiveState && isCurrentLiveMove);
                     const moveUrl = `/ranked/room/${activeRoom.code}?tab=notation&ply=${idx + 1}`;
                     return (
                       <a
@@ -1966,13 +2110,12 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                         href={moveUrl}
                         onClick={(e) =>
                           handleLinkClick(e, moveUrl, () => {
-                            setReviewMode(true);
-                            setReviewPly(idx + 1);
+                            handleSelectMove(idx + 1);
                           })
                         }
-                        className={`min-h-[34px] shrink-0 px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between ${
-                          reviewMode && reviewPly === idx + 1
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        className={`min-h-[34px] shrink-0 px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-xs'
                             : 'hover:bg-stone-800/60 text-stone-300'
                         }`}
                       >
@@ -1980,7 +2123,15 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
                         </span>
                         <span className="font-semibold text-stone-200 truncate mx-1">{m.wxf}</span>
-                        <span className="text-stone-400 text-[10px] truncate">({m.viet})</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-stone-400 text-[10px] truncate">({m.viet})</span>
+                          {isCurrentLiveMove && activeRoom.status === 'playing' && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"
+                              title="Nước hiện tại"
+                            />
+                          )}
+                        </div>
                       </a>
                     );
                   })}

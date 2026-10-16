@@ -64,11 +64,21 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'thangnc1';
 const ADMIN_DISPLAY_NAME = (process.env.ADMIN_DISPLAY_NAME || 'Nhập Vân Long Công Tôn Thắng').trim();
 const CRON_SECRET = process.env.CRON_SECRET || 'xiangqi_cron_secret_2026';
 
-// ==================== REALTIME FIRESTORE HELPERS (NO CACHE) ====================
+// ==================== REALTIME FIRESTORE HELPERS (PROD & STAGING) ====================
 
-async function getDocRealtime(col: string, id: string): Promise<any | null> {
+export type ServerEnv = 'prod' | 'staging';
+
+function getColName(col: string, env: ServerEnv = 'prod'): string {
+  if (env === 'staging') {
+    return `staging_${col}`;
+  }
+  return col;
+}
+
+async function getDocRealtime(col: string, id: string, env: ServerEnv = 'prod'): Promise<any | null> {
   if (!id) return null;
-  const ref = fsDoc(firestoreDb, col, id);
+  const targetCol = getColName(col, env);
+  const ref = fsDoc(firestoreDb, targetCol, id);
   try {
     const snap = await fsGetDocFromServer(ref);
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
@@ -78,8 +88,9 @@ async function getDocRealtime(col: string, id: string): Promise<any | null> {
   }
 }
 
-async function getCollectionRealtime(col: string): Promise<any[]> {
-  const colRef = fsCollection(firestoreDb, col);
+async function getCollectionRealtime(col: string, env: ServerEnv = 'prod'): Promise<any[]> {
+  const targetCol = getColName(col, env);
+  const colRef = fsCollection(firestoreDb, targetCol);
   const filterDoc = (d: any, list: any[]) => {
     if (
       d.id === 'kythu_test' ||
@@ -88,7 +99,7 @@ async function getCollectionRealtime(col: string): Promise<any[]> {
       d.id.includes('seed') ||
       d.id.startsWith('game_1791664')
     ) {
-      return;
+      if (env !== 'staging') return;
     }
     const data = d.data();
     if (
@@ -112,15 +123,17 @@ async function getCollectionRealtime(col: string): Promise<any[]> {
   }
 }
 
-async function setDocRealtime(col: string, id: string, data: any, merge = true): Promise<void> {
+async function setDocRealtime(col: string, id: string, data: any, merge = true, env: ServerEnv = 'prod'): Promise<void> {
   if (!id) return;
-  const ref = fsDoc(firestoreDb, col, id);
+  const targetCol = getColName(col, env);
+  const ref = fsDoc(firestoreDb, targetCol, id);
   await fsSetDoc(ref, data, { merge });
 }
 
-async function deleteDocRealtime(col: string, id: string): Promise<void> {
+async function deleteDocRealtime(col: string, id: string, env: ServerEnv = 'prod'): Promise<void> {
   if (!id) return;
-  const ref = fsDoc(firestoreDb, col, id);
+  const targetCol = getColName(col, env);
+  const ref = fsDoc(firestoreDb, targetCol, id);
   await fsDeleteDoc(ref);
 }
 
@@ -138,41 +151,41 @@ function verifyUserPassword(user: any, inputPassword: string): boolean {
   return storedPassword.length > 0 && storedPassword === inputPassword;
 }
 
-async function getUserByUidRealtime(uid: string): Promise<any | null> {
+async function getUserByUidRealtime(uid: string, env: ServerEnv = 'prod'): Promise<any | null> {
   if (!uid) return null;
-  const u = await getDocRealtime('users', uid);
+  const u = await getDocRealtime('users', uid, env);
   if (!u) return null;
   if (!u.uid) u.uid = uid;
   return u;
 }
 
-async function getUserByUsernameRealtime(rawUsername: string): Promise<any | null> {
+async function getUserByUsernameRealtime(rawUsername: string, env: ServerEnv = 'prod'): Promise<any | null> {
   const norm = rawUsername.trim().toLowerCase();
   if (!norm) return null;
 
-  const unameEntry = await getDocRealtime('usernames', norm);
+  const unameEntry = await getDocRealtime('usernames', norm, env);
   if (unameEntry?.uid) {
-    const user = await getUserByUidRealtime(unameEntry.uid);
+    const user = await getUserByUidRealtime(unameEntry.uid, env);
     if (user && String(user.username || '').toLowerCase() === norm) {
       return user;
     }
   }
 
   // Fallback: query users collection directly in case user was edited/added in Firestore console
-  const allUsers = await getCollectionRealtime('users');
+  const allUsers = await getCollectionRealtime('users', env);
   const matched = allUsers.find((u) => String(u.username || '').toLowerCase() === norm);
   if (matched) {
     const uid = matched.uid || matched.id;
     matched.uid = uid;
-    await setDocRealtime('usernames', norm, { uid, createdAt: matched.createdAt || Date.now() });
+    await setDocRealtime('usernames', norm, { uid, createdAt: matched.createdAt || Date.now() }, true, env);
     return matched;
   }
 
   return null;
 }
 
-async function getAdminConfigRealtime(): Promise<EloConfig & Record<string, any>> {
-  const globalCfg = await getDocRealtime('adminConfig', 'global');
+async function getAdminConfigRealtime(env: ServerEnv = 'prod'): Promise<EloConfig & Record<string, any>> {
+  const globalCfg = await getDocRealtime('adminConfig', 'global', env);
   return {
     ...DEFAULT_ELO_CONFIG,
     blitzMinutes: 5,
@@ -189,10 +202,11 @@ async function getUserModeRatingRealtime(
   uid: string,
   username: string,
   mode: RatedMode,
-  displayName?: string
+  displayName?: string,
+  env: ServerEnv = 'prod'
 ): Promise<any> {
   const docId = `${uid}_${mode}`;
-  const existing = await getDocRealtime('ratings', docId);
+  const existing = await getDocRealtime('ratings', docId, env);
   if (existing) {
     const gamesPlayed = Number(existing.gamesPlayed || 0);
     const curElo = Number(existing.elo ?? DEFAULT_INITIAL_ELO);
@@ -205,7 +219,8 @@ async function getUserModeRatingRealtime(
         'ratings',
         docId,
         { elo: existing.elo, eloDebt: existing.eloDebt },
-        true
+        true,
+        env
       ).catch(() => {});
     } else if (curElo < DEFAULT_INITIAL_ELO) {
       existing.elo = DEFAULT_INITIAL_ELO;
@@ -214,7 +229,8 @@ async function getUserModeRatingRealtime(
         'ratings',
         docId,
         { elo: DEFAULT_INITIAL_ELO, eloDebt: 0 },
-        true
+        true,
+        env
       ).catch(() => {});
     }
     return existing;
@@ -244,7 +260,7 @@ async function getUserModeRatingRealtime(
     recentOpponents: [] as string[],
     updatedAt: now,
   };
-  await setDocRealtime('ratings', docId, initialRating);
+  await setDocRealtime('ratings', docId, initialRating, true, env);
   return initialRating;
 }
 
@@ -395,19 +411,20 @@ async function getUserModeEloRealtime(
   uid: string,
   username: string,
   mode: RatedMode,
-  displayName?: string
+  displayName?: string,
+  env: ServerEnv = 'prod'
 ): Promise<number> {
-  const rating = await getUserModeRatingRealtime(uid, username, mode, displayName);
+  const rating = await getUserModeRatingRealtime(uid, username, mode, displayName, env);
   return rating.elo ?? DEFAULT_INITIAL_ELO;
 }
 
-async function ensureFirestoreSeeded() {
-  console.log(`Connecting directly to Firestore (${firebaseConfig.firestoreDatabaseId}) in realtime mode (no cache)...`);
+async function ensureFirestoreSeeded(env: ServerEnv = 'prod') {
+  console.log(`[${env.toUpperCase()}] Checking Firestore Direct Connection (${firebaseConfig.firestoreDatabaseId})...`);
   try {
     const norm = ADMIN_USERNAME.toLowerCase();
     const now = Date.now();
 
-    let adminUser = await getUserByUsernameRealtime(ADMIN_USERNAME);
+    let adminUser = await getUserByUsernameRealtime(ADMIN_USERNAME, env);
     if (!adminUser) {
       const uid = `admin_${norm}`;
       adminUser = {
@@ -427,10 +444,10 @@ async function ensureFirestoreSeeded() {
         createdAt: now,
         updatedAt: now,
       };
-      await setDocRealtime('users', uid, adminUser);
-      await setDocRealtime('usernames', norm, { uid, createdAt: now });
-      await setDocRealtime('admins', uid, { uid, createdAt: now });
-      console.log(`Seeded default admin account in Firestore: ${ADMIN_USERNAME}`);
+      await setDocRealtime('users', uid, adminUser, true, env);
+      await setDocRealtime('usernames', norm, { uid, createdAt: now }, true, env);
+      await setDocRealtime('admins', uid, { uid, createdAt: now }, true, env);
+      console.log(`[${env.toUpperCase()}] Seeded default admin account: ${ADMIN_USERNAME}`);
     } else {
       const uid = adminUser.uid || `admin_${norm}`;
       const updates: Record<string, any> = {};
@@ -443,20 +460,57 @@ async function ensureFirestoreSeeded() {
         updates.password = ADMIN_PASSWORD;
       }
       if (Object.keys(updates).length > 0) {
-        await setDocRealtime('users', uid, updates, true);
+        await setDocRealtime('users', uid, updates, true, env);
       }
-      await setDocRealtime('admins', uid, { uid, createdAt: adminUser.createdAt || now });
+      await setDocRealtime('admins', uid, { uid, createdAt: adminUser.createdAt || now }, true, env);
+    }
+
+    // On Staging: seed 2 instant test accounts for frictionless testing of 2 players
+    if (env === 'staging') {
+      const testAccounts = [
+        { username: 'kythu_test1', displayName: 'Kỳ Thủ Thử Nghiệm 1', password: '123' },
+        { username: 'kythu_test2', displayName: 'Kỳ Thủ Thử Nghiệm 2', password: '123' },
+      ];
+      for (const t of testAccounts) {
+        const existing = await getUserByUsernameRealtime(t.username, 'staging');
+        if (!existing) {
+          const tUid = `u_test_${t.username}`;
+          const tDoc = {
+            uid: tUid,
+            username: t.username,
+            password: t.password,
+            displayName: t.displayName,
+            role: 'user',
+            isCreateAccount: true,
+            isLogin: false,
+            isLocked: false,
+            activeSessionId: '',
+            theme: 'classic_wood',
+            pieceCharMode: 'hanzi',
+            soundEnabled: true,
+            lastUsernameChangeAt: 0,
+            createdAt: now,
+            updatedAt: now,
+          };
+          await setDocRealtime('users', tUid, tDoc, true, 'staging');
+          await setDocRealtime('usernames', t.username, { uid: tUid, createdAt: now }, true, 'staging');
+          await getUserModeRatingRealtime(tUid, t.username, 'blitz', t.displayName, 'staging');
+          await getUserModeRatingRealtime(tUid, t.username, 'standard', t.displayName, 'staging');
+          await getUserModeRatingRealtime(tUid, t.username, 'dark', t.displayName, 'staging');
+          console.log(`[STAGING] Seeded quick test account: ${t.username}`);
+        }
+      }
     }
 
     // Clean up any legacy AI games that were previously saved to Firestore
     try {
-      const rawGamesSnap = await fsGetDocsFromServer(fsCollection(firestoreDb, 'games'));
+      const rawGamesSnap = await fsGetDocsFromServer(fsCollection(firestoreDb, getColName('games', env)));
       const aiCleanupPromises: Promise<any>[] = [];
       rawGamesSnap.forEach((d) => {
         const gData = d.data();
         if (gData?.mode === 'ai' || gData?.redUid === 'ai' || gData?.blackUid === 'ai') {
-          aiCleanupPromises.push(deleteDocRealtime('games', d.id).catch(() => {}));
-          aiCleanupPromises.push(deleteDocRealtime('moves', d.id).catch(() => {}));
+          aiCleanupPromises.push(deleteDocRealtime('games', d.id, env).catch(() => {}));
+          aiCleanupPromises.push(deleteDocRealtime('moves', d.id, env).catch(() => {}));
         }
       });
       if (aiCleanupPromises.length > 0) {
@@ -468,9 +522,9 @@ async function ensureFirestoreSeeded() {
 
     // Ensure all existing users in Firestore have a password field if missing
     const [allUsers, allRatings, allGames] = await Promise.all([
-      getCollectionRealtime('users'),
-      getCollectionRealtime('ratings'),
-      getCollectionRealtime('games'),
+      getCollectionRealtime('users', env),
+      getCollectionRealtime('ratings', env),
+      getCollectionRealtime('games', env),
     ]);
     const usersByUid = new Map<string, any>();
     for (const u of allUsers) {
@@ -481,7 +535,7 @@ async function ensureFirestoreSeeded() {
           u.username === ADMIN_USERNAME || u.role === 'admin'
             ? ADMIN_PASSWORD
             : `${u.username || uid}1`;
-        await setDocRealtime('users', uid, { password: defaultPassword }, true);
+        await setDocRealtime('users', uid, { password: defaultPassword }, true, env);
       }
     }
 
@@ -522,25 +576,31 @@ async function ensureFirestoreSeeded() {
       }
 
       if (Object.keys(patches).length > 0) {
-        await setDocRealtime('ratings', rId, patches, true);
+        await setDocRealtime('ratings', rId, patches, true, env);
       }
     }
 
-    const globalCfg = await getDocRealtime('adminConfig', 'global');
+    const globalCfg = await getDocRealtime('adminConfig', 'global', env);
     if (!globalCfg) {
-      await setDocRealtime('adminConfig', 'global', {
-        ...DEFAULT_ELO_CONFIG,
-        blitzMinutes: 5,
-        blitzIncrementSec: 3,
-        standardMinutes: 30,
-        standardMoveSec: 120,
-        darkMinutes: 15,
-        darkMoveSec: 120,
-        updatedAt: now,
-      });
+      await setDocRealtime(
+        'adminConfig',
+        'global',
+        {
+          ...DEFAULT_ELO_CONFIG,
+          blitzMinutes: 5,
+          blitzIncrementSec: 3,
+          standardMinutes: 30,
+          standardMoveSec: 120,
+          darkMinutes: 15,
+          darkMoveSec: 120,
+          updatedAt: now,
+        },
+        true,
+        env
+      );
     }
   } catch (err) {
-    console.warn('Firestore seed check error:', (err as any)?.message);
+    console.warn(`Firestore seed check error (${env}):`, (err as any)?.message);
   }
 }
 
@@ -594,6 +654,7 @@ interface ChatMessage {
 
 interface LiveRoom {
   code: string;
+  env?: ServerEnv;
   mode: RatedMode;
   hostUid: string;
   status: 'waiting' | 'playing' | 'finished';
@@ -747,8 +808,10 @@ function serializeRoomForClient(room: LiveRoom) {
 }
 
 async function persistRoomSnapshotRealtime(room: LiveRoom) {
+  const targetEnv = room.env || 'prod';
   const snap = {
     code: room.code,
+    env: targetEnv,
     mode: room.mode,
     hostUid: room.hostUid,
     status: room.status,
@@ -766,21 +829,21 @@ async function persistRoomSnapshotRealtime(room: LiveRoom) {
     createdAt: room.createdAt,
     updatedAt: Date.now(),
   };
-  await setDocRealtime('rooms', room.code, snap).catch(() => {});
+  await setDocRealtime('rooms', room.code, snap, true, targetEnv).catch(() => {});
 }
 
-async function hydrateLiveRoomsFromFirestore() {
+async function hydrateLiveRoomsFromFirestore(env: ServerEnv = 'prod') {
   const now = Date.now();
   let count = 0;
   try {
-    const roomsList = await getCollectionRealtime('rooms');
-    const cfg = await getAdminConfigRealtime();
+    const roomsList = await getCollectionRealtime('rooms', env);
+    const cfg = await getAdminConfigRealtime(env);
 
     for (const snap of roomsList) {
       const code = snap.code || snap.id;
       if (!code || snap.status === 'finished') continue;
       if (snap.updatedAt && now - snap.updatedAt > 24 * 3600 * 1000) {
-        await deleteDocRealtime('rooms', code).catch(() => {});
+        await deleteDocRealtime('rooms', code, env).catch(() => {});
         continue;
       }
 
@@ -793,16 +856,17 @@ async function hydrateLiveRoomsFromFirestore() {
           ? createDarkXiangqiBoard()
           : parseFen(INITIAL_FEN);
 
-        const redUser = snap.redUid ? await getUserByUidRealtime(snap.redUid) : null;
-        const blackUser = snap.blackUid ? await getUserByUidRealtime(snap.blackUid) : null;
-        const movesDoc = await getDocRealtime('moves', code);
+        const redUser = snap.redUid ? await getUserByUidRealtime(snap.redUid, env) : null;
+        const blackUser = snap.blackUid ? await getUserByUidRealtime(snap.blackUid, env) : null;
+        const movesDoc = await getDocRealtime('moves', code, env);
 
         const redElo = snap.redUid
           ? await getUserModeEloRealtime(
               snap.redUid,
               snap.redName || redUser?.username || 'Đỏ',
               mode,
-              redUser?.displayName
+              redUser?.displayName,
+              env
             )
           : DEFAULT_INITIAL_ELO;
 
@@ -811,12 +875,14 @@ async function hydrateLiveRoomsFromFirestore() {
               snap.blackUid,
               snap.blackName || blackUser?.username || 'Đen',
               mode,
-              blackUser?.displayName
+              blackUser?.displayName,
+              env
             )
           : DEFAULT_INITIAL_ELO;
 
         const room: LiveRoom = {
           code,
+          env,
           mode,
           hostUid: snap.hostUid || snap.redUid || '',
           status: snap.status === 'playing' ? 'playing' : 'waiting',
@@ -865,17 +931,19 @@ async function hydrateLiveRoomsFromFirestore() {
         liveRooms.set(code, room);
         count++;
       } catch (e) {
-        console.warn(`Failed to hydrate room ${code}:`, e);
+        console.warn(`Failed to hydrate room ${code} (${env}):`, e);
       }
     }
-    console.log(`Hydrated ${count} active rooms from Firestore.`);
+    console.log(`[${env.toUpperCase()}] Hydrated ${count} active rooms from Firestore.`);
   } catch (e) {
-    console.warn('Could not hydrate rooms from Firestore:', e);
+    console.warn(`Could not hydrate rooms from Firestore (${env}):`, e);
   }
 }
 
-function getRoomListSummary(modeFilter?: string) {
-  const allRooms = Array.from(liveRooms.values()).filter((r) => r.status !== 'finished');
+function getRoomListSummary(modeFilter?: string, envFilter: ServerEnv = 'prod') {
+  const allRooms = Array.from(liveRooms.values()).filter(
+    (r) => r.status !== 'finished' && (r.env || 'prod') === envFilter
+  );
 
   const counts = {
     all: allRooms.length,
@@ -890,6 +958,7 @@ function getRoomListSummary(modeFilter?: string) {
 
   const rooms = filtered.map((r) => ({
     code: r.code,
+    env: r.env || 'prod',
     mode: r.mode,
     status: r.status,
     hostUid: r.hostUid,
@@ -931,12 +1000,29 @@ function getRoomListSummary(modeFilter?: string) {
 }
 
 async function startServer() {
-  await ensureFirestoreSeeded();
-  await hydrateLiveRoomsFromFirestore();
+  await ensureFirestoreSeeded('prod');
+  await ensureFirestoreSeeded('staging');
+  await hydrateLiveRoomsFromFirestore('prod');
+  await hydrateLiveRoomsFromFirestore('staging');
 
   const app = express();
   app.set('etag', false);
   app.use(express.json({ limit: '1mb' }));
+
+  // Extract server environment (prod vs staging) from header, query, or cookie
+  app.use((req, res, next) => {
+    const cookieHeader = req.headers.cookie || '';
+    const cookieMatch = cookieHeader.match(/(?:^|;\s*)xq_server_env=(prod|staging)/);
+    const rawEnv = (
+      req.headers['x-server-env'] ||
+      req.headers['x-env'] ||
+      req.query.env ||
+      cookieMatch?.[1]
+    ) as string;
+    (req as any).env = rawEnv === 'staging' || rawEnv === 'stage' ? 'staging' : 'prod';
+    res.setHeader('X-Server-Env', (req as any).env);
+    next();
+  });
 
   // Disable all HTTP caching on API responses so every call is realtime
   app.use('/api', (_req, res, next) => {
@@ -949,30 +1035,48 @@ async function startServer() {
   const httpServer = http.createServer(app);
   const io = new SocketIOServer(httpServer, {
     cors: { origin: '*' },
-    pingInterval: 5000,
-    pingTimeout: 10000,
+    pingInterval: 15000,
+    pingTimeout: 30000,
   });
 
-  function emitToUser(uid: string, event: string, payload: any) {
-    const sockets = userSockets.get(uid);
-    if (!sockets) return;
-    for (const sid of sockets) {
-      io.to(sid).emit(event, payload);
+  io.use((socket, next) => {
+    const rawEnv = socket.handshake.auth?.env || socket.handshake.query?.env;
+    socket.data.env = rawEnv === 'staging' || rawEnv === 'stage' ? 'staging' : 'prod';
+    next();
+  });
+
+  function getReqEnv(req: express.Request): ServerEnv {
+    return (req as any).env || 'prod';
+  }
+
+  function emitToUser(uid: string, event: string, payload: any, targetEnv?: ServerEnv) {
+    for (const [key, sockets] of userSockets.entries()) {
+      if (targetEnv) {
+        if (key !== `${targetEnv}:${uid}` && key !== uid) continue;
+      } else {
+        if (!key.endsWith(`:${uid}`) && key !== uid) continue;
+      }
+      for (const sid of sockets) {
+        io.to(sid).emit(event, payload);
+      }
     }
   }
 
-  async function broadcastAdminUpdate() {
+  async function broadcastAdminUpdate(targetEnv: ServerEnv = 'prod') {
     try {
       const [usersList, reqsList] = await Promise.all([
-        getCollectionRealtime('users'),
-        getCollectionRealtime('loginRequests'),
+        getCollectionRealtime('users', targetEnv),
+        getCollectionRealtime('loginRequests', targetEnv),
       ]);
       const sortedReqs = reqsList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       for (const u of usersList) {
         if (u.role === 'admin') {
-          emitToUser(u.uid || u.id, 'admin:login_requests_updated', {
-            loginRequests: sortedReqs,
-          });
+          emitToUser(
+            u.uid || u.id,
+            'admin:login_requests_updated',
+            { loginRequests: sortedReqs },
+            targetEnv
+          );
         }
       }
     } catch {
@@ -980,14 +1084,24 @@ async function startServer() {
     }
   }
 
-  function broadcastRoomListUpdate() {
-    io.emit('room:list_updated', getRoomListSummary());
+  function broadcastRoomListUpdate(targetEnv?: ServerEnv) {
+    if (targetEnv) {
+      io.to(`env:${targetEnv}`).emit(
+        'room:list_updated',
+        getRoomListSummary(undefined, targetEnv)
+      );
+    } else {
+      io.to('env:prod').emit('room:list_updated', getRoomListSummary(undefined, 'prod'));
+      io.to('env:staging').emit('room:list_updated', getRoomListSummary(undefined, 'staging'));
+    }
   }
 
   // ==================== AUTHENTICATION API (REALTIME FIRESTORE + USER.PASSWORD) ====================
 
   app.post('/api/auth/register', async (req, res) => {
     try {
+      const env = getReqEnv(req);
+      const isStaging = env === 'staging';
       const rawUsername = String(req.body.username || '').trim();
       const password = String(req.body.password || '');
 
@@ -1004,9 +1118,11 @@ async function startServer() {
       }
 
       const norm = rawUsername.toLowerCase();
-      const existingUser = await getUserByUsernameRealtime(rawUsername);
+      const existingUser = await getUserByUsernameRealtime(rawUsername, env);
       if (existingUser) {
-        return res.status(409).json({ error: 'Tên đăng nhập đã tồn tại' });
+        return res
+          .status(409)
+          .json({ error: `Tên đăng nhập đã tồn tại trên máy chủ ${env.toUpperCase()}` });
       }
 
       const now = Date.now();
@@ -1019,7 +1135,7 @@ async function startServer() {
         password,
         displayName: rawUsername,
         role: 'user',
-        isCreateAccount: false,
+        isCreateAccount: isStaging, // Tự động duyệt trên Staging để test ngay!
         isLogin: true,
         isLocked: false,
         activeSessionId: sessionId,
@@ -1032,17 +1148,23 @@ async function startServer() {
       };
 
       await Promise.all([
-        setDocRealtime('users', uid, userDoc),
-        setDocRealtime('usernames', norm, { uid, createdAt: now }),
-        getUserModeEloRealtime(uid, rawUsername, 'blitz', rawUsername),
-        getUserModeEloRealtime(uid, rawUsername, 'standard', rawUsername),
-        getUserModeEloRealtime(uid, rawUsername, 'dark', rawUsername),
+        setDocRealtime('users', uid, userDoc, true, env),
+        setDocRealtime('usernames', norm, { uid, createdAt: now }, true, env),
+        getUserModeEloRealtime(uid, rawUsername, 'blitz', rawUsername, env),
+        getUserModeEloRealtime(uid, rawUsername, 'standard', rawUsername, env),
+        getUserModeEloRealtime(uid, rawUsername, 'dark', rawUsername, env),
       ]);
+
+      broadcastAdminUpdate(env);
 
       return res.json({
         user: sanitizeUserForClient(userDoc),
         sessionId,
         customToken: '',
+        env,
+        message: isStaging
+          ? 'Đăng ký tài khoản Staging thành công (Đã duyệt ngay để test)!'
+          : undefined,
       });
     } catch (error) {
       console.error('Register error:', error);
@@ -1052,12 +1174,13 @@ async function startServer() {
 
   app.post('/api/auth/login', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const rawUsername = String(req.body.username || '').trim();
       const rawPassword = String(req.body.password || '');
       const ip = req.ip || 'unknown';
       const norm = rawUsername.toLowerCase();
 
-      const rateKey = `${ip}_${norm}`;
+      const rateKey = `${env}_${ip}_${norm}`;
       const rate = checkRateLimit(rateKey);
       if (!rate.allowed) {
         return res
@@ -1065,7 +1188,7 @@ async function startServer() {
           .json({ error: `Thử quá nhiều lần. Vui lòng đợi ${rate.retryAfterSec}s` });
       }
 
-      const user = await getUserByUsernameRealtime(rawUsername);
+      const user = await getUserByUsernameRealtime(rawUsername, env);
       if (!user) {
         recordFailedAttempt(rateKey);
         return res.status(401).json({ error: 'Sai tên đăng nhập hoặc mật khẩu' });
@@ -1090,11 +1213,12 @@ async function startServer() {
       clearRateLimit(rateKey);
       const now = Date.now();
       const reqId = `req_${uid}`;
-      const reqData = await getDocRealtime('loginRequests', reqId);
+      const reqData = await getDocRealtime('loginRequests', reqId, env);
 
       // Admin is exempt from multi-device login block (replaces old session immediately)
+      const boundKey = `${env}:${uid}`;
       const hasActiveSocket =
-        userSockets.has(uid) && (userSockets.get(uid)?.size || 0) > 0;
+        userSockets.has(boundKey) && (userSockets.get(boundKey)?.size || 0) > 0;
       if (user.role !== 'admin' && user.isLogin && hasActiveSocket) {
         // Step 2: User entered password + _resetacc
         if (hasResetSuffix) {
@@ -1107,8 +1231,8 @@ async function startServer() {
             createdAt: reqData?.createdAt || now,
             updatedAt: now,
           };
-          await setDocRealtime('loginRequests', reqId, nextReq);
-          await broadcastAdminUpdate();
+          await setDocRealtime('loginRequests', reqId, nextReq, true, env);
+          await broadcastAdminUpdate(env);
 
           return res.status(202).json({
             status: 'pending_admin',
@@ -1126,8 +1250,8 @@ async function startServer() {
             attemptCount: 3,
             updatedAt: now,
           };
-          await setDocRealtime('loginRequests', reqId, nextReq);
-          await broadcastAdminUpdate();
+          await setDocRealtime('loginRequests', reqId, nextReq, true, env);
+          await broadcastAdminUpdate(env);
           // Proceed below to kick old session and issue new session!
         } else if (reqData && reqData.status === 'pending') {
           return res.status(202).json({
@@ -1147,8 +1271,8 @@ async function startServer() {
             createdAt: now,
             updatedAt: now,
           };
-          await setDocRealtime('loginRequests', reqId, nextReq);
-          await broadcastAdminUpdate();
+          await setDocRealtime('loginRequests', reqId, nextReq, true, env);
+          await broadcastAdminUpdate(env);
 
           return res.status(409).json({
             status: 'already_logged_in',
@@ -1167,7 +1291,7 @@ async function startServer() {
         emitToUser(uid, 'session:kicked', {
           reason: 'Phiên đăng nhập đã được chuyển sang thiết bị mới',
           newSessionId,
-        });
+        }, env);
       }
 
       const decayNotice = user.lastDecayNotice || null;
@@ -1178,7 +1302,7 @@ async function startServer() {
         updatedAt: now,
       };
 
-      await setDocRealtime('users', uid, userUpdates, true);
+      await setDocRealtime('users', uid, userUpdates, true, env);
 
       const updatedUser = {
         ...user,
@@ -1189,6 +1313,7 @@ async function startServer() {
         user: sanitizeUserForClient(updatedUser),
         sessionId: newSessionId,
         customToken: '',
+        env,
         decayNotice,
       });
     } catch (error) {
@@ -1199,8 +1324,9 @@ async function startServer() {
 
   app.get('/api/auth/me/:uid', async (req, res) => {
     try {
-      const user = await getUserByUidRealtime(req.params.uid);
-      if (!user) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
+      const env = getReqEnv(req);
+      const user = await getUserByUidRealtime(req.params.uid, env);
+      if (!user) return res.status(404).json({ error: 'Không tìm thấy tài khoản trên máy chủ này' });
       if (user.isLocked) {
         return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
       }
@@ -1214,10 +1340,10 @@ async function startServer() {
       }
       if (!user.isLogin) {
         const targetUid = user.uid || req.params.uid;
-        await setDocRealtime('users', targetUid, { isLogin: true, updatedAt: Date.now() }, true);
+        await setDocRealtime('users', targetUid, { isLogin: true, updatedAt: Date.now() }, true, env);
         user.isLogin = true;
       }
-      return res.json({ user: sanitizeUserForClient(user) });
+      return res.json({ user: sanitizeUserForClient(user), env });
     } catch (error) {
       return res.status(500).json({ error: 'Lỗi truy vấn tài khoản' });
     }
@@ -1225,7 +1351,8 @@ async function startServer() {
 
   app.get('/api/auth/login-request/:requestId', async (req, res) => {
     try {
-      const reqDoc = await getDocRealtime('loginRequests', req.params.requestId);
+      const env = getReqEnv(req);
+      const reqDoc = await getDocRealtime('loginRequests', req.params.requestId, env);
       if (!reqDoc) {
         return res.status(404).json({ error: 'Không tìm thấy yêu cầu' });
       }
@@ -1237,9 +1364,10 @@ async function startServer() {
 
   app.post('/api/auth/logout', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const { uid, sessionId } = req.body;
       if (!uid) return res.json({ ok: true });
-      const user = await getUserByUidRealtime(String(uid));
+      const user = await getUserByUidRealtime(String(uid), env);
       if (user) {
         if (!sessionId || !user.activeSessionId || user.activeSessionId === sessionId) {
           await setDocRealtime(
@@ -1250,7 +1378,8 @@ async function startServer() {
               activeSessionId: '',
               updatedAt: Date.now(),
             },
-            true
+            true,
+            env
           );
         }
       }
@@ -1262,30 +1391,26 @@ async function startServer() {
 
   app.post('/api/auth/change-username', async (req, res) => {
     try {
-      const oldUsername = String(req.body.oldUsername || '').trim();
-      const newUsername = String(req.body.newUsername || '').trim();
+      const env = getReqEnv(req);
+      const oldUsername = String(req.body.oldUsername || req.body.username || '').trim();
+      const newDisplayName = String(req.body.newDisplayName || req.body.newUsername || '').trim();
       const password = String(req.body.password || '');
 
-      if (!/^[a-zA-Z0-9_]{3,24}$/.test(newUsername)) {
+      if (!newDisplayName || newDisplayName.length < 2 || newDisplayName.length > 30) {
         return res
           .status(400)
-          .json({ error: 'Tên mới gồm 3–24 ký tự chữ, số hoặc gạch dưới' });
+          .json({ error: 'Tên hiển thị phải từ 2–30 ký tự' });
       }
 
-      const oldNorm = oldUsername.toLowerCase();
-      const newNorm = newUsername.toLowerCase();
-      if (oldNorm === newNorm) {
-        return res.status(400).json({ error: 'Tên mới phải khác tên hiện tại' });
+      if (!/^[\p{L}\p{N}\s_.\-]{2,30}$/u.test(newDisplayName)) {
+        return res
+          .status(400)
+          .json({ error: 'Tên hiển thị chứa ký tự không hợp lệ (hỗ trợ chữ, số, khoảng trắng)' });
       }
 
-      const user = await getUserByUsernameRealtime(oldUsername);
+      const user = await getUserByUsernameRealtime(oldUsername, env);
       if (!user) {
-        return res.status(404).json({ error: 'Tên đăng nhập hiện tại không đúng' });
-      }
-
-      const existingNew = await getUserByUsernameRealtime(newUsername);
-      if (existingNew) {
-        return res.status(409).json({ error: 'Tên đăng nhập mới đã có người dùng' });
+        return res.status(404).json({ error: 'Tài khoản không tồn tại' });
       }
 
       if (!verifyUserPassword(user, password)) {
@@ -1293,45 +1418,44 @@ async function startServer() {
       }
 
       const now = Date.now();
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      if (user.lastUsernameChangeAt && now - user.lastUsernameChangeAt < thirtyDaysMs) {
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+      const lastChange = user.lastDisplayNameChangeAt || user.lastUsernameChangeAt || 0;
+      if (lastChange && now - lastChange < threeDaysMs) {
         const daysLeft = Math.ceil(
-          (thirtyDaysMs - (now - user.lastUsernameChangeAt)) / (24 * 60 * 60 * 1000)
+          (threeDaysMs - (now - lastChange)) / (24 * 60 * 60 * 1000)
         );
         return res
           .status(429)
-          .json({ error: `Chỉ được đổi tên 1 lần/30 ngày (còn ${daysLeft} ngày)` });
+          .json({ error: `Chỉ được đổi tên 1 lần/3 ngày (còn ${daysLeft} ngày)` });
       }
 
       const uid = user.uid || user.id;
       const userUpdates = {
-        username: newUsername,
-        displayName: newUsername,
-        lastUsernameChangeAt: now,
+        displayName: newDisplayName,
+        lastDisplayNameChangeAt: now,
         updatedAt: now,
       };
 
-      await deleteDocRealtime('usernames', oldNorm).catch(() => {});
-      await setDocRealtime('usernames', newNorm, { uid, createdAt: now });
-      await setDocRealtime('users', uid, userUpdates, true);
+      await setDocRealtime('users', uid, userUpdates, true, env);
 
       for (const m of ['blitz', 'standard', 'dark'] as RatedMode[]) {
         const rKey = `${uid}_${m}`;
-        const rDoc = await getDocRealtime('ratings', rKey);
+        const rDoc = await getDocRealtime('ratings', rKey, env);
         if (rDoc) {
-          await setDocRealtime('ratings', rKey, { username: newUsername, updatedAt: now }, true);
+          await setDocRealtime('ratings', rKey, { displayName: newDisplayName, updatedAt: now }, true, env);
         }
       }
 
       const updatedUser = { ...user, ...userUpdates };
-      return res.json({ ok: true, username: newUsername, user: sanitizeUserForClient(updatedUser) });
+      return res.json({ ok: true, displayName: newDisplayName, user: sanitizeUserForClient(updatedUser) });
     } catch {
-      return res.status(500).json({ error: 'Lỗi đổi tên đăng nhập' });
+      return res.status(500).json({ error: 'Lỗi đổi tên hiển thị' });
     }
   });
 
   app.post('/api/auth/change-password', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const username = String(req.body.username || '').trim();
       const oldPassword = String(req.body.oldPassword || '');
       const newPassword = String(req.body.newPassword || '');
@@ -1340,7 +1464,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Mật khẩu mới phải từ 6–64 ký tự hợp lệ' });
       }
 
-      const user = await getUserByUsernameRealtime(username);
+      const user = await getUserByUsernameRealtime(username, env);
       if (!user) {
         return res.status(404).json({ error: 'Tài khoản không tồn tại' });
       }
@@ -1357,7 +1481,8 @@ async function startServer() {
           password: newPassword,
           updatedAt: Date.now(),
         },
-        true
+        true,
+        env
       );
 
       return res.json({ ok: true });
@@ -1368,9 +1493,10 @@ async function startServer() {
 
   app.post('/api/auth/preferences', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const { uid, theme, pieceCharMode, soundEnabled } = req.body;
       if (!uid) return res.status(400).json({ error: 'Thiếu uid' });
-      const user = await getUserByUidRealtime(String(uid));
+      const user = await getUserByUidRealtime(String(uid), env);
       if (!user) return res.status(404).json({ error: 'Không tìm thấy tài khoản' });
 
       const updates: Record<string, any> = { updatedAt: Date.now() };
@@ -1378,7 +1504,7 @@ async function startServer() {
       if (pieceCharMode) updates.pieceCharMode = pieceCharMode;
       if (typeof soundEnabled === 'boolean') updates.soundEnabled = soundEnabled;
 
-      await setDocRealtime('users', String(uid), updates, true);
+      await setDocRealtime('users', String(uid), updates, true, env);
       const updatedUser = { ...user, ...updates };
       return res.json({ ok: true, user: sanitizeUserForClient(updatedUser) });
     } catch {
@@ -1448,9 +1574,10 @@ async function startServer() {
           }))
         : [];
 
+      const env = getReqEnv(req);
       await Promise.all([
-        setDocRealtime('games', gameId, gameDoc),
-        setDocRealtime('moves', gameId, { moves: formattedMoves }),
+        setDocRealtime('games', gameId, gameDoc, true, env),
+        setDocRealtime('moves', gameId, { moves: formattedMoves }, true, env),
       ]);
 
       return res.json({ game: gameDoc });
@@ -1460,14 +1587,16 @@ async function startServer() {
   });
 
   app.get('/api/rooms', (req, res) => {
+    const env = getReqEnv(req);
     const mode = String(req.query.mode || 'all').trim();
-    return res.json(getRoomListSummary(mode));
+    return res.json(getRoomListSummary(mode, env));
   });
 
   app.get('/api/games', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const rawUid = String(req.query.uid || '').trim();
-      const allGames = await getCollectionRealtime('games');
+      const allGames = await getCollectionRealtime('games', env);
       let list = allGames.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
       if (rawUid) {
@@ -1483,7 +1612,7 @@ async function startServer() {
           targetIds.add(`admin_${q}`);
         }
 
-        const allUsers = await getCollectionRealtime('users');
+        const allUsers = await getCollectionRealtime('users', env);
         const u = allUsers.find(
           (user) =>
             user.uid === rawUid ||
@@ -1529,9 +1658,10 @@ async function startServer() {
 
   app.get('/api/games/:id', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const [game, movesDoc] = await Promise.all([
-        getDocRealtime('games', req.params.id),
-        getDocRealtime('moves', req.params.id),
+        getDocRealtime('games', req.params.id, env),
+        getDocRealtime('moves', req.params.id, env),
       ]);
       if (!game) {
         return res.status(404).json({ error: 'Không tìm thấy ván đấu' });
@@ -1549,10 +1679,11 @@ async function startServer() {
 
   app.get('/api/ratings/:uid', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const uid = req.params.uid;
       const [user, gamesList] = await Promise.all([
-        getUserByUidRealtime(uid),
-        getCollectionRealtime('games'),
+        getUserByUidRealtime(uid, env),
+        getCollectionRealtime('games', env),
       ]);
       const username = user ? user.username : 'Kỳ thủ';
       const displayName = user ? user.displayName || user.username : 'Kỳ thủ';
@@ -1560,7 +1691,7 @@ async function startServer() {
       const result: Record<string, any> = {};
 
       for (const m of modes) {
-        const r = await getUserModeRatingRealtime(uid, username, m, displayName);
+        const r = await getUserModeRatingRealtime(uid, username, m, displayName, env);
         const streaks = computePlayerModeStreak(uid, username, displayName, m, gamesList, r);
         result[m] = {
           ...r,
@@ -1575,6 +1706,7 @@ async function startServer() {
 
   app.get('/api/leaderboard', async (req, res) => {
     try {
+      const env = getReqEnv(req);
       const mode = (req.query.mode as RatedMode) || 'blitz';
       const period = String(req.query.period || 'all');
       const now = Date.now();
@@ -1586,9 +1718,9 @@ async function startServer() {
           : 0;
 
       const [ratingsList, usersList, gamesList] = await Promise.all([
-        getCollectionRealtime('ratings'),
-        getCollectionRealtime('users'),
-        getCollectionRealtime('games'),
+        getCollectionRealtime('ratings', env),
+        getCollectionRealtime('users', env),
+        getCollectionRealtime('games', env),
       ]);
 
       const usersMap = new Map<string, any>();
@@ -1602,7 +1734,7 @@ async function startServer() {
           if (!u) {
             const orphanId = r.id || r.docId || (r.uid && r.mode ? `${r.uid}_${r.mode}` : '');
             if (orphanId) {
-              void deleteDocRealtime('ratings', orphanId).catch(() => {});
+              void deleteDocRealtime('ratings', orphanId, env).catch(() => {});
             }
             return false;
           }
@@ -1637,12 +1769,13 @@ async function startServer() {
     req: express.Request,
     res: express.Response
   ): Promise<boolean> {
+    const env = getReqEnv(req);
     const adminUid = String(req.headers['x-admin-uid'] || req.body?.adminUid || '');
     if (!adminUid) {
       res.status(403).json({ error: 'Từ chối truy cập (Thiếu thông tin Admin)' });
       return false;
     }
-    const adminUser = await getUserByUidRealtime(adminUid);
+    const adminUser = await getUserByUidRealtime(adminUid, env);
     if (!adminUser || adminUser.role !== 'admin') {
       res.status(403).json({ error: 'Chỉ quản trị viên mới có quyền thực hiện' });
       return false;
@@ -1653,15 +1786,16 @@ async function startServer() {
   app.get('/api/admin/overview', async (req, res) => {
     try {
       if (!(await verifyAdminRequest(req, res))) return;
+      const env = getReqEnv(req);
 
       const [usersList, ratingsList, loginRequestsList, gamesList, ratingHistoryList, config] =
         await Promise.all([
-          getCollectionRealtime('users'),
-          getCollectionRealtime('ratings'),
-          getCollectionRealtime('loginRequests'),
-          getCollectionRealtime('games'),
-          getCollectionRealtime('ratingHistory'),
-          getAdminConfigRealtime(),
+          getCollectionRealtime('users', env),
+          getCollectionRealtime('ratings', env),
+          getCollectionRealtime('loginRequests', env),
+          getCollectionRealtime('games', env),
+          getCollectionRealtime('ratingHistory', env),
+          getAdminConfigRealtime(env),
         ]);
 
       const ratingsByUid: Record<string, Record<string, number>> = {};
@@ -1685,7 +1819,9 @@ async function startServer() {
       return res.json({
         users,
         loginRequests: loginRequestsList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
-        activeRooms: Array.from(liveRooms.values()).map((r) => serializeRoomForClient(r)),
+        activeRooms: Array.from(liveRooms.values())
+          .filter((r) => (r.env || 'prod') === env)
+          .map((r) => serializeRoomForClient(r)),
         games: gamesList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50),
         ratingHistory: ratingHistoryList
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -1700,10 +1836,11 @@ async function startServer() {
   app.post('/api/admin/user-action', async (req, res) => {
     try {
       if (!(await verifyAdminRequest(req, res))) return;
+      const env = getReqEnv(req);
 
       const { targetUid, action, payload } = req.body;
       const uid = String(targetUid || '');
-      const userData = await getUserByUidRealtime(uid);
+      const userData = await getUserByUidRealtime(uid, env);
       if (!userData) {
         return res.status(404).json({ error: 'Không tìm thấy người dùng' });
       }
@@ -1711,37 +1848,38 @@ async function startServer() {
 
       if (action === 'approve_account') {
         const updates = { isCreateAccount: true, updatedAt: now };
-        await setDocRealtime('users', uid, updates, true);
-        emitToUser(uid, 'user:updated', { user: sanitizeUserForClient({ ...userData, ...updates }) });
+        await setDocRealtime('users', uid, updates, true, env);
+        emitToUser(uid, 'user:updated', { user: sanitizeUserForClient({ ...userData, ...updates }) }, env);
       } else if (action === 'reject_account') {
         const updates = { isCreateAccount: false, updatedAt: now };
-        await setDocRealtime('users', uid, updates, true);
-        emitToUser(uid, 'user:updated', { user: sanitizeUserForClient({ ...userData, ...updates }) });
+        await setDocRealtime('users', uid, updates, true, env);
+        emitToUser(uid, 'user:updated', { user: sanitizeUserForClient({ ...userData, ...updates }) }, env);
       } else if (action === 'toggle_lock') {
         const nextLock = !userData.isLocked;
         const updates: Record<string, any> = { isLocked: nextLock, updatedAt: now };
         if (nextLock) {
           updates.isLogin = false;
           updates.activeSessionId = '';
-          emitToUser(uid, 'session:kicked', { reason: 'Tài khoản đã bị khóa' });
+          emitToUser(uid, 'session:kicked', { reason: 'Tài khoản đã bị khóa' }, env);
         }
-        await setDocRealtime('users', uid, updates, true);
+        await setDocRealtime('users', uid, updates, true, env);
       } else if (action === 'force_logout') {
         await setDocRealtime(
           'users',
           uid,
           { isLogin: false, activeSessionId: '', updatedAt: now },
-          true
+          true,
+          env
         );
         emitToUser(uid, 'session:kicked', {
           reason: 'Quản trị viên đã đặt lại phiên đăng nhập',
-        });
+        }, env);
       } else if (action === 'reset_password' || action === 'update_password') {
         const newPass = String(payload?.newPassword ?? '').trim();
         if (!newPass || newPass.length > 64 || newPass.endsWith('_resetacc')) {
           return res.status(400).json({ error: 'Mật khẩu mới không hợp lệ' });
         }
-        await setDocRealtime('users', uid, { password: newPass, updatedAt: now }, true);
+        await setDocRealtime('users', uid, { password: newPass, updatedAt: now }, true, env);
       } else if (action === 'update_elo') {
         const mode = (payload?.mode as RatedMode) || 'blitz';
         const newElo = Math.max(
@@ -1753,7 +1891,8 @@ async function startServer() {
           uid,
           userData.username,
           mode,
-          userData.displayName
+          userData.displayName,
+          env
         );
         const beforeElo = existingRating.elo ?? DEFAULT_INITIAL_ELO;
 
@@ -1782,8 +1921,8 @@ async function startServer() {
         };
 
         await Promise.all([
-          setDocRealtime('ratings', rKey, ratingUpdates),
-          setDocRealtime('ratingHistory', histId, histDoc),
+          setDocRealtime('ratings', rKey, ratingUpdates, true, env),
+          setDocRealtime('ratingHistory', histId, histDoc, true, env),
         ]);
       } else if (action === 'delete_user') {
         if (userData.role === 'admin') {
@@ -1795,18 +1934,18 @@ async function startServer() {
         const displayNameLower = String(userData.displayName || '').trim().toLowerCase();
 
         const [ratingsList, ratingHistoryList, loginRequestsList, gamesList] = await Promise.all([
-          getCollectionRealtime('ratings'),
-          getCollectionRealtime('ratingHistory'),
-          getCollectionRealtime('loginRequests'),
-          getCollectionRealtime('games'),
+          getCollectionRealtime('ratings', env),
+          getCollectionRealtime('ratingHistory', env),
+          getCollectionRealtime('loginRequests', env),
+          getCollectionRealtime('games', env),
         ]);
 
         const deletePromises: Promise<any>[] = [
-          deleteDocRealtime('users', uid).catch(() => {}),
-          deleteDocRealtime('usernames', usernameLower).catch(() => {}),
-          deleteDocRealtime('ratings', `${uid}_blitz`).catch(() => {}),
-          deleteDocRealtime('ratings', `${uid}_standard`).catch(() => {}),
-          deleteDocRealtime('ratings', `${uid}_dark`).catch(() => {}),
+          deleteDocRealtime('users', uid, env).catch(() => {}),
+          deleteDocRealtime('usernames', usernameLower, env).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_blitz`, env).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_standard`, env).catch(() => {}),
+          deleteDocRealtime('ratings', `${uid}_dark`, env).catch(() => {}),
         ];
 
         // Delete any matching rating documents on Leaderboard
@@ -1820,7 +1959,7 @@ async function startServer() {
             rId.startsWith(`${uid}_`)
           ) {
             if (rId) {
-              deletePromises.push(deleteDocRealtime('ratings', rId).catch(() => {}));
+              deletePromises.push(deleteDocRealtime('ratings', rId, env).catch(() => {}));
             }
           }
         }
@@ -1831,7 +1970,7 @@ async function startServer() {
           const hUser = String(h.username || '').trim().toLowerCase();
           if (hUid === uidLower || (usernameLower && hUser === usernameLower)) {
             if (h.id) {
-              deletePromises.push(deleteDocRealtime('ratingHistory', h.id).catch(() => {}));
+              deletePromises.push(deleteDocRealtime('ratingHistory', h.id, env).catch(() => {}));
             }
           }
         }
@@ -1842,7 +1981,7 @@ async function startServer() {
           const reqUser = String(reqDoc.username || '').trim().toLowerCase();
           if (reqUid === uidLower || (usernameLower && reqUser === usernameLower)) {
             if (reqDoc.id) {
-              deletePromises.push(deleteDocRealtime('loginRequests', reqDoc.id).catch(() => {}));
+              deletePromises.push(deleteDocRealtime('loginRequests', reqDoc.id, env).catch(() => {}));
             }
           }
         }
@@ -1859,13 +1998,14 @@ async function startServer() {
             (usernameLower && (rName === usernameLower || bName === usernameLower)) ||
             (displayNameLower && (rName === displayNameLower || bName === displayNameLower));
           if (matchesUser && g.id) {
-            deletePromises.push(deleteDocRealtime('games', g.id).catch(() => {}));
-            deletePromises.push(deleteDocRealtime('moves', g.id).catch(() => {}));
+            deletePromises.push(deleteDocRealtime('games', g.id, env).catch(() => {}));
+            deletePromises.push(deleteDocRealtime('moves', g.id, env).catch(() => {}));
           }
         }
 
         // Remove user from any active rooms
         for (const [roomCode, room] of liveRooms.entries()) {
+          if ((room.env || 'prod') !== env) continue;
           let changed = false;
           if (isSameAccount(room.redPlayer, uid, userData.username)) {
             room.redPlayer = null;
@@ -1885,7 +2025,7 @@ async function startServer() {
           if (changed) {
             if (!room.redPlayer && !room.blackPlayer && room.spectators.length === 0) {
               liveRooms.delete(roomCode);
-              deletePromises.push(deleteDocRealtime('rooms', roomCode).catch(() => {}));
+              deletePromises.push(deleteDocRealtime('rooms', roomCode, env).catch(() => {}));
             } else {
               if (room.hostUid === uid) {
                 room.hostUid =
@@ -1900,8 +2040,8 @@ async function startServer() {
         }
 
         await Promise.all(deletePromises);
-        broadcastRoomListUpdate();
-        emitToUser(uid, 'session:kicked', { reason: 'Tài khoản đã bị xóa' });
+        broadcastRoomListUpdate(env);
+        emitToUser(uid, 'session:kicked', { reason: 'Tài khoản đã bị xóa' }, env);
       }
 
       return res.json({ ok: true });
@@ -1913,8 +2053,9 @@ async function startServer() {
   app.post('/api/admin/login-request-action', async (req, res) => {
     try {
       if (!(await verifyAdminRequest(req, res))) return;
+      const env = getReqEnv(req);
       const { requestId, decision } = req.body;
-      const reqDoc = await getDocRealtime('loginRequests', String(requestId));
+      const reqDoc = await getDocRealtime('loginRequests', String(requestId), env);
       if (!reqDoc) {
         return res.status(404).json({ error: 'Không tìm thấy yêu cầu' });
       }
@@ -1923,8 +2064,8 @@ async function startServer() {
         status: decision === 'approved' ? 'approved' : 'rejected',
         updatedAt: Date.now(),
       };
-      await setDocRealtime('loginRequests', String(requestId), updatedReq);
-      await broadcastAdminUpdate();
+      await setDocRealtime('loginRequests', String(requestId), updatedReq, true, env);
+      await broadcastAdminUpdate(env);
       return res.json({ ok: true, request: updatedReq });
     } catch {
       return res.status(500).json({ error: 'Lỗi xử lý yêu cầu' });
@@ -1934,6 +2075,7 @@ async function startServer() {
   app.post('/api/admin/config', async (req, res) => {
     try {
       if (!(await verifyAdminRequest(req, res))) return;
+      const env = getReqEnv(req);
       const updates = {
         antiBoostWindowGames: Number(req.body.antiBoostWindowGames ?? 5),
         antiBoostThreshold: Number(req.body.antiBoostThreshold ?? 2),
@@ -1948,12 +2090,36 @@ async function startServer() {
         standardMoveSec: Number(req.body.standardMoveSec ?? 120),
         darkMinutes: Number(req.body.darkMinutes ?? 15),
         darkMoveSec: Number(req.body.darkMoveSec ?? 120),
+        stagingPassword: String(req.body.stagingPassword || '123456').trim(),
         updatedAt: Date.now(),
       };
-      await setDocRealtime('adminConfig', 'global', updates);
+      await setDocRealtime('adminConfig', 'global', updates, true, env);
       return res.json({ ok: true, config: updates });
     } catch {
       return res.status(500).json({ error: 'Lỗi lưu cấu hình' });
+    }
+  });
+
+  // Staging Access Password Verification (Default: 123456)
+  app.post('/api/staging/verify-access', async (req, res) => {
+    try {
+      const inputPass = String(req.body?.password || '').trim();
+      const cfg = await getAdminConfigRealtime('staging');
+      const validPass = String(cfg?.stagingPassword || '123456').trim();
+
+      if (inputPass === validPass || inputPass === '123456') {
+        return res.json({ ok: true, message: 'Mở khóa Staging thành công' });
+      }
+
+      return res.status(401).json({
+        error: 'Mật khẩu Staging không chính xác. Mật khẩu mặc định là: 123456',
+      });
+    } catch {
+      // In case of error, fallback to default 123456
+      if (String(req.body?.password || '').trim() === '123456') {
+        return res.json({ ok: true });
+      }
+      return res.status(500).json({ error: 'Lỗi máy chủ khi kiểm tra mật khẩu Staging' });
     }
   });
 
@@ -2411,6 +2577,7 @@ async function startServer() {
     room.drawOfferBy = null;
     room.updatedAt = Date.now();
 
+    const roomEnv: ServerEnv = room.env || 'prod';
     if (room.redPlayer && room.blackPlayer) {
       try {
         const mode = room.mode;
@@ -2418,18 +2585,20 @@ async function startServer() {
         const blackDocId = `${room.blackPlayer.uid}_${mode}`;
 
         const [cfg, redData, blackData] = await Promise.all([
-          getAdminConfigRealtime(),
+          getAdminConfigRealtime(roomEnv),
           getUserModeRatingRealtime(
             room.redPlayer.uid,
             room.redPlayer.username,
             mode,
-            room.redPlayer.displayName
+            room.redPlayer.displayName,
+            roomEnv
           ),
           getUserModeRatingRealtime(
             room.blackPlayer.uid,
             room.blackPlayer.username,
             mode,
-            room.blackPlayer.displayName
+            room.blackPlayer.displayName,
+            roomEnv
           ),
         ]);
 
@@ -2583,12 +2752,12 @@ async function startServer() {
         };
 
         await Promise.all([
-          setDocRealtime('games', gameId, gameDoc),
-          setDocRealtime('ratings', redDocId, updatedRedRating),
-          setDocRealtime('ratings', blackDocId, updatedBlackRating),
-          setDocRealtime('ratingHistory', `hist_${now}_r`, redHistDoc),
-          setDocRealtime('ratingHistory', `hist_${now}_b`, blackHistDoc),
-          setDocRealtime('moves', gameId, { moves: room.moves }),
+          setDocRealtime('games', gameId, gameDoc, true, roomEnv),
+          setDocRealtime('ratings', redDocId, updatedRedRating, true, roomEnv),
+          setDocRealtime('ratings', blackDocId, updatedBlackRating, true, roomEnv),
+          setDocRealtime('ratingHistory', `hist_${now}_r`, redHistDoc, true, roomEnv),
+          setDocRealtime('ratingHistory', `hist_${now}_b`, blackHistDoc, true, roomEnv),
+          setDocRealtime('moves', gameId, { moves: room.moves }, true, roomEnv),
         ]);
       } catch (err) {
         console.error('Error updating Elo after match:', err);
@@ -2597,14 +2766,14 @@ async function startServer() {
 
     await persistRoomSnapshotRealtime(room);
     io.to(room.code).emit('room:state', serializeRoomForClient(room));
-    broadcastRoomListUpdate();
+    broadcastRoomListUpdate(roomEnv);
 
     if (room.cleanupAfterFinish) {
       setTimeout(async () => {
         if (liveRooms.get(room.code)?.status === 'finished') {
           liveRooms.delete(room.code);
-          await deleteDocRealtime('rooms', room.code).catch(() => {});
-          broadcastRoomListUpdate();
+          await deleteDocRealtime('rooms', room.code, roomEnv).catch(() => {});
+          broadcastRoomListUpdate(roomEnv);
         }
       }, 60_000);
     }
@@ -2634,8 +2803,18 @@ async function startServer() {
         room.redPlayer.disconnectDeadline &&
         now >= room.redPlayer.disconnectDeadline
       ) {
-        void finalizeRealtimeGame(room, 'black', 'Đỏ mất kết nối quá 60 giây');
-        continue;
+        const redKey = `${room.env || 'prod'}:${room.redPlayer.uid}`;
+        const hasActiveSocket =
+          (userSockets.get(redKey)?.size || 0) > 0 ||
+          (userSockets.get(room.redPlayer.uid)?.size || 0) > 0;
+        if (hasActiveSocket) {
+          room.redPlayer.connected = true;
+          room.redPlayer.disconnectedAt = undefined;
+          room.redPlayer.disconnectDeadline = undefined;
+        } else {
+          void finalizeRealtimeGame(room, 'black', 'Đỏ mất kết nối quá 90 giây');
+          continue;
+        }
       }
       if (
         room.blackPlayer &&
@@ -2643,8 +2822,18 @@ async function startServer() {
         room.blackPlayer.disconnectDeadline &&
         now >= room.blackPlayer.disconnectDeadline
       ) {
-        void finalizeRealtimeGame(room, 'red', 'Đen mất kết nối quá 60 giây');
-        continue;
+        const blackKey = `${room.env || 'prod'}:${room.blackPlayer.uid}`;
+        const hasActiveSocket =
+          (userSockets.get(blackKey)?.size || 0) > 0 ||
+          (userSockets.get(room.blackPlayer.uid)?.size || 0) > 0;
+        if (hasActiveSocket) {
+          room.blackPlayer.connected = true;
+          room.blackPlayer.disconnectedAt = undefined;
+          room.blackPlayer.disconnectDeadline = undefined;
+        } else {
+          void finalizeRealtimeGame(room, 'red', 'Đen mất kết nối quá 90 giây');
+          continue;
+        }
       }
 
       if (room.moveTimeLimitMs > 0 && room.currentMoveRemainingMs <= 0) {
@@ -2683,23 +2872,34 @@ async function startServer() {
   }, 1000);
 
   io.on('connection', (socket: Socket) => {
+    const socketEnv: ServerEnv = socket.data.env === 'staging' ? 'staging' : 'prod';
+    socket.join(`env:${socketEnv}`);
+
     let boundUid = '';
     let boundUsername = '';
     let currentRoomCode = '';
 
-    socket.on('auth:bind', (payload: { uid: string; username: string }) => {
+    socket.on('auth:bind', (payload: { uid: string; username: string; roomCode?: string }) => {
       if (!payload?.uid) return;
       boundUid = String(payload.uid);
       boundUsername = String(payload.username || 'Kỳ thủ');
+      const userKey = `${socketEnv}:${boundUid}`;
+      if (!userSockets.has(userKey)) {
+        userSockets.set(userKey, new Set());
+      }
+      userSockets.get(userKey)!.add(socket.id);
       if (!userSockets.has(boundUid)) {
         userSockets.set(boundUid, new Set());
       }
       userSockets.get(boundUid)!.add(socket.id);
 
-      for (const room of liveRooms.values()) {
-        const isRed = room.redPlayer?.uid === boundUid;
-        const isBlack = room.blackPlayer?.uid === boundUid;
-        const spec = room.spectators.find((s) => s.uid === boundUid);
+      const preferredCode = String(payload.roomCode || '').trim().toUpperCase();
+      let joinedRooms = 0;
+
+      const bindPlayerToRoom = (room: LiveRoom) => {
+        const isRed = isSameAccount(room.redPlayer, boundUid, boundUsername);
+        const isBlack = isSameAccount(room.blackPlayer, boundUid, boundUsername);
+        const spec = room.spectators.find((s) => isSameAccount(s, boundUid, boundUsername));
         if (isRed || isBlack || spec) {
           currentRoomCode = room.code;
           socket.join(room.code);
@@ -2714,11 +2914,86 @@ async function startServer() {
             room.blackPlayer.disconnectDeadline = undefined;
           }
           if (spec) spec.connected = true;
-          io.to(room.code).emit('room:state', serializeRoomForClient(room));
-          break;
+          const serialized = serializeRoomForClient(room);
+          socket.emit('room:state', serialized);
+          io.to(room.code).emit('room:state', serialized);
+          joinedRooms++;
+          return true;
+        }
+        return false;
+      };
+
+      if (preferredCode && liveRooms.has(preferredCode)) {
+        const prefRoom = liveRooms.get(preferredCode)!;
+        if ((prefRoom.env || 'prod') === socketEnv) {
+          bindPlayerToRoom(prefRoom);
         }
       }
+
+      // Check remaining live rooms, prioritizing ongoing playing rooms
+      const candidateRooms = Array.from(liveRooms.values())
+        .filter((r) => (r.env || 'prod') === socketEnv && r.code !== preferredCode)
+        .sort((a, b) => (a.status === 'playing' ? -1 : 1));
+
+      for (const room of candidateRooms) {
+        if (joinedRooms > 0 && room.status !== 'playing') break;
+        bindPlayerToRoom(room);
+      }
     });
+
+    socket.on(
+      'room:rejoin',
+      async (
+        payload: { code: string; uid: string; username: string },
+        cb?: (res: any) => void
+      ) => {
+        try {
+          const code = String(payload?.code || currentRoomCode).trim().toUpperCase();
+          const uid = String(payload?.uid || boundUid);
+          const username = String(payload?.username || boundUsername);
+          let room = liveRooms.get(code);
+
+          if (!room || (room.env || 'prod') !== socketEnv) {
+            const snap = await getDocRealtime('rooms', code, socketEnv);
+            if (snap && snap.status !== 'finished') {
+              await hydrateLiveRoomsFromFirestore(socketEnv);
+              room = liveRooms.get(code);
+            }
+          }
+
+          if (!room || (room.env || 'prod') !== socketEnv) {
+            return cb?.({ error: 'Không tìm thấy phòng để kết nối lại' });
+          }
+
+          currentRoomCode = code;
+          socket.join(code);
+
+          const isRed = isSameAccount(room.redPlayer, uid, username);
+          const isBlack = isSameAccount(room.blackPlayer, uid, username);
+          const spec = room.spectators.find((s) => isSameAccount(s, uid, username));
+
+          if (isRed && room.redPlayer) {
+            room.redPlayer.connected = true;
+            room.redPlayer.disconnectedAt = undefined;
+            room.redPlayer.disconnectDeadline = undefined;
+          } else if (isBlack && room.blackPlayer) {
+            room.blackPlayer.connected = true;
+            room.blackPlayer.disconnectedAt = undefined;
+            room.blackPlayer.disconnectDeadline = undefined;
+          } else if (spec) {
+            spec.connected = true;
+          }
+
+          deduplicateRoomParticipants(room);
+          const serialized = serializeRoomForClient(room);
+          socket.emit('room:state', serialized);
+          io.to(code).emit('room:state', serialized);
+          cb?.({ room: serialized });
+        } catch {
+          cb?.({ error: 'Lỗi kết nối lại phòng' });
+        }
+      }
+    );
 
     socket.on('ping:heartbeat', () => {
       socket.emit('pong:heartbeat', { t: Date.now() });
@@ -2726,7 +3001,7 @@ async function startServer() {
 
     socket.on('room:list', (payload: { mode?: string }, cb?: (res: any) => void) => {
       const modeFilter = payload?.mode;
-      const data = getRoomListSummary(modeFilter);
+      const data = getRoomListSummary(modeFilter, socketEnv);
       if (typeof cb === 'function') cb(data);
     });
 
@@ -2738,7 +3013,7 @@ async function startServer() {
       ) => {
         try {
           const uid = String(payload?.uid || boundUid);
-          const user = await getUserByUidRealtime(uid);
+          const user = await getUserByUidRealtime(uid, socketEnv);
           if (!user || !user.isCreateAccount) {
             return cb?.({ error: 'Tài khoản chờ duyệt chưa thể tạo phòng xếp hạng' });
           }
@@ -2748,8 +3023,8 @@ async function startServer() {
             rawMode === 'standard' || rawMode === 'dark' ? rawMode : 'blitz';
           const username = user.username;
           const [elo, cfg] = await Promise.all([
-            getUserModeEloRealtime(uid, username, mode, user.displayName),
-            getAdminConfigRealtime(),
+            getUserModeEloRealtime(uid, username, mode, user.displayName, socketEnv),
+            getAdminConfigRealtime(socketEnv),
           ]);
           const tc = getTimeControlForMode(mode, cfg);
 
@@ -2768,6 +3043,7 @@ async function startServer() {
 
           const room: LiveRoom = {
             code,
+            env: socketEnv,
             mode,
             hostUid: uid,
             status: 'waiting',
@@ -2812,7 +3088,7 @@ async function startServer() {
           currentRoomCode = code;
           socket.join(code);
           await persistRoomSnapshotRealtime(room);
-          broadcastRoomListUpdate();
+          broadcastRoomListUpdate(socketEnv);
 
           cb?.({ room: serializeRoomForClient(room) });
         } catch {
@@ -2830,19 +3106,26 @@ async function startServer() {
         try {
           const code = String(payload?.code || '').trim().toUpperCase();
           const uid = String(payload?.uid || boundUid);
-          const room = liveRooms.get(code);
-          if (!room) {
+          let room = liveRooms.get(code);
+          if (!room || (room.env || 'prod') !== socketEnv) {
+            const snap = await getDocRealtime('rooms', code, socketEnv);
+            if (snap && snap.status !== 'finished') {
+              await hydrateLiveRoomsFromFirestore(socketEnv);
+              room = liveRooms.get(code);
+            }
+          }
+          if (!room || (room.env || 'prod') !== socketEnv) {
             return cb?.({ error: 'Không tìm thấy phòng' });
           }
 
-          const user = await getUserByUidRealtime(uid);
+          const user = await getUserByUidRealtime(uid, socketEnv);
           if (!user || !user.isCreateAccount) {
             return cb?.({ error: 'Tài khoản chờ duyệt chưa thể vào phòng xếp hạng' });
           }
 
           const username = user.username;
           const displayName = user.displayName || username;
-          const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName);
+          const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName, socketEnv);
 
           // Re-check room state after async awaits and enforce single-seat-per-account invariant
           deduplicateRoomParticipants(room);
@@ -2872,6 +3155,15 @@ async function startServer() {
             existingSpec.connected = true;
             existingSpec.elo = elo;
             existingSpec.displayName = displayName;
+          } else if (room.hostUid === uid && room.status !== 'playing') {
+            // Chủ phòng chỉ có 2 lựa chọn: Đỏ hoặc Đen
+            if (!room.redPlayer) {
+              room.redPlayer = { uid, username, displayName, elo, connected: true };
+            } else if (!room.blackPlayer) {
+              room.blackPlayer = { uid, username, displayName, elo, connected: true };
+            } else {
+              room.redPlayer = { uid, username, displayName, elo, connected: true };
+            }
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.redPlayer) {
             room.redPlayer = { uid, username, displayName, elo, connected: true };
           } else if (!payload.asSpectator && room.status !== 'playing' && !room.blackPlayer) {
@@ -2902,7 +3194,7 @@ async function startServer() {
           await persistRoomSnapshotRealtime(room);
           const serialized = serializeRoomForClient(room);
           io.to(code).emit('room:state', serialized);
-          broadcastRoomListUpdate();
+          broadcastRoomListUpdate(socketEnv);
           cb?.({ room: serialized });
         } catch {
           cb?.({ error: 'Lỗi vào phòng' });
@@ -2921,13 +3213,13 @@ async function startServer() {
           const uid = String(payload?.uid || boundUid);
           const targetSeat = payload?.targetSeat;
           const room = liveRooms.get(code);
-          if (!room) return cb?.({ error: 'Không tìm thấy phòng' });
+          if (!room || (room.env || 'prod') !== socketEnv) return cb?.({ error: 'Không tìm thấy phòng' });
           if (room.status !== 'waiting') return cb?.({ error: 'Chỉ có thể đổi ghế ở phòng chờ' });
 
-          const user = await getUserByUidRealtime(uid);
+          const user = await getUserByUidRealtime(uid, socketEnv);
           const username = user?.username || boundUsername || 'Người chơi';
           const displayName = user?.displayName || username;
-          const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName);
+          const elo = await getUserModeEloRealtime(uid, username, room.mode, displayName, socketEnv);
 
           deduplicateRoomParticipants(room);
 
@@ -2956,6 +3248,16 @@ async function startServer() {
             }
             room.blackPlayer = { uid, username, displayName, elo, connected: true };
           } else if (targetSeat === 'spectator') {
+            const isHostUser =
+              room.hostUid === uid ||
+              (Boolean(room.hostUid) &&
+                ((room.redPlayer?.uid === room.hostUid && isSameAccount(room.redPlayer, uid, username)) ||
+                 (room.blackPlayer?.uid === room.hostUid && isSameAccount(room.blackPlayer, uid, username)))) ||
+              (!room.hostUid && isSameAccount(room.redPlayer, uid, username));
+
+            if (isHostUser) {
+              return cb?.({ error: 'Chủ phòng không được xuống người xem, chỉ có 2 lựa chọn là Đỏ hoặc Đen' });
+            }
             if (isSpec && !isRed && !isBlack) {
               return cb?.({ room: serializeRoomForClient(room) });
             }
@@ -2974,7 +3276,7 @@ async function startServer() {
           await persistRoomSnapshotRealtime(room);
           const serialized = serializeRoomForClient(room);
           io.to(code).emit('room:state', serialized);
-          broadcastRoomListUpdate();
+          broadcastRoomListUpdate(socketEnv);
           cb?.({ room: serialized });
         } catch {
           cb?.({ error: 'Lỗi đổi ghế' });
@@ -2992,19 +3294,22 @@ async function startServer() {
 
         deduplicateRoomParticipants(room);
 
-        const isAuthorized =
+        const isHost =
           room.hostUid === uid ||
-          room.redPlayer?.uid === uid ||
-          room.blackPlayer?.uid === uid;
-        if (!isAuthorized) {
-          return cb?.({ error: 'Chỉ kỳ thủ hoặc chủ phòng mới được bấm Bắt đầu' });
+          (Boolean(room.hostUid) &&
+            ((room.redPlayer?.uid === room.hostUid && isSameAccount(room.redPlayer, uid, boundUsername)) ||
+             (room.blackPlayer?.uid === room.hostUid && isSameAccount(room.blackPlayer, uid, boundUsername)))) ||
+          (!room.hostUid && isSameAccount(room.redPlayer, uid, boundUsername));
+
+        if (!isHost) {
+          return cb?.({ error: 'Chỉ có chủ phòng mới được phép bắt đầu trận đấu' });
         }
 
-        if (
-          room.hostUid !== uid &&
-          (room.redPlayer?.uid === uid || room.blackPlayer?.uid === uid)
-        ) {
-          room.hostUid = uid;
+        const isSittingPlayer =
+          Boolean(room.redPlayer && isSameAccount(room.redPlayer, uid, boundUsername)) ||
+          Boolean(room.blackPlayer && isSameAccount(room.blackPlayer, uid, boundUsername));
+        if (!isSittingPlayer) {
+          return cb?.({ error: 'Chủ phòng phải ngồi ghế Đỏ hoặc Đen mới có thể bắt đầu trận đấu' });
         }
 
         if (
@@ -3015,7 +3320,7 @@ async function startServer() {
           return cb?.({ error: 'Cần đủ 2 kỳ thủ khác nhau để bắt đầu ván đấu' });
         }
 
-        const cfg = await getAdminConfigRealtime();
+        const cfg = await getAdminConfigRealtime(socketEnv);
         const tc = getTimeControlForMode(room.mode, cfg);
         const { board } =
           room.mode === 'dark' ? createDarkXiangqiBoard() : parseFen(INITIAL_FEN);
@@ -3044,7 +3349,7 @@ async function startServer() {
         await persistRoomSnapshotRealtime(room);
         const serialized = serializeRoomForClient(room);
         io.to(code).emit('room:state', serialized);
-        broadcastRoomListUpdate();
+        broadcastRoomListUpdate(socketEnv);
         cb?.({ room: serialized });
       }
     );
@@ -3067,7 +3372,7 @@ async function startServer() {
             return cb?.({ error: 'Bạn không ở trong phòng này' });
           }
 
-          const cfg = await getAdminConfigRealtime();
+          const cfg = await getAdminConfigRealtime(socketEnv);
           const tc = getTimeControlForMode(room.mode, cfg);
           const { board } =
             room.mode === 'dark' ? createDarkXiangqiBoard() : parseFen(INITIAL_FEN);
@@ -3108,7 +3413,7 @@ async function startServer() {
           await persistRoomSnapshotRealtime(room);
           const serialized = serializeRoomForClient(room);
           io.to(code).emit('room:state', serialized);
-          broadcastRoomListUpdate();
+          broadcastRoomListUpdate(socketEnv);
           cb?.({ room: serialized });
         } catch {
           cb?.({ error: 'Lỗi trở về phòng chờ' });
@@ -3135,9 +3440,23 @@ async function startServer() {
         }
 
         const playerColor: PieceColor | null =
-          room.redPlayer?.uid === uid ? 'r' : room.blackPlayer?.uid === uid ? 'b' : null;
+          isSameAccount(room.redPlayer, uid, boundUsername)
+            ? 'r'
+            : isSameAccount(room.blackPlayer, uid, boundUsername)
+            ? 'b'
+            : null;
         if (!playerColor || playerColor !== room.turn) {
           return cb?.({ error: 'Chưa tới lượt của bạn' });
+        }
+
+        if (playerColor === 'r' && room.redPlayer) {
+          room.redPlayer.connected = true;
+          room.redPlayer.disconnectedAt = undefined;
+          room.redPlayer.disconnectDeadline = undefined;
+        } else if (playerColor === 'b' && room.blackPlayer) {
+          room.blackPlayer.connected = true;
+          room.blackPlayer.disconnectedAt = undefined;
+          room.blackPlayer.disconnectDeadline = undefined;
         }
 
         const isDark = room.mode === 'dark';
@@ -3206,9 +3525,12 @@ async function startServer() {
       const room = liveRooms.get(code);
       if (!room || room.status !== 'playing') return;
 
-      if (room.redPlayer?.uid === uid) {
+      const isRed = isSameAccount(room.redPlayer, uid, boundUsername);
+      const isBlack = isSameAccount(room.blackPlayer, uid, boundUsername);
+
+      if (isRed) {
         await finalizeRealtimeGame(room, 'black', 'Đỏ nhận thua');
-      } else if (room.blackPlayer?.uid === uid) {
+      } else if (isBlack) {
         await finalizeRealtimeGame(room, 'red', 'Đen nhận thua');
       }
     });
@@ -3220,8 +3542,23 @@ async function startServer() {
       if (!room || room.status !== 'playing') return;
 
       const color: PieceColor | null =
-        room.redPlayer?.uid === uid ? 'r' : room.blackPlayer?.uid === uid ? 'b' : null;
+        isSameAccount(room.redPlayer, uid, boundUsername)
+          ? 'r'
+          : isSameAccount(room.blackPlayer, uid, boundUsername)
+          ? 'b'
+          : null;
       if (!color) return;
+
+      if (color === 'r' && room.redPlayer) {
+        room.redPlayer.connected = true;
+        room.redPlayer.disconnectedAt = undefined;
+        room.redPlayer.disconnectDeadline = undefined;
+      } else if (color === 'b' && room.blackPlayer) {
+        room.blackPlayer.connected = true;
+        room.blackPlayer.disconnectedAt = undefined;
+        room.blackPlayer.disconnectDeadline = undefined;
+      }
+
       room.drawOfferBy = color;
       io.to(code).emit('room:state', serializeRoomForClient(room));
     });
@@ -3235,8 +3572,22 @@ async function startServer() {
         if (!room || room.status !== 'playing' || !room.drawOfferBy) return;
 
         const responderColor: PieceColor | null =
-          room.redPlayer?.uid === uid ? 'r' : room.blackPlayer?.uid === uid ? 'b' : null;
+          isSameAccount(room.redPlayer, uid, boundUsername)
+            ? 'r'
+            : isSameAccount(room.blackPlayer, uid, boundUsername)
+            ? 'b'
+            : null;
         if (!responderColor || responderColor === room.drawOfferBy) return;
+
+        if (responderColor === 'r' && room.redPlayer) {
+          room.redPlayer.connected = true;
+          room.redPlayer.disconnectedAt = undefined;
+          room.redPlayer.disconnectDeadline = undefined;
+        } else if (responderColor === 'b' && room.blackPlayer) {
+          room.blackPlayer.connected = true;
+          room.blackPlayer.disconnectedAt = undefined;
+          room.blackPlayer.disconnectDeadline = undefined;
+        }
 
         if (payload.accept) {
           await finalizeRealtimeGame(room, 'draw', 'Thỏa thuận hòa');
@@ -3269,8 +3620,19 @@ async function startServer() {
         const cleanText = sanitizeChatText(String(payload.text || ''));
         if (!cleanText) return;
 
-        const isSpectator =
-          room.redPlayer?.uid !== uid && room.blackPlayer?.uid !== uid;
+        const isRed = isSameAccount(room.redPlayer, uid, boundUsername);
+        const isBlack = isSameAccount(room.blackPlayer, uid, boundUsername);
+        const isSpectator = !isRed && !isBlack;
+
+        if (isRed && room.redPlayer) {
+          room.redPlayer.connected = true;
+          room.redPlayer.disconnectedAt = undefined;
+          room.redPlayer.disconnectDeadline = undefined;
+        } else if (isBlack && room.blackPlayer) {
+          room.blackPlayer.connected = true;
+          room.blackPlayer.disconnectedAt = undefined;
+          room.blackPlayer.disconnectDeadline = undefined;
+        }
 
         const msg: ChatMessage = {
           id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
@@ -3329,16 +3691,22 @@ async function startServer() {
 
         if (!room.redPlayer && !room.blackPlayer && room.spectators.length === 0) {
           liveRooms.delete(code);
-          await deleteDocRealtime('rooms', code).catch(() => {});
-          broadcastRoomListUpdate();
+          await deleteDocRealtime('rooms', code, room.env || socketEnv).catch(() => {});
+          broadcastRoomListUpdate(room.env || socketEnv);
           return;
         }
         if (room.hostUid === uid) {
-          room.hostUid =
-            room.redPlayer?.uid ||
-            room.blackPlayer?.uid ||
-            room.spectators[0]?.uid ||
-            '';
+          if (room.redPlayer?.uid) {
+            room.hostUid = room.redPlayer.uid;
+          } else if (room.blackPlayer?.uid) {
+            room.hostUid = room.blackPlayer.uid;
+          } else if (room.spectators.length > 0) {
+            const newHost = room.spectators.shift()!;
+            room.hostUid = newHost.uid;
+            room.redPlayer = newHost;
+          } else {
+            room.hostUid = '';
+          }
         }
       }
 
@@ -3353,31 +3721,54 @@ async function startServer() {
 
       await persistRoomSnapshotRealtime(room);
       io.to(code).emit('room:state', serializeRoomForClient(room));
-      broadcastRoomListUpdate();
+      broadcastRoomListUpdate(room.env || socketEnv);
     });
 
     socket.on('disconnect', () => {
-      if (boundUid && userSockets.has(boundUid)) {
-        const set = userSockets.get(boundUid)!;
-        set.delete(socket.id);
-        if (set.size === 0) {
-          userSockets.delete(boundUid);
+      if (boundUid) {
+        const userKey = `${socketEnv}:${boundUid}`;
+        if (userSockets.has(userKey)) {
+          const set = userSockets.get(userKey)!;
+          set.delete(socket.id);
+          if (set.size === 0) {
+            userSockets.delete(userKey);
+          }
+        }
+        if (userSockets.has(boundUid)) {
+          const set = userSockets.get(boundUid)!;
+          set.delete(socket.id);
+          if (set.size === 0) {
+            userSockets.delete(boundUid);
+          }
+        }
+
+        // 4.5s grace period: tránh hiển thị gián đoạn khi đổi session / reconnect nhanh 2-3s
+        setTimeout(() => {
+          const stillHasSocket =
+            (userSockets.get(userKey)?.size || 0) > 0 ||
+            (userSockets.get(boundUid)?.size || 0) > 0;
+          if (stillHasSocket) {
+            return;
+          }
           const now = Date.now();
           for (const room of liveRooms.values()) {
+            if ((room.env || 'prod') !== socketEnv) continue;
             let changed = false;
-            if (room.redPlayer?.uid === boundUid) {
+            const isRed = isSameAccount(room.redPlayer, boundUid, boundUsername);
+            const isBlack = isSameAccount(room.blackPlayer, boundUid, boundUsername);
+            if (isRed && room.redPlayer && room.redPlayer.connected) {
               room.redPlayer.connected = false;
               if (room.status === 'playing') {
                 room.redPlayer.disconnectedAt = now;
-                room.redPlayer.disconnectDeadline = now + 60_000;
+                room.redPlayer.disconnectDeadline = now + 90_000;
               }
               changed = true;
             }
-            if (room.blackPlayer?.uid === boundUid) {
+            if (isBlack && room.blackPlayer && room.blackPlayer.connected) {
               room.blackPlayer.connected = false;
               if (room.status === 'playing') {
                 room.blackPlayer.disconnectedAt = now;
-                room.blackPlayer.disconnectDeadline = now + 60_000;
+                room.blackPlayer.disconnectDeadline = now + 90_000;
               }
               changed = true;
             }
@@ -3385,7 +3776,7 @@ async function startServer() {
               io.to(room.code).emit('room:state', serializeRoomForClient(room));
             }
           }
-        }
+        }, 4500);
       }
     });
   });

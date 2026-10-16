@@ -51,10 +51,23 @@ import { AuthModal, UserProfile } from './components/AuthModal';
 import { NotationViewerView } from './components/NotationViewerView';
 import { LeaderboardView } from './components/LeaderboardView';
 import { AdminDashboardView } from './components/AdminDashboardView';
-import { RankedRoomView } from './components/RankedRoomView';
+import { RankedRoomView, parseRoomCodeFromPath } from './components/RankedRoomView';
 import { HomeView } from './components/HomeView';
 import { LibraryView } from './components/LibraryView';
 import { Logo } from './components/Logo';
+import { ServerEnvSwitcher } from './components/ServerEnvSwitcher';
+import { StagingPasswordModal } from './components/StagingPasswordModal';
+import {
+  ServerEnv,
+  getServerEnv,
+  setServerEnv,
+  getStoredUserForEnv,
+  setStoredUserForEnv,
+  getStoredSessionForEnv,
+  setStoredSessionForEnv,
+  SERVER_ENV_CONFIG,
+  isStagingUnlocked,
+} from './utils/serverEnv';
 import {
   MainTab,
   navigateUrl,
@@ -76,26 +89,18 @@ const AI_LEVELS: { id: AIDifficulty; name: string; eloLabel: string }[] = [
 ];
 
 export default function App() {
+  const [serverEnv, setServerEnvState] = useState<ServerEnv>(() => getServerEnv());
   const [activeTab, setActiveTab] = useState<MainTab>(() =>
     getMainTabFromPath(window.location.pathname)
   );
   const [viewerInitialPgn, setViewerInitialPgn] = useState<string>('');
 
-  // User & Session state (persisted in localStorage so page reload keeps login session, verified in realtime)
+  // User & Session state (persisted in localStorage per server environment)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('xq_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+    return getStoredUserForEnv(getServerEnv());
   });
   const [sessionId, setSessionId] = useState<string>(() => {
-    try {
-      return localStorage.getItem('xq_session') || '';
-    } catch {
-      return '';
-    }
+    return getStoredSessionForEnv(getServerEnv());
   });
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
@@ -130,30 +135,66 @@ export default function App() {
   const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
-  // Sync auth & preferences state to localStorage so reload preserves login
+  // Sync auth & preferences state to localStorage per server environment
   useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem('xq_user', JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem('xq_user');
-      }
-    } catch {
-      // Ignore storage errors
+    setStoredUserForEnv(serverEnv, currentUser);
+  }, [currentUser, serverEnv]);
+
+  useEffect(() => {
+    setStoredSessionForEnv(serverEnv, sessionId);
+  }, [sessionId, serverEnv]);
+
+  const [stagingPasswordModalOpen, setStagingPasswordModalOpen] = useState(false);
+
+  const proceedSwitchEnv = (newEnv: ServerEnv) => {
+    setStoredUserForEnv(serverEnv, currentUser);
+    setStoredSessionForEnv(serverEnv, sessionId);
+
+    setServerEnv(newEnv);
+    setServerEnvState(newEnv);
+
+    const nextUser = getStoredUserForEnv(newEnv);
+    const nextSession = getStoredSessionForEnv(newEnv);
+    setCurrentUser(nextUser);
+    setSessionId(nextSession);
+    setActiveRoom(null);
+
+    showToast(`Đã chuyển sang ${SERVER_ENV_CONFIG[newEnv].fullName}`);
+  };
+
+  const handleServerEnvChange = (newEnv: ServerEnv) => {
+    if (newEnv === serverEnv) return;
+    if (newEnv === 'staging' && !isStagingUnlocked()) {
+      setStagingPasswordModalOpen(true);
+      return;
     }
-  }, [currentUser]);
+    proceedSwitchEnv(newEnv);
+  };
 
   useEffect(() => {
     try {
-      if (sessionId) {
-        localStorage.setItem('xq_session', sessionId);
-      } else {
-        localStorage.removeItem('xq_session');
+      const urlParams = new URLSearchParams(window.location.search);
+      const wantsStaging =
+        urlParams.get('env') === 'staging' ||
+        localStorage.getItem('xq_server_env') === 'staging';
+      if (wantsStaging && !isStagingUnlocked()) {
+        setStagingPasswordModalOpen(true);
       }
     } catch {
-      // Ignore storage errors
+      // Ignore
     }
-  }, [sessionId]);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const newEnv = e.detail?.env;
+      if (newEnv && newEnv !== serverEnv) {
+        handleServerEnvChange(newEnv);
+      }
+    };
+    window.addEventListener('app:serverenvchange', handler);
+    return () => window.removeEventListener('app:serverenvchange', handler);
+  }, [serverEnv, currentUser, sessionId]);
 
   useEffect(() => {
     try {
@@ -229,7 +270,16 @@ export default function App() {
   // Socket & Realtime state
   const [socket, setSocket] = useState<Socket | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeRoom, setActiveRoom] = useState<any | null>(null);
+  const currentUserRef = useRef<UserProfile | null>(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+  const activeRoomRef = useRef<any | null>(activeRoom);
+  useEffect(() => {
+    activeRoomRef.current = activeRoom;
+  }, [activeRoom]);
   const [adminLoginReqs, setAdminLoginReqs] = useState<any[] | null>(null);
 
   // AI Match State (synced with URL query params when on /ai or /ai/play)
@@ -373,24 +423,65 @@ export default function App() {
     [aiEngine]
   );
 
-  // Socket.IO connection & 5s heartbeat
+  // Socket.IO connection & 5s heartbeat (isolated per serverEnv)
   useEffect(() => {
     const s = io({
+      auth: { env: serverEnv },
+      query: { env: serverEnv },
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionDelayMax: 4000,
+      timeout: 20000,
     });
     setSocket(s);
 
     s.on('connect', () => {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
       setReconnecting(false);
-      if (currentUser) {
-        s.emit('auth:bind', { uid: currentUser.uid, username: currentUser.username });
+
+      const user = currentUserRef.current;
+      const currentRoom = activeRoomRef.current;
+      const urlCode = parseRoomCodeFromPath(window.location.pathname);
+      const targetRoomCode = currentRoom?.code || urlCode || '';
+
+      if (user) {
+        s.emit('auth:bind', {
+          uid: user.uid,
+          username: user.username,
+          roomCode: targetRoomCode,
+        });
+
+        if (targetRoomCode) {
+          s.emit(
+            'room:rejoin',
+            {
+              code: targetRoomCode,
+              uid: user.uid,
+              username: user.username,
+            },
+            (res: any) => {
+              if (res?.room) {
+                setActiveRoom(res.room);
+              }
+            }
+          );
+        }
       }
     });
 
     s.on('disconnect', () => {
-      setReconnecting(true);
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+      }
+      // Grace period: Chỉ hiển thị thanh kết nối lại nếu mất mạng thực sự kéo dài (> 4.5s)
+      // Các trường hợp cấp lại session hoặc đổi transport mất 2-3s sẽ không làm gián đoạn người dùng
+      disconnectTimerRef.current = setTimeout(() => {
+        setReconnecting(true);
+      }, 4500);
     });
 
     s.on('room:state', (roomData: any) => {
@@ -431,12 +522,8 @@ export default function App() {
       setCurrentUser(null);
       setSessionId('');
       setActiveRoom(null);
-      try {
-        localStorage.removeItem('xq_user');
-        localStorage.removeItem('xq_session');
-      } catch {
-        // Ignore
-      }
+      setStoredUserForEnv(serverEnv, null);
+      setStoredSessionForEnv(serverEnv, '');
       showToast(payload?.reason || 'Phiên đăng nhập đã bị thay thế');
     });
 
@@ -445,10 +532,41 @@ export default function App() {
     }, 5000);
 
     return () => {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
       clearInterval(hb);
       s.disconnect();
     };
-  }, [currentUser?.uid, showToast]);
+  }, [serverEnv]);
+
+  useEffect(() => {
+    if (socket && socket.connected && currentUser) {
+      const urlCode = parseRoomCodeFromPath(window.location.pathname);
+      const targetRoomCode = activeRoom?.code || urlCode || '';
+      socket.emit('auth:bind', {
+        uid: currentUser.uid,
+        username: currentUser.username,
+        roomCode: targetRoomCode,
+      });
+      if (targetRoomCode) {
+        socket.emit(
+          'room:rejoin',
+          {
+            code: targetRoomCode,
+            uid: currentUser.uid,
+            username: currentUser.username,
+          },
+          (res: any) => {
+            if (res?.room) {
+              setActiveRoom(res.room);
+            }
+          }
+        );
+      }
+    }
+  }, [socket, currentUser, activeRoom?.code]);
 
   // AI games are local practice matches and are never uploaded to the database
   const saveGameToServer = useCallback(
@@ -598,12 +716,8 @@ export default function App() {
     setCurrentUser(null);
     setSessionId('');
     setActiveRoom(null);
-    try {
-      localStorage.removeItem('xq_user');
-      localStorage.removeItem('xq_session');
-    } catch {
-      // Ignore
-    }
+    setStoredUserForEnv(serverEnv, null);
+    setStoredSessionForEnv(serverEnv, '');
     if (activeTab === 'admin') {
       navigateUrl('/ai');
     }
@@ -745,8 +859,14 @@ export default function App() {
             )}
           </nav>
 
-          {/* Zone 3: Theme, Audio & Account Action */}
+          {/* Zone 3: Theme, Audio, Server Switcher & Account Action */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Bộ chuyển đổi Máy Chủ Prod & Staging */}
+            <ServerEnvSwitcher
+              currentEnv={serverEnv}
+              onEnvChange={handleServerEnvChange}
+            />
+
             <button
               onClick={() => {
                 const next = pieceCharMode === 'hanzi' ? 'viet' : 'hanzi';
@@ -1458,11 +1578,13 @@ export default function App() {
           ))}
       </main>
 
-      {/* Auth Modal (4 tabs + 3-step _resetacc concurrent login flow) */}
+      {/* Auth Modal (4 tabs + 3-step _resetacc concurrent login flow + Server Selector) */}
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         currentUser={currentUser}
+        currentEnv={serverEnv}
+        onEnvChange={handleServerEnvChange}
         onAuthSuccess={(user, sess, decayNotice) => {
           setCurrentUser(user);
           setSessionId(sess);
@@ -1480,6 +1602,15 @@ export default function App() {
         }}
         onToast={showToast}
       />
+
+      {/* Staging Access Password Modal (Default: 123456) */}
+      <StagingPasswordModal
+        isOpen={stagingPasswordModalOpen}
+        onClose={() => setStagingPasswordModalOpen(false)}
+        onSuccess={() => {
+          proceedSwitchEnv('staging');
+        }}
+      />
     </div>
   );
-}
+};
