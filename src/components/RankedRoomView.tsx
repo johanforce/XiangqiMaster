@@ -203,6 +203,8 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   };
 
   useEffect(() => {
+    // Khi đang trong phòng thi đấu hoặc phòng chờ, không polling hay lắng nghe danh sách sảnh
+    if (activeRoom) return;
     fetchOpenRooms();
     const timer = setInterval(fetchOpenRooms, 3000);
     if (socket) {
@@ -217,7 +219,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       };
     }
     return () => clearInterval(timer);
-  }, [socket, selectedMode, activeRoom]);
+  }, [socket, selectedMode, Boolean(activeRoom)]);
 
   // Keep chat unread count and auto-scroll
   useEffect(() => {
@@ -242,6 +244,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   useEffect(() => {
     if (activeRoom?.status === 'playing') {
       setReviewMode(false);
+      setReviewPly(activeRoom.moves?.length || 0);
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('ply')) {
+        params.delete('ply');
+        const newSearch = params.toString() ? `?${params.toString()}` : '';
+        navigateUrl(`${window.location.pathname}${newSearch}`, true);
+      }
     }
     if (activeRoom?.status === 'finished' && activeRoom?.moves) {
       setReviewPly(activeRoom.moves.length);
@@ -574,6 +583,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       {
         code: activeRoom.code,
         uid: currentUser.uid,
+        username: currentUser.username,
         from,
         to,
       },
@@ -1468,8 +1478,16 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   // VIEW 3: TRONG VÁN ĐẤU HOẶC XEM LẠI TÀN CUỘC (PLAYING / FINISHED)
   // Bàn cờ render tại đây
   // =========================================================================
-  const isRed = activeRoom.redPlayer?.uid === currentUser.uid;
-  const isBlack = activeRoom.blackPlayer?.uid === currentUser.uid;
+  const isRed = Boolean(
+    activeRoom.redPlayer &&
+      (activeRoom.redPlayer.uid === currentUser.uid ||
+        activeRoom.redPlayer.username?.toLowerCase() === currentUser.username?.toLowerCase())
+  );
+  const isBlack = Boolean(
+    activeRoom.blackPlayer &&
+      (activeRoom.blackPlayer.uid === currentUser.uid ||
+        activeRoom.blackPlayer.username?.toLowerCase() === currentUser.username?.toLowerCase())
+  );
   const myColor = isRed ? 'r' : isBlack ? 'b' : undefined;
 
   const moves = activeRoom.moves || [];

@@ -221,7 +221,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 Đấu Với Máy (AI)
               </h3>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Tích hợp Fairy-Stockfish WASM và Pikafish NNUE. 4 cấp độ từ Tân thủ đến Kỳ tiên (~2300+ Elo), có gợi ý nước đi và đi lại.
+                Tích hợp Fairy-Stockfish WASM kỳ lực Grandmaster đỉnh cao (~2700 Elo), hỗ trợ đấu cờ tiêu chuẩn, kho giải cờ thế và tạo thế nghệ thuật.
               </p>
             </div>
             <div className="pt-4 mt-2 border-t border-stone-800/60 flex items-center justify-between text-xs text-amber-400 font-semibold">

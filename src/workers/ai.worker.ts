@@ -422,18 +422,19 @@ const FAIRY_DIFFICULTY_CONFIG: Record<
   novice: { depth: 2, time: 200, skill: 0 },
   veteran: { depth: 4, time: 380, skill: 7 },
   master: { depth: 6, time: 650, skill: 14 },
-  grandmaster: { depth: 7, time: 950, skill: 20 },
+  grandmaster: { depth: 8, time: 1200, skill: 20 },
 };
 
 async function requestClientFairyMove(
   fen: string,
-  difficulty: AIDifficulty
+  difficulty: AIDifficulty = 'grandmaster'
 ): Promise<{ from: { row: number; col: number }; to: { row: number; col: number } } | null> {
   const ready = await initFairyEngine();
   if (!ready || !fairyInstance) return null;
 
   const { board, turn } = parseFen(fen);
-  const cfg = FAIRY_DIFFICULTY_CONFIG[difficulty] || FAIRY_DIFFICULTY_CONFIG.master;
+  // Always use grandmaster configuration (Skill Level 20, max depth)
+  const cfg = FAIRY_DIFFICULTY_CONFIG.grandmaster;
 
   return new Promise((resolve) => {
     currentUciResolve = (bestUci) => {
@@ -459,8 +460,8 @@ async function requestClientFairyMove(
 
 async function requestServerFairyMove(
   fen: string,
-  difficulty: AIDifficulty,
-  engine: AIEngineType
+  difficulty: AIDifficulty = 'grandmaster',
+  engine: AIEngineType = 'fairy_stockfish'
 ): Promise<{ from: { row: number; col: number }; to: { row: number; col: number } } | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
@@ -470,7 +471,7 @@ async function requestServerFairyMove(
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
       signal: controller.signal,
-      body: JSON.stringify({ fen, difficulty, engine }),
+      body: JSON.stringify({ fen, difficulty: 'grandmaster', engine: 'fairy_stockfish' }),
     });
     clearTimeout(timeout);
     if (!res.ok) return null;
@@ -487,20 +488,20 @@ async function requestServerFairyMove(
 
 async function requestFairyMove(
   fen: string,
-  difficulty: AIDifficulty,
+  difficulty: AIDifficulty = 'grandmaster',
   engine: AIEngineType = 'fairy_stockfish'
 ): Promise<{
   move: { from: { row: number; col: number }; to: { row: number; col: number } };
   engineUsed: string;
 } | null> {
-  // 1. Try client-side WebAssembly Fairy-Stockfish first (when crossOriginIsolated is enabled)
-  const clientMove = await requestClientFairyMove(fen, difficulty);
+  // 1. Try client-side WebAssembly Fairy-Stockfish first at max Elo
+  const clientMove = await requestClientFairyMove(fen, 'grandmaster');
   if (clientMove) {
     return { move: clientMove, engineUsed: 'fairy_stockfish_wasm_client' };
   }
 
-  // 2. If browser iframe restricts SharedArrayBuffer, run Fairy-Stockfish WASM via isolated backend runner
-  const serverMove = await requestServerFairyMove(fen, difficulty, engine);
+  // 2. If browser iframe restricts SharedArrayBuffer, run Fairy-Stockfish WASM via isolated backend runner at max Elo
+  const serverMove = await requestServerFairyMove(fen, 'grandmaster', 'fairy_stockfish');
   if (serverMove) {
     return { move: serverMove, engineUsed: 'fairy_stockfish_wasm_server' };
   }
@@ -510,17 +511,17 @@ async function requestFairyMove(
 
 if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'function') {
   self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-    const { id, fen, difficulty, engine = 'fairy_stockfish', isDarkXiangqi = false } = e.data;
+    const { id, fen, isDarkXiangqi = false } = e.data;
 
-    // Dark Xiangqi (Cờ Úp) or explicit builtin mode uses the dedicated native engine
-    if (isDarkXiangqi || engine === 'builtin') {
-      const move = findBestMove(fen, difficulty, isDarkXiangqi);
+    // Dark Xiangqi (Cờ Úp) uses the dedicated native engine
+    if (isDarkXiangqi) {
+      const move = findBestMove(fen, 'grandmaster', isDarkXiangqi);
       self.postMessage({ id, move, engineUsed: 'builtin' });
       return;
     }
 
-    // Standard Xiangqi: Use Fairy-Stockfish WASM
-    const fairyResult = await requestFairyMove(fen, difficulty, engine);
+    // Standard Xiangqi: Always use Fairy-Stockfish WASM at highest Elo
+    const fairyResult = await requestFairyMove(fen, 'grandmaster', 'fairy_stockfish');
 
     if (fairyResult) {
       self.postMessage({
@@ -529,8 +530,8 @@ if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'functio
         engineUsed: fairyResult.engineUsed,
       });
     } else {
-      // Graceful offline fallback to built-in positional AlphaBeta
-      const fallbackMove = findBestMove(fen, difficulty, false);
+      // Graceful offline fallback if WASM/network is completely restricted
+      const fallbackMove = findBestMove(fen, 'grandmaster', false);
       self.postMessage({
         id,
         move: fallbackMove ? { from: fallbackMove.from, to: fallbackMove.to } : null,

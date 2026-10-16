@@ -786,12 +786,14 @@ function serializeRoomForClient(room: LiveRoom) {
 
   return {
     code: room.code,
+    env: room.env || 'prod',
     mode: room.mode,
     hostUid: room.hostUid,
     status: room.status,
     redPlayer: room.redPlayer,
     blackPlayer: room.blackPlayer,
     spectators: room.spectators,
+    initialFen: room.initialFen,
     fen: clientFen,
     turn: room.turn,
     moves: room.moves,
@@ -2465,9 +2467,10 @@ async function startServer() {
         novice: { depth: 2, time: 200, skill: 0 },
         veteran: { depth: 4, time: 380, skill: 7 },
         master: { depth: 6, time: 650, skill: 14 },
-        grandmaster: { depth: 7, time: 950, skill: 20 },
+        grandmaster: { depth: 8, time: 1200, skill: 20 },
       };
-      const cfg = cfgMap[difficulty] || cfgMap.veteran;
+      // Always enforce grandmaster configuration for maximum Elo
+      const cfg = cfgMap.grandmaster;
       const reqId = fairyReqCounter++;
 
       const timeout = setTimeout(() => {
@@ -2866,6 +2869,8 @@ async function startServer() {
           currentMoveRemainingMs: Math.max(0, Math.round(room.currentMoveRemainingMs)),
           redDisconnectDeadline: room.redPlayer?.disconnectDeadline || null,
           blackDisconnectDeadline: room.blackPlayer?.disconnectDeadline || null,
+          redConnected: room.redPlayer?.connected ?? true,
+          blackConnected: room.blackPlayer?.connected ?? true,
         });
       }
     }
@@ -2879,10 +2884,10 @@ async function startServer() {
     let boundUsername = '';
     let currentRoomCode = '';
 
-    socket.on('auth:bind', (payload: { uid: string; username: string; roomCode?: string }) => {
-      if (!payload?.uid) return;
-      boundUid = String(payload.uid);
-      boundUsername = String(payload.username || 'Kỳ thủ');
+    const bindSocketUser = (uid: string, username?: string) => {
+      if (!uid) return;
+      boundUid = String(uid);
+      if (username) boundUsername = String(username);
       const userKey = `${socketEnv}:${boundUid}`;
       if (!userSockets.has(userKey)) {
         userSockets.set(userKey, new Set());
@@ -2892,6 +2897,11 @@ async function startServer() {
         userSockets.set(boundUid, new Set());
       }
       userSockets.get(boundUid)!.add(socket.id);
+    };
+
+    socket.on('auth:bind', (payload: { uid: string; username: string; roomCode?: string }) => {
+      if (!payload?.uid) return;
+      bindSocketUser(payload.uid, payload.username);
 
       const preferredCode = String(payload.roomCode || '').trim().toUpperCase();
       let joinedRooms = 0;
@@ -2951,6 +2961,7 @@ async function startServer() {
           const code = String(payload?.code || currentRoomCode).trim().toUpperCase();
           const uid = String(payload?.uid || boundUid);
           const username = String(payload?.username || boundUsername);
+          bindSocketUser(uid, username);
           let room = liveRooms.get(code);
 
           if (!room || (room.env || 'prod') !== socketEnv) {
@@ -2976,11 +2987,13 @@ async function startServer() {
             room.redPlayer.connected = true;
             room.redPlayer.disconnectedAt = undefined;
             room.redPlayer.disconnectDeadline = undefined;
-          } else if (isBlack && room.blackPlayer) {
+          }
+          if (isBlack && room.blackPlayer) {
             room.blackPlayer.connected = true;
             room.blackPlayer.disconnectedAt = undefined;
             room.blackPlayer.disconnectDeadline = undefined;
-          } else if (spec) {
+          }
+          if (spec) {
             spec.connected = true;
           }
 
@@ -3346,11 +3359,11 @@ async function startServer() {
         room.drawOfferBy = null;
         room.updatedAt = now;
 
-        await persistRoomSnapshotRealtime(room);
         const serialized = serializeRoomForClient(room);
         io.to(code).emit('room:state', serialized);
         broadcastRoomListUpdate(socketEnv);
         cb?.({ room: serialized });
+        persistRoomSnapshotRealtime(room).catch(() => {});
       }
     );
 
@@ -3427,95 +3440,119 @@ async function startServer() {
         payload: {
           code: string;
           uid: string;
+          username?: string;
           from: { row: number; col: number };
           to: { row: number; col: number };
         },
         cb?: (res: any) => void
       ) => {
-        const code = String(payload?.code || currentRoomCode).toUpperCase();
-        const uid = String(payload?.uid || boundUid);
-        const room = liveRooms.get(code);
-        if (!room || room.status !== 'playing') {
-          return cb?.({ error: 'Ván đấu không hoạt động' });
+        try {
+          const code = String(payload?.code || currentRoomCode).toUpperCase();
+          const uid = String(payload?.uid || boundUid);
+          const username = String(payload?.username || boundUsername);
+          bindSocketUser(uid, username);
+          socket.join(code);
+          currentRoomCode = code;
+
+          const room = liveRooms.get(code);
+          if (!room || room.status !== 'playing') {
+            return cb?.({ error: 'Ván đấu không hoạt động' });
+          }
+
+          if (
+            !payload?.from ||
+            !payload?.to ||
+            typeof payload.from.row !== 'number' ||
+            typeof payload.from.col !== 'number' ||
+            typeof payload.to.row !== 'number' ||
+            typeof payload.to.col !== 'number'
+          ) {
+            return cb?.({ error: 'Dữ liệu nước đi không hợp lệ' });
+          }
+
+          const playerColor: PieceColor | null =
+            isSameAccount(room.redPlayer, uid, username)
+              ? 'r'
+              : isSameAccount(room.blackPlayer, uid, username)
+              ? 'b'
+              : null;
+          if (!playerColor || playerColor !== room.turn) {
+            return cb?.({ error: 'Chưa tới lượt của bạn' });
+          }
+
+          if (playerColor === 'r' && room.redPlayer) {
+            room.redPlayer.connected = true;
+            room.redPlayer.disconnectedAt = undefined;
+            room.redPlayer.disconnectDeadline = undefined;
+          } else if (playerColor === 'b' && room.blackPlayer) {
+            room.blackPlayer.connected = true;
+            room.blackPlayer.disconnectedAt = undefined;
+            room.blackPlayer.disconnectDeadline = undefined;
+          }
+
+          const isDark = room.mode === 'dark';
+          const legal = getLegalMovesForSquare(room.board, payload.from, isDark);
+          if (!legal.some((m) => m.row === payload.to.row && m.col === payload.to.col)) {
+            return cb?.({ error: 'Nước đi không hợp lệ' });
+          }
+
+          const now = Date.now();
+          const notation = formatMoveNotation(room.board, payload.from, payload.to);
+          const { nextBoard, move } = applyMove(room.board, payload.from, payload.to);
+          const nextTurn: PieceColor = room.turn === 'r' ? 'b' : 'r';
+
+          if (room.incrementMs > 0) {
+            if (room.turn === 'r') room.redTimeMs += room.incrementMs;
+            else room.blackTimeMs += room.incrementMs;
+          }
+          room.currentMoveRemainingMs = room.moveTimeLimitMs;
+          room.lastTickAt = now;
+          room.turnDeadline =
+            room.moveTimeLimitMs > 0
+              ? now + room.moveTimeLimitMs
+              : now + (nextTurn === 'r' ? room.redTimeMs : room.blackTimeMs);
+
+          const nextFenServer = boardToFen(nextBoard, nextTurn, false);
+          const nextFenClient = boardToFen(nextBoard, nextTurn, isDark);
+          const gaveCheck = isKingInCheck(nextBoard, nextTurn, isDark);
+
+          room.board = nextBoard;
+          room.turn = nextTurn;
+          room.fenHistory.push(nextFenServer);
+          room.checkHistory.push({ color: playerColor, gaveCheck });
+          room.drawOfferBy = null;
+
+          const formattedMove: FormattedMove = {
+            ...move,
+            ply: room.moves.length + 1,
+            color: playerColor,
+            ...notation,
+            fen: nextFenClient,
+            isCheck: gaveCheck,
+          };
+          room.moves.push(formattedMove);
+
+          const status = evaluateGameStatus(
+            room.board,
+            room.turn,
+            room.fenHistory,
+            room.checkHistory,
+            isDark
+          );
+
+          const serialized = serializeRoomForClient(room);
+          io.to(code).emit('room:state', serialized);
+          cb?.({ ok: true, room: serialized });
+
+          if (status.isOver && status.winner !== 'ongoing') {
+            void finalizeRealtimeGame(room, status.winner, status.reason);
+          } else {
+            persistRoomSnapshotRealtime(room).catch(() => {});
+          }
+        } catch (err) {
+          console.error('Error handling game:move:', err);
+          cb?.({ error: 'Lỗi xử lý nước đi' });
         }
-
-        const playerColor: PieceColor | null =
-          isSameAccount(room.redPlayer, uid, boundUsername)
-            ? 'r'
-            : isSameAccount(room.blackPlayer, uid, boundUsername)
-            ? 'b'
-            : null;
-        if (!playerColor || playerColor !== room.turn) {
-          return cb?.({ error: 'Chưa tới lượt của bạn' });
-        }
-
-        if (playerColor === 'r' && room.redPlayer) {
-          room.redPlayer.connected = true;
-          room.redPlayer.disconnectedAt = undefined;
-          room.redPlayer.disconnectDeadline = undefined;
-        } else if (playerColor === 'b' && room.blackPlayer) {
-          room.blackPlayer.connected = true;
-          room.blackPlayer.disconnectedAt = undefined;
-          room.blackPlayer.disconnectDeadline = undefined;
-        }
-
-        const isDark = room.mode === 'dark';
-        const legal = getLegalMovesForSquare(room.board, payload.from, isDark);
-        if (!legal.some((m) => m.row === payload.to.row && m.col === payload.to.col)) {
-          return cb?.({ error: 'Nước đi không hợp lệ' });
-        }
-
-        const now = Date.now();
-        const notation = formatMoveNotation(room.board, payload.from, payload.to);
-        const { nextBoard, move } = applyMove(room.board, payload.from, payload.to);
-        const nextTurn: PieceColor = room.turn === 'r' ? 'b' : 'r';
-
-        if (room.incrementMs > 0) {
-          if (room.turn === 'r') room.redTimeMs += room.incrementMs;
-          else room.blackTimeMs += room.incrementMs;
-        }
-        room.currentMoveRemainingMs = room.moveTimeLimitMs;
-        room.lastTickAt = now;
-        room.turnDeadline =
-          room.moveTimeLimitMs > 0
-            ? now + room.moveTimeLimitMs
-            : now + (nextTurn === 'r' ? room.redTimeMs : room.blackTimeMs);
-
-        const nextFenServer = boardToFen(nextBoard, nextTurn, false);
-        const nextFenClient = boardToFen(nextBoard, nextTurn, isDark);
-        const gaveCheck = isKingInCheck(nextBoard, nextTurn, isDark);
-
-        room.board = nextBoard;
-        room.turn = nextTurn;
-        room.fenHistory.push(nextFenServer);
-        room.checkHistory.push({ color: playerColor, gaveCheck });
-        room.drawOfferBy = null;
-
-        const formattedMove: FormattedMove = {
-          ...move,
-          ply: room.moves.length + 1,
-          color: playerColor,
-          ...notation,
-          fen: nextFenClient,
-          isCheck: gaveCheck,
-        };
-        room.moves.push(formattedMove);
-
-        const status = evaluateGameStatus(
-          room.board,
-          room.turn,
-          room.fenHistory,
-          room.checkHistory,
-          isDark
-        );
-
-        if (status.isOver && status.winner !== 'ongoing') {
-          await finalizeRealtimeGame(room, status.winner, status.reason);
-        } else {
-          await persistRoomSnapshotRealtime(room);
-          io.to(code).emit('room:state', serializeRoomForClient(room));
-        }
-        cb?.({ ok: true });
       }
     );
 

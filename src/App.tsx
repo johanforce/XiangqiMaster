@@ -28,6 +28,8 @@ import {
   Languages,
   Home,
   Library,
+  Puzzle,
+  Sparkles,
 } from 'lucide-react';
 
 import './firebase';
@@ -54,6 +56,7 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { RankedRoomView, parseRoomCodeFromPath } from './components/RankedRoomView';
 import { HomeView } from './components/HomeView';
 import { LibraryView } from './components/LibraryView';
+import { PuzzleView } from './components/PuzzleView';
 import { Logo } from './components/Logo';
 import { ServerEnvSwitcher } from './components/ServerEnvSwitcher';
 import { StagingPasswordModal } from './components/StagingPasswordModal';
@@ -74,19 +77,6 @@ import {
   handleLinkClick,
   getMainTabFromPath,
 } from './utils/navigation';
-
-const AI_ENGINES: { id: AIEngineType; name: string; desc: string; badge: string }[] = [
-  { id: 'fairy_stockfish', name: 'Fairy-Stockfish WASM', desc: 'Engine NNUE/AlphaBeta quốc tế siêu mạnh', badge: 'Khuyên dùng' },
-  { id: 'pikafish', name: 'Pikafish NNUE', desc: 'Động cơ cờ tướng số 1 thế giới', badge: 'Vô địch' },
-  { id: 'builtin', name: 'Alpha-Beta Cục Bộ', desc: 'Thuật toán vị trí nhanh nhẹn', badge: 'Offline' },
-];
-
-const AI_LEVELS: { id: AIDifficulty; name: string; eloLabel: string }[] = [
-  { id: 'novice', name: 'Tân thủ', eloLabel: '~800' },
-  { id: 'veteran', name: 'Kỳ cựu', eloLabel: '~1300' },
-  { id: 'master', name: 'Kiện tướng', eloLabel: '~1800' },
-  { id: 'grandmaster', name: 'Kỳ tiên', eloLabel: '~2300+' },
-];
 
 export default function App() {
   const [serverEnv, setServerEnvState] = useState<ServerEnv>(() => getServerEnv());
@@ -282,20 +272,13 @@ export default function App() {
   }, [activeRoom]);
   const [adminLoginReqs, setAdminLoginReqs] = useState<any[] | null>(null);
 
-  // AI Match State (synced with URL query params when on /ai or /ai/play)
-  const [aiScreenState, setAiScreenState] = useState<'setup' | 'playing'>(() =>
-    window.location.pathname.startsWith('/ai/play') ? 'playing' : 'setup'
-  );
-  const [aiEngine, setAiEngine] = useState<AIEngineType>(() => {
-    const p = new URLSearchParams(window.location.search).get('engine');
-    return p === 'pikafish' || p === 'builtin' || p === 'fairy_stockfish' ? p : 'fairy_stockfish';
+  // AI Match State: 'standard' (Chơi cờ tướng với máy) | 'puzzle' (Giải cờ thế / Tạo thế)
+  const [aiMode, setAiMode] = useState<'standard' | 'puzzle'>(() => {
+    const p = new URLSearchParams(window.location.search).get('mode');
+    return p === 'puzzle' ? 'puzzle' : 'standard';
   });
-  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>(() => {
-    const p = new URLSearchParams(window.location.search).get('level');
-    return p === 'novice' || p === 'veteran' || p === 'master' || p === 'grandmaster'
-      ? p
-      : 'veteran';
-  });
+  const aiEngine: AIEngineType = 'fairy_stockfish';
+  const aiDifficulty: AIDifficulty = 'grandmaster';
   const [playerSide, setPlayerSide] = useState<PieceColor>(() => {
     const p = new URLSearchParams(window.location.search).get('side');
     return p === 'b' ? 'b' : 'r';
@@ -317,16 +300,12 @@ export default function App() {
       const nextTab = getMainTabFromPath(window.location.pathname);
       setActiveTab(nextTab);
       if (nextTab === 'ai') {
-        const isPlayScreen = window.location.pathname.startsWith('/ai/play');
-        setAiScreenState(isPlayScreen ? 'playing' : 'setup');
         const params = new URLSearchParams(window.location.search);
-        const eng = params.get('engine');
-        if (eng === 'fairy_stockfish' || eng === 'pikafish' || eng === 'builtin') {
-          setAiEngine(eng);
-        }
-        const lvl = params.get('level');
-        if (lvl === 'novice' || lvl === 'veteran' || lvl === 'master' || lvl === 'grandmaster') {
-          setAiDifficulty(lvl);
+        const mode = params.get('mode');
+        if (mode === 'puzzle') {
+          setAiMode('puzzle');
+        } else {
+          setAiMode('standard');
         }
         const side = params.get('side');
         if (side === 'r' || side === 'b') {
@@ -428,11 +407,12 @@ export default function App() {
     const s = io({
       auth: { env: serverEnv },
       query: { env: serverEnv },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000,
-      timeout: 20000,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 10000,
     });
     setSocket(s);
 
@@ -489,7 +469,25 @@ export default function App() {
     });
 
     s.on('game:clock', (clockData: any) => {
-      setActiveRoom((prev: any) => (prev ? { ...prev, ...clockData } : prev));
+      setActiveRoom((prev: any) => {
+        if (!prev) return prev;
+        const next = { ...prev, ...clockData };
+        if (clockData.redConnected !== undefined && next.redPlayer) {
+          next.redPlayer = {
+            ...next.redPlayer,
+            connected: clockData.redConnected,
+            disconnectDeadline: clockData.redDisconnectDeadline,
+          };
+        }
+        if (clockData.blackConnected !== undefined && next.blackPlayer) {
+          next.blackPlayer = {
+            ...next.blackPlayer,
+            connected: clockData.blackConnected,
+            disconnectDeadline: clockData.blackDisconnectDeadline,
+          };
+        }
+        return next;
+      });
     });
 
     s.on('chat:message', (msg: any) => {
@@ -634,11 +632,11 @@ export default function App() {
 
   // Trigger AI turn when it is AI's move (only when inside the 'playing' screen)
   useEffect(() => {
-    if (activeTab !== 'ai' || aiScreenState !== 'playing' || gameResult.isOver) return;
+    if (activeTab !== 'ai' || aiMode !== 'standard' || gameResult.isOver) return;
     if (turn !== playerSide) {
       setAiThinking(true);
       const timer = setTimeout(async () => {
-        const best = await requestEngineMove(currentFen, aiDifficulty);
+        const best = await requestEngineMove(currentFen, 'grandmaster');
         setAiThinking(false);
         if (best) {
           executeAIModeMove(best.from, best.to);
@@ -648,12 +646,11 @@ export default function App() {
     }
   }, [
     activeTab,
-    aiScreenState,
+    aiMode,
     turn,
     playerSide,
     gameResult.isOver,
     currentFen,
-    aiDifficulty,
     requestEngineMove,
     executeAIModeMove,
   ]);
@@ -678,7 +675,7 @@ export default function App() {
 
   const handleHint = async () => {
     if (aiThinking || gameResult.isOver || turn !== playerSide) return;
-    const best = await requestEngineMove(currentFen, 'master');
+    const best = await requestEngineMove(currentFen, 'grandmaster');
     if (best) {
       setHintMove(best);
       showToast('Đã hiển thị nước gợi ý trên bàn cờ');
@@ -686,7 +683,6 @@ export default function App() {
   };
 
   const handleCopyAINotation = () => {
-    const aiLabel = AI_LEVELS.find((l) => l.id === aiDifficulty)?.name || 'Máy';
     const pairs: string[] = [];
     for (let i = 0; i < moves.length; i += 2) {
       const m1 = moves[i]?.wxf || '';
@@ -694,9 +690,9 @@ export default function App() {
       pairs.push(`${Math.floor(i / 2) + 1}. ${m1}${m2 ? ' ' + m2 : ''}`);
     }
     const header = [
-      `[Event "Xiangqi Master - Chơi với máy"]`,
-      `[Red "${playerSide === 'r' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`}"]`,
-      `[Black "${playerSide === 'b' ? currentUser?.username || 'Người chơi' : `AI ${aiLabel}`}"]`,
+      `[Event "Xiangqi Master - Chơi với Fairy-Stockfish"]`,
+      `[Red "${playerSide === 'r' ? currentUser?.username || 'Người chơi' : 'Fairy-Stockfish Grandmaster'}"]`,
+      `[Black "${playerSide === 'b' ? currentUser?.username || 'Người chơi' : 'Fairy-Stockfish Grandmaster'}"]`,
       `[Result "${gameResult.winner}"]`,
       `[Date "${new Date().toISOString().slice(0, 10)}"]`,
     ].join('\n');
@@ -772,10 +768,8 @@ export default function App() {
             </a>
 
             <a
-              href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
-              onClick={(e) =>
-                handleLinkClick(e, `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`)
-              }
+              href="/ai"
+              onClick={(e) => handleLinkClick(e, '/ai', () => setAiMode('standard'))}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'ai'
                   ? 'bg-stone-800 text-amber-400 font-semibold'
