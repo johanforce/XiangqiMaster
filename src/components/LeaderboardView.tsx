@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import { RatedMode, getEloRankTier, ELO_RANK_TIERS } from '../shared/elo';
 import { navigateUrl, handleLinkClick } from '../utils/navigation';
+import { BoardTheme } from '../utils/themes';
 
 interface LeaderboardViewProps {
   onOpenViewer?: (notationText: string) => void;
+  theme?: BoardTheme;
 }
 
 function parseLeaderboardUrl() {
@@ -44,7 +46,7 @@ function parseLeaderboardUrl() {
   return { mode, period, playerUid, playerTab };
 }
 
-export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }) => {
+export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer, theme }) => {
   const initialUrlState = parseLeaderboardUrl();
   const [mode, setMode] = useState<RatedMode>(initialUrlState.mode);
   const [period, setPeriod] = useState<'week' | 'month' | 'all'>(initialUrlState.period);
@@ -160,7 +162,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
       <div
         className="relative rounded-3xl border border-amber-900/40 p-5 sm:p-7 shadow-2xl space-y-5 overflow-hidden bg-cover bg-center"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(17, 15, 14, 0.82) 0%, rgba(12, 10, 9, 0.94) 100%), url('/images/champion_hall.jpg')`,
+          backgroundImage: `linear-gradient(to bottom, rgba(17, 15, 14, 0.82) 0%, rgba(12, 10, 9, 0.94) 100%), url('${theme?.images?.championHall || '/images/champion_hall.jpg'}')`,
         }}
       >
         <div className="absolute -right-8 -bottom-10 font-hanzi text-8xl font-black text-amber-500/5 select-none pointer-events-none">
@@ -205,7 +207,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'blitz'
-                    ? 'bg-amber-600 text-white shadow-md'
+                    ? theme?.web.primaryBtnClass || 'bg-amber-600 text-white shadow-md'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -221,7 +223,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'standard'
-                    ? 'bg-amber-600 text-white shadow-md'
+                    ? theme?.web.primaryBtnClass || 'bg-amber-600 text-white shadow-md'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -235,7 +237,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
                 }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all ${
                   mode === 'dark'
-                    ? 'bg-amber-600 text-white shadow-md'
+                    ? theme?.web.primaryBtnClass || 'bg-amber-600 text-white shadow-md'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -435,7 +437,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
       <div
         className="relative rounded-3xl border border-stone-800/90 p-5 sm:p-6 shadow-2xl overflow-hidden bg-cover bg-center"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 17, 0.92) 0%, rgba(10, 9, 8, 0.97) 100%), url('/images/leaderboard_bg.jpg')`,
+          backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 17, 0.92) 0%, rgba(10, 9, 8, 0.97) 100%), url('${theme?.images?.leaderboardBg || '/images/leaderboard_bg.jpg'}')`,
         }}
       >
         <div className="flex items-center justify-between mb-4 border-b border-stone-800/80 pb-3">
@@ -572,7 +574,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer }
             <div
               className="relative rounded-2xl overflow-hidden p-4 border border-amber-900/40 bg-cover bg-center flex items-start justify-between"
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(24, 22, 20, 0.92) 0%, rgba(12, 10, 9, 0.8) 100%), url('/images/champion_hall.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(24, 22, 20, 0.92) 0%, rgba(12, 10, 9, 0.8) 100%), url('${theme?.images?.championHall || '/images/champion_hall.jpg'}')`,
               }}
             >
               <div className="flex items-center gap-3">

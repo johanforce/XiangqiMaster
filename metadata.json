@@ -1,6 +1,6 @@
 {
   "name": "Xiangqi Master",
-  "description": "Cờ tướng trực tuyến chuẩn quốc tế WXF, chơi với máy 4 cấp độ, cờ úp, phòng đấu thời gian thực và xếp hạng Elo FIDE.",
+  "description": "Kỳ đài cờ tướng trực tuyến đỉnh cao với động cơ Fairy-Stockfish & Pikafish kỳ lực tối thượng, đồng bộ 6 chủ đề mỹ thuật bàn cờ và không gian web.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

@@ -28,8 +28,7 @@ import {
   Languages,
   Home,
   Library,
-  Puzzle,
-  Sparkles,
+  Zap,
 } from 'lucide-react';
 
 import './firebase';
@@ -47,7 +46,7 @@ import {
 } from './shared/xiangqi';
 import { BOARD_THEMES, THEME_LIST, BoardThemeId } from './utils/themes';
 import { sound } from './utils/sound';
-import { AIDifficulty, AIEngineType, findBestMove } from './workers/ai.worker';
+import { AIEngineType, findBestMove } from './workers/ai.worker';
 import { XiangqiBoard } from './components/XiangqiBoard';
 import { AuthModal, UserProfile } from './components/AuthModal';
 import { NotationViewerView } from './components/NotationViewerView';
@@ -56,7 +55,6 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { RankedRoomView, parseRoomCodeFromPath } from './components/RankedRoomView';
 import { HomeView } from './components/HomeView';
 import { LibraryView } from './components/LibraryView';
-import { PuzzleView } from './components/PuzzleView';
 import { Logo } from './components/Logo';
 import { ServerEnvSwitcher } from './components/ServerEnvSwitcher';
 import { StagingPasswordModal } from './components/StagingPasswordModal';
@@ -77,6 +75,23 @@ import {
   handleLinkClick,
   getMainTabFromPath,
 } from './utils/navigation';
+
+const AI_ENGINES: { id: AIEngineType; name: string; desc: string; badge: string; highlight: string }[] = [
+  {
+    id: 'fairy_stockfish',
+    name: 'Fairy-Stockfish WASM',
+    desc: 'Động cơ cờ tướng đa biến quốc tế chuẩn NNUE & Alpha-Beta, kỳ lực tối thượng',
+    badge: 'Quốc Tế',
+    highlight: 'Kiểm soát thế trận vững chắc, tính toán sâu sắc và chuẩn xác',
+  },
+  {
+    id: 'pikafish',
+    name: 'Pikafish NNUE',
+    desc: 'Động cơ chuyên biệt cờ tướng số 1 thế giới, thế cờ sắc bén và hiểm hóc nhất',
+    badge: 'Vô Địch',
+    highlight: 'Sát lực vô song, tư duy chiến thuật đỉnh cao không thể lay chuyển',
+  },
+];
 
 export default function App() {
   const [serverEnv, setServerEnvState] = useState<ServerEnv>(() => getServerEnv());
@@ -272,13 +287,14 @@ export default function App() {
   }, [activeRoom]);
   const [adminLoginReqs, setAdminLoginReqs] = useState<any[] | null>(null);
 
-  // AI Match State: 'standard' (Chơi cờ tướng với máy) | 'puzzle' (Giải cờ thế / Tạo thế)
-  const [aiMode, setAiMode] = useState<'standard' | 'puzzle'>(() => {
-    const p = new URLSearchParams(window.location.search).get('mode');
-    return p === 'puzzle' ? 'puzzle' : 'standard';
+  // AI Match State (synced with URL query params when on /ai or /ai/play)
+  const [aiScreenState, setAiScreenState] = useState<'setup' | 'playing'>(() =>
+    window.location.pathname.startsWith('/ai/play') ? 'playing' : 'setup'
+  );
+  const [aiEngine, setAiEngine] = useState<AIEngineType>(() => {
+    const p = new URLSearchParams(window.location.search).get('engine');
+    return p === 'pikafish' ? 'pikafish' : 'fairy_stockfish';
   });
-  const aiEngine: AIEngineType = 'fairy_stockfish';
-  const aiDifficulty: AIDifficulty = 'grandmaster';
   const [playerSide, setPlayerSide] = useState<PieceColor>(() => {
     const p = new URLSearchParams(window.location.search).get('side');
     return p === 'b' ? 'b' : 'r';
@@ -300,12 +316,12 @@ export default function App() {
       const nextTab = getMainTabFromPath(window.location.pathname);
       setActiveTab(nextTab);
       if (nextTab === 'ai') {
+        const isPlayScreen = window.location.pathname.startsWith('/ai/play');
+        setAiScreenState(isPlayScreen ? 'playing' : 'setup');
         const params = new URLSearchParams(window.location.search);
-        const mode = params.get('mode');
-        if (mode === 'puzzle') {
-          setAiMode('puzzle');
-        } else {
-          setAiMode('standard');
+        const eng = params.get('engine');
+        if (eng === 'fairy_stockfish' || eng === 'pikafish') {
+          setAiEngine(eng);
         }
         const side = params.get('side');
         if (side === 'r' || side === 'b') {
@@ -365,10 +381,10 @@ export default function App() {
   }, []);
 
   const requestEngineMove = useCallback(
-    (fen: string, difficulty: AIDifficulty, engineType: AIEngineType = aiEngine): Promise<{ from: Pos; to: Pos } | null> => {
+    (fen: string, engineType: AIEngineType = aiEngine): Promise<{ from: Pos; to: Pos } | null> => {
       return new Promise((resolve) => {
         if (!workerRef.current) {
-          const m = findBestMove(fen, difficulty, false);
+          const m = findBestMove(fen, 'master', false);
           resolve(m ? { from: m.from, to: m.to } : null);
           return;
         }
@@ -378,9 +394,9 @@ export default function App() {
           if (settled) return;
           settled = true;
           workerRef.current?.removeEventListener('message', handler);
-          const m = findBestMove(fen, difficulty, false);
+          const m = findBestMove(fen, 'master', false);
           resolve(m ? { from: m.from, to: m.to } : null);
-        }, 3500);
+        }, 4000);
 
         const handler = (e: MessageEvent) => {
           if (e.data?.id === reqId && !settled) {
@@ -390,13 +406,13 @@ export default function App() {
             if (e.data.move?.from && e.data.move?.to) {
               resolve({ from: e.data.move.from, to: e.data.move.to });
             } else {
-              const m = findBestMove(fen, difficulty, false);
+              const m = findBestMove(fen, 'master', false);
               resolve(m ? { from: m.from, to: m.to } : null);
             }
           }
         };
         workerRef.current.addEventListener('message', handler);
-        workerRef.current.postMessage({ id: reqId, fen, difficulty, engine: engineType, isDarkXiangqi: false });
+        workerRef.current.postMessage({ id: reqId, fen, engine: engineType, isDarkXiangqi: false });
       });
     },
     [aiEngine]
@@ -407,12 +423,11 @@ export default function App() {
     const s = io({
       auth: { env: serverEnv },
       query: { env: serverEnv },
-      transports: ['polling', 'websocket'],
-      upgrade: true,
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 3000,
-      timeout: 10000,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000,
+      timeout: 20000,
     });
     setSocket(s);
 
@@ -469,25 +484,7 @@ export default function App() {
     });
 
     s.on('game:clock', (clockData: any) => {
-      setActiveRoom((prev: any) => {
-        if (!prev) return prev;
-        const next = { ...prev, ...clockData };
-        if (clockData.redConnected !== undefined && next.redPlayer) {
-          next.redPlayer = {
-            ...next.redPlayer,
-            connected: clockData.redConnected,
-            disconnectDeadline: clockData.redDisconnectDeadline,
-          };
-        }
-        if (clockData.blackConnected !== undefined && next.blackPlayer) {
-          next.blackPlayer = {
-            ...next.blackPlayer,
-            connected: clockData.blackConnected,
-            disconnectDeadline: clockData.blackDisconnectDeadline,
-          };
-        }
-        return next;
-      });
+      setActiveRoom((prev: any) => (prev ? { ...prev, ...clockData } : prev));
     });
 
     s.on('chat:message', (msg: any) => {
@@ -632,21 +629,21 @@ export default function App() {
 
   // Trigger AI turn when it is AI's move (only when inside the 'playing' screen)
   useEffect(() => {
-    if (activeTab !== 'ai' || aiMode !== 'standard' || gameResult.isOver) return;
+    if (activeTab !== 'ai' || aiScreenState !== 'playing' || gameResult.isOver) return;
     if (turn !== playerSide) {
       setAiThinking(true);
       const timer = setTimeout(async () => {
-        const best = await requestEngineMove(currentFen, 'grandmaster');
+        const best = await requestEngineMove(currentFen);
         setAiThinking(false);
         if (best) {
           executeAIModeMove(best.from, best.to);
         }
-      }, 320);
+      }, 250);
       return () => clearTimeout(timer);
     }
   }, [
     activeTab,
-    aiMode,
+    aiScreenState,
     turn,
     playerSide,
     gameResult.isOver,
@@ -675,7 +672,7 @@ export default function App() {
 
   const handleHint = async () => {
     if (aiThinking || gameResult.isOver || turn !== playerSide) return;
-    const best = await requestEngineMove(currentFen, 'grandmaster');
+    const best = await requestEngineMove(currentFen);
     if (best) {
       setHintMove(best);
       showToast('Đã hiển thị nước gợi ý trên bàn cờ');
@@ -683,6 +680,7 @@ export default function App() {
   };
 
   const handleCopyAINotation = () => {
+    const aiName = AI_ENGINES.find((e) => e.id === aiEngine)?.name || 'AI';
     const pairs: string[] = [];
     for (let i = 0; i < moves.length; i += 2) {
       const m1 = moves[i]?.wxf || '';
@@ -690,9 +688,9 @@ export default function App() {
       pairs.push(`${Math.floor(i / 2) + 1}. ${m1}${m2 ? ' ' + m2 : ''}`);
     }
     const header = [
-      `[Event "Xiangqi Master - Chơi với Fairy-Stockfish"]`,
-      `[Red "${playerSide === 'r' ? currentUser?.username || 'Người chơi' : 'Fairy-Stockfish Grandmaster'}"]`,
-      `[Black "${playerSide === 'b' ? currentUser?.username || 'Người chơi' : 'Fairy-Stockfish Grandmaster'}"]`,
+      `[Event "Xiangqi Master - Chơi với máy"]`,
+      `[Red "${playerSide === 'r' ? currentUser?.username || 'Người chơi' : `${aiName} (Max)`}"]`,
+      `[Black "${playerSide === 'b' ? currentUser?.username || 'Người chơi' : `${aiName} (Max)`}"]`,
       `[Result "${gameResult.winner}"]`,
       `[Date "${new Date().toISOString().slice(0, 10)}"]`,
     ].join('\n');
@@ -724,7 +722,10 @@ export default function App() {
     moves.length > 0 ? { from: moves[moves.length - 1].from, to: moves[moves.length - 1].to } : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-950 text-stone-100">
+    <div
+      className="min-h-screen flex flex-col text-stone-100 transition-all duration-700"
+      style={currentTheme.web.pageBgStyle}
+    >
       {/* Reconnection Banner */}
       {reconnecting && (
         <div className="w-full bg-amber-600/90 text-white text-xs font-medium py-1.5 px-4 flex items-center justify-center gap-2 z-50">
@@ -742,7 +743,10 @@ export default function App() {
 
       {/* Top Navigation Bar: Ẩn thanh header chính khi ở trong phòng chờ / trận đấu xếp hạng để tập trung, tránh bấm tab gây lỗi */}
       {!(activeTab === 'ranked' && activeRoom) ? (
-        <header className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b border-stone-800/80 bg-stone-950/90 backdrop-blur-xs sticky top-0 z-30">
+        <header
+          className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b backdrop-blur-md sticky top-0 z-30 transition-all duration-700"
+          style={currentTheme.web.headerBgStyle}
+        >
           {/* Zone 1: Brand Wordmark & Official Logo */}
           <a
             href="/"
@@ -759,7 +763,7 @@ export default function App() {
               onClick={(e) => handleLinkClick(e, '/')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'home'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -768,11 +772,13 @@ export default function App() {
             </a>
 
             <a
-              href="/ai"
-              onClick={(e) => handleLinkClick(e, '/ai', () => setAiMode('standard'))}
+              href={`/ai?engine=${aiEngine}&side=${playerSide}`}
+              onClick={(e) =>
+                handleLinkClick(e, `/ai?engine=${aiEngine}&side=${playerSide}`)
+              }
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'ai'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -790,7 +796,7 @@ export default function App() {
               }
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'ranked'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -803,7 +809,7 @@ export default function App() {
               onClick={(e) => handleLinkClick(e, '/viewer')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'viewer'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -816,7 +822,7 @@ export default function App() {
               onClick={(e) => handleLinkClick(e, '/library')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'library'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -829,7 +835,7 @@ export default function App() {
               onClick={(e) => handleLinkClick(e, '/leaderboard')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'leaderboard'
-                  ? 'bg-stone-800 text-amber-400 font-semibold'
+                  ? currentTheme.web.activeTabClass
                   : 'text-stone-400 hover:text-stone-100'
               }`}
             >
@@ -843,7 +849,7 @@ export default function App() {
                 onClick={(e) => handleLinkClick(e, '/admin/users')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === 'admin'
-                    ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40 font-semibold'
+                    ? currentTheme.web.activeTabClass
                     : 'text-stone-400 hover:text-stone-100'
                 }`}
               >
@@ -868,7 +874,7 @@ export default function App() {
                 savePreferences(themeId, next, soundEnabled);
               }}
               title="Chuyển chữ Hán / chữ Việt trên quân cờ"
-              className="min-w-[38px] min-h-[38px] px-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-bold text-amber-400 flex items-center justify-center gap-1 transition-colors"
+              className={`min-w-[38px] min-h-[38px] px-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${currentTheme.web.textAccentClass}`}
             >
               <Languages className="w-3.5 h-3.5" />
               <span>{pieceCharMode === 'hanzi' ? '漢' : 'Việt'}</span>
@@ -883,13 +889,13 @@ export default function App() {
               title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
               className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-stone-500" />}
+              {soundEnabled ? <Volume2 className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} /> : <VolumeX className="w-4 h-4 text-stone-500" />}
             </button>
 
             <button
               onClick={() => setThemeDrawerOpen((o) => !o)}
               title="Đổi giao diện bàn cờ (6 chủ đề)"
-              className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+              className={`min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 flex items-center justify-center transition-colors ${currentTheme.web.textAccentClass}`}
             >
               <Palette className="w-4 h-4" />
             </button>
@@ -905,13 +911,13 @@ export default function App() {
                   }
                   className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap"
                 >
-                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  <User className={`w-3.5 h-3.5 ${currentTheme.web.textAccentClass}`} />
                   <span className="font-semibold text-stone-100">{currentUser.displayName || currentUser.username}</span>
                   {!currentUser.isCreateAccount && (
-                    <span className="text-[10px] text-amber-400 font-normal">· Chờ duyệt</span>
+                    <span className={`text-[10px] font-normal ${currentTheme.web.textAccentClass}`}>· Chờ duyệt</span>
                   )}
                   {currentUser.role === 'admin' && (
-                    <span className="text-[10px] text-amber-400/90 font-normal">· Admin</span>
+                    <span className={`text-[10px] font-normal ${currentTheme.web.textAccentClass}`}>· Admin</span>
                   )}
                 </button>
                 <button
@@ -925,7 +931,7 @@ export default function App() {
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${currentTheme.web.primaryBtnClass}`}
               >
                 Đăng nhập
               </button>
@@ -961,38 +967,80 @@ export default function App() {
         </div>
       )}
 
-      {/* Instant 6-Theme Swatch Bar */}
+      {/* Instant 6-Theme Swatch & Visual Drawer */}
       {themeDrawerOpen && (
-        <div className="bg-stone-900/95 border-b border-stone-800 px-4 py-3">
-          <div className="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-6 gap-2">
-            {THEME_LIST.map((t) => {
-              const active = t.id === themeId;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    setThemeId(t.id);
-                    savePreferences(t.id, pieceCharMode, soundEnabled);
-                  }}
-                  className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-medium transition-all ${
-                    active
-                      ? 'border-amber-500 bg-amber-500/10 text-amber-300'
-                      : 'border-stone-800 bg-stone-950 text-stone-300 hover:border-stone-700'
-                  }`}
-                >
-                  <span className="flex items-center -space-x-1 shrink-0">
-                    {t.swatchColors.map((col, idx) => (
-                      <span
-                        key={idx}
-                        className="w-3.5 h-3.5 rounded-full border border-black/40"
-                        style={{ backgroundColor: col }}
+        <div className="bg-stone-900/95 border-b border-stone-800 px-4 py-4 shadow-2xl backdrop-blur-md">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-stone-200 uppercase tracking-wider">
+                  Chọn Giao Diện Kỳ Đài (Đồng Bộ Bàn Cờ, Hình Ảnh & Màu Sắc Web)
+                </span>
+              </div>
+              <span className="text-[11px] text-stone-400">
+                Chủ đề đang dùng: <span className="text-amber-400 font-semibold">{currentTheme.name}</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {THEME_LIST.map((t) => {
+                const active = t.id === themeId;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setThemeId(t.id);
+                      savePreferences(t.id, pieceCharMode, soundEnabled);
+                    }}
+                    className={`group relative overflow-hidden rounded-2xl border text-left transition-all flex flex-col ${
+                      active
+                        ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg scale-[1.02]'
+                        : 'border-stone-800 bg-stone-950/80 hover:border-stone-700 hover:bg-stone-900/60'
+                    }`}
+                  >
+                    {/* Theme Thumbnail Image */}
+                    <div className="relative h-20 w-full overflow-hidden bg-stone-950">
+                      <img
+                        src={t.images.heroCover}
+                        alt={t.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
-                    ))}
-                  </span>
-                  <span className="truncate">{t.name}</span>
-                </button>
-              );
-            })}
+                      <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent" />
+
+                      {/* Swatch color badges on thumbnail */}
+                      <div className="absolute top-2 right-2 flex items-center -space-x-1">
+                        {t.swatchColors.map((col, idx) => (
+                          <span
+                            key={idx}
+                            className="w-3.5 h-3.5 rounded-full border border-black/60 shadow-sm"
+                            style={{ backgroundColor: col }}
+                          />
+                        ))}
+                      </div>
+
+                      {active && (
+                        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-amber-500 text-stone-950 text-[10px] font-bold shadow">
+                          Đang dùng
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Theme Info */}
+                    <div className="p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className={`text-xs font-bold truncate ${active ? 'text-amber-300' : 'text-stone-200'}`}>
+                          {t.name}
+                        </div>
+                        <p className="text-[10px] text-stone-400 line-clamp-1 mt-0.5">
+                          {t.web?.tagline || t.tagline}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -1002,10 +1050,11 @@ export default function App() {
         {activeTab === 'home' && (
           <HomeView
             currentUser={currentUser}
+            theme={currentTheme}
             onNavigate={(tab) => {
               const targetMap: Record<MainTab, string> = {
                 home: '/',
-                ai: `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`,
+                ai: `/ai?engine=${aiEngine}&side=${playerSide}`,
                 ranked: '/ranked',
                 viewer: '/viewer',
                 library: '/library',
@@ -1025,7 +1074,7 @@ export default function App() {
               <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-stone-900 shadow-2xl p-6 sm:p-8">
                 <div
                   className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
-                  style={{ backgroundImage: `url('/images/ranked_duel_stage.jpg')` }}
+                  style={{ backgroundImage: `url('${currentTheme.images.masterDuel}')` }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-br from-stone-950 via-stone-950/90 to-stone-900/75 pointer-events-none" />
 
@@ -1040,7 +1089,7 @@ export default function App() {
                       Cấu Hình Đối Thủ AI Trước Khi Vào Trận
                     </h1>
                     <p className="text-xs sm:text-sm text-stone-400">
-                      Lựa chọn động cơ tính toán, cấp độ kỳ lực và màu quân bạn muốn cầm trước khi bắt đầu ván cờ.
+                      Động cơ tính toán đã được đẩy lên mức kỳ lực cao nhất. Lựa chọn động cơ và màu quân để xuất chiến.
                     </p>
                   </div>
 
@@ -1051,13 +1100,13 @@ export default function App() {
                         1. Chọn Động Cơ Tính Toán (AI Engine)
                       </label>
                       <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
-                        100% WebAssembly
+                        Kỳ Lực Đỉnh Cao (Max Strength)
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {AI_ENGINES.map((eng) => {
                         const active = aiEngine === eng.id;
-                        const targetUrl = `/ai?engine=${eng.id}&level=${aiDifficulty}&side=${playerSide}`;
+                        const targetUrl = `/ai?engine=${eng.id}&side=${playerSide}`;
                         return (
                           <a
                             key={eng.id}
@@ -1081,6 +1130,9 @@ export default function App() {
                                 </span>
                               </div>
                               <p className="text-xs text-stone-400 leading-relaxed">{eng.desc}</p>
+                              <div className="text-[11px] text-amber-300/80 italic">
+                                {eng.highlight}
+                              </div>
                             </div>
                             <div className="mt-4 pt-2.5 border-t border-stone-800/70 flex items-center justify-between text-[11px]">
                               <span className={active ? 'text-amber-300 font-semibold' : 'text-stone-500'}>
@@ -1100,35 +1152,25 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Step 2: Difficulty Level Selection */}
-                  <div className="space-y-3">
-                    <label className="block text-xs sm:text-sm font-bold text-stone-200 uppercase tracking-wider">
-                      2. Chọn Cấp Độ Kỳ Lực
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {AI_LEVELS.map((lvl) => {
-                        const active = aiDifficulty === lvl.id;
-                        const targetUrl = `/ai?engine=${aiEngine}&level=${lvl.id}&side=${playerSide}`;
-                        return (
-                          <a
-                            key={lvl.id}
-                            href={targetUrl}
-                            onClick={(e) =>
-                              handleLinkClick(e, targetUrl, () => setAiDifficulty(lvl.id))
-                            }
-                            className={`p-4 rounded-2xl border text-left transition-all ${
-                              active
-                                ? 'bg-amber-600/20 border-amber-500 text-stone-100 shadow-lg ring-1 ring-amber-500/50'
-                                : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-200'
-                            }`}
-                          >
-                            <div className="text-sm font-bold text-stone-100">{lvl.name}</div>
-                            <div className="text-xs font-mono-num text-amber-400 mt-1 font-semibold">
-                              Elo {lvl.eloLabel}
-                            </div>
-                          </a>
-                        );
-                      })}
+                  {/* Step 2: Maximum AI Strength Notice */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-stone-900 to-amber-950/30 border border-amber-500/40 relative overflow-hidden">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-400">
+                        <Zap className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-amber-300">
+                            2. Kỳ Lực Tối Thượng (Max Strength) — Đã Tự Động Kích Hoạt
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                            Sát Lực Cao Nhất
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-300 leading-relaxed">
+                          Hệ thống đã loại bỏ các cấp độ hạn chế kỳ lực. Cả <strong className="text-amber-200">Fairy-Stockfish</strong> và <strong className="text-amber-200">Pikafish</strong> đều vận hành ở mức tính toán cao nhất (Skill Level 20, Depth 16–18 nước, Contempt tích cực và Hash 64MB) để cống hiến những ván cờ sắc bén, thâm sâu nhất.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1140,11 +1182,11 @@ export default function App() {
                       </label>
                       <div className="grid grid-cols-2 gap-2.5">
                         <a
-                          href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=r`}
+                          href={`/ai?engine=${aiEngine}&side=r`}
                           onClick={(e) =>
                             handleLinkClick(
                               e,
-                              `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=r`,
+                              `/ai?engine=${aiEngine}&side=r`,
                               () => setPlayerSide('r')
                             )
                           }
@@ -1158,11 +1200,11 @@ export default function App() {
                           <span>Quân Đỏ (Đi tiên)</span>
                         </a>
                         <a
-                          href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=b`}
+                          href={`/ai?engine=${aiEngine}&side=b`}
                           onClick={(e) =>
                             handleLinkClick(
                               e,
-                              `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=b`,
+                              `/ai?engine=${aiEngine}&side=b`,
                               () => setPlayerSide('b')
                             )
                           }
@@ -1223,8 +1265,8 @@ export default function App() {
                         {AI_ENGINES.find((e) => e.id === aiEngine)?.name}
                       </span>{' '}
                       ·{' '}
-                      <span className="text-stone-200 font-semibold">
-                        {AI_LEVELS.find((l) => l.id === aiDifficulty)?.name}
+                      <span className="text-emerald-400 font-semibold">
+                        Kỳ Lực Tối Thượng (Max Strength)
                       </span>{' '}
                       ·{' '}
                       <span className="text-stone-200 font-semibold">
@@ -1233,18 +1275,18 @@ export default function App() {
                     </div>
 
                     <a
-                      href={`/ai/play?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
+                      href={`/ai/play?engine=${aiEngine}&side=${playerSide}`}
                       onClick={(e) =>
                         handleLinkClick(
                           e,
-                          `/ai/play?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`,
+                          `/ai/play?engine=${aiEngine}&side=${playerSide}`,
                           () => {
                             startNewAIGame(playerSide);
                             setAiScreenState('playing');
                           }
                         )
                       }
-                      className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-600 via-amber-500 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-bold text-sm shadow-[0_0_25px_rgba(245,158,11,0.4)] transition-all flex items-center justify-center gap-2.5 transform hover:-translate-y-0.5"
+                      className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2.5 transform hover:-translate-y-0.5 ${currentTheme.web.primaryBtnClass}`}
                     >
                       <Swords className="w-4 h-4" />
                       <span>Bắt Đầu Chơi Ngay</span>
@@ -1260,11 +1302,11 @@ export default function App() {
               <div className="lg:col-span-7 flex flex-col items-center justify-center w-full">
                 {/* Thanh tiến trình kết quả trận đấu trên đầu bàn cờ (khi kết thúc hoặc đầu hàng) */}
                 {gameResult.isOver && (
-                  <div className="w-full mb-3 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900 to-stone-900 border-2 border-amber-500/80 p-3.5 flex items-center justify-between gap-3 shadow-2xl">
+                  <div className={`w-full mb-3 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-900 to-stone-900 border-2 p-3.5 flex items-center justify-between gap-3 shadow-2xl ${currentTheme.web.cardBorderClass}`}>
                     <div className="flex items-center gap-2.5">
-                      <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                      <Trophy className={`w-5 h-5 shrink-0 ${currentTheme.web.textAccentClass}`} />
                       <div>
-                        <div className="text-sm font-bold text-amber-300">
+                        <div className={`text-sm font-bold ${currentTheme.web.textAccentClass}`}>
                           {gameResult.winner === 'red'
                             ? playerSide === 'r'
                               ? 'Bạn đã chiến thắng!'
@@ -1280,7 +1322,7 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => startNewAIGame(playerSide)}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shrink-0 transition-colors"
+                      className={`px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shrink-0 transition-colors ${currentTheme.web.primaryBtnClass}`}
                     >
                       Ván mới
                     </button>
@@ -1303,23 +1345,23 @@ export default function App() {
                 {/* Compact Bottom Action Bar (Touch targets >= 44px) */}
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2 bg-stone-900/90 border border-stone-800 rounded-2xl p-2 shadow-lg">
                   <a
-                    href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
+                    href={`/ai?engine=${aiEngine}&side=${playerSide}`}
                     onClick={(e) =>
                       handleLinkClick(
                         e,
-                        `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`,
+                        `/ai?engine=${aiEngine}&side=${playerSide}`,
                         () => setAiScreenState('setup')
                       )
                     }
                     title="Quay lại màn Cài đặt"
-                    className="min-h-[44px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    className={`min-h-[44px] px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${currentTheme.web.secondaryBtnClass}`}
                   >
                     <span>⚙ Cài đặt</span>
                   </a>
                   <button
                     onClick={() => startNewAIGame(playerSide)}
                     title="Ván mới"
-                    className="min-h-[44px] px-3.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    className={`min-h-[44px] px-3.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${currentTheme.web.primaryBtnClass}`}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Ván mới</span>
@@ -1337,7 +1379,7 @@ export default function App() {
                     onClick={handleHint}
                     disabled={gameResult.isOver || aiThinking}
                     title="Gợi ý nước đi tốt nhất"
-                    className="min-h-[44px] px-3 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                    className={`min-h-[44px] px-3 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-xs font-medium flex items-center gap-1.5 transition-colors ${currentTheme.web.textAccentClass}`}
                   >
                     <Lightbulb className="w-3.5 h-3.5" />
                     <span>Gợi ý</span>
@@ -1426,11 +1468,11 @@ export default function App() {
                       </span>
                     </div>
                     <a
-                      href={`/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`}
+                      href={`/ai?engine=${aiEngine}&side=${playerSide}`}
                       onClick={(e) =>
                         handleLinkClick(
                           e,
-                          `/ai?engine=${aiEngine}&level=${aiDifficulty}&side=${playerSide}`,
+                          `/ai?engine=${aiEngine}&side=${playerSide}`,
                           () => setAiScreenState('setup')
                         )
                       }
@@ -1448,10 +1490,9 @@ export default function App() {
                       </div>
                     </div>
                     <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800/80">
-                      <div className="text-[10px] text-stone-500">Cấp độ</div>
-                      <div className="font-semibold text-amber-300 mt-0.5">
-                        {AI_LEVELS.find((l) => l.id === aiDifficulty)?.name} (
-                        {AI_LEVELS.find((l) => l.id === aiDifficulty)?.eloLabel})
+                      <div className="text-[10px] text-stone-500">Kỳ lực</div>
+                      <div className="font-semibold text-emerald-400 mt-0.5">
+                        Tối Thượng (Max)
                       </div>
                     </div>
                     <div className="p-2.5 rounded-xl bg-stone-950 border border-stone-800/80">
@@ -1505,7 +1546,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-          ))},
+          ))}
 
         {activeTab === 'ranked' && (
           <RankedRoomView
@@ -1541,6 +1582,7 @@ export default function App() {
 
         {activeTab === 'leaderboard' && (
           <LeaderboardView
+            theme={currentTheme}
             onOpenViewer={(txt) => {
               setViewerInitialPgn(txt);
               navigateUrl('/viewer');

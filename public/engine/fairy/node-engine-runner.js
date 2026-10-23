@@ -44,6 +44,8 @@ async function init() {
 
     instance.postMessage('uci');
     instance.postMessage('setoption name UCI_Variant value xiangqi');
+    instance.postMessage('setoption name Skill Level value 20');
+    instance.postMessage('setoption name Hash value 64');
     instance.postMessage('isready');
   } catch (err) {
     if (process.send) {
@@ -57,6 +59,12 @@ function processQueue() {
   const req = queue.shift();
   busy = true;
 
+  const isPika = req.engine === 'pikafish';
+  const depth = req.depth || (isPika ? 18 : 16);
+  const time = req.time || (isPika ? 2400 : 2000);
+  const skill = 20;
+  const contempt = isPika ? 25 : 10;
+
   const timer = setTimeout(() => {
     if (currentSearch && currentSearch.id === req.id) {
       currentSearch = null;
@@ -69,13 +77,17 @@ function processQueue() {
       }
       processQueue();
     }
-  }, (req.time || 800) + 1800);
+  }, time + 2500);
 
   currentSearch = { id: req.id, timer };
 
-  instance.postMessage(`setoption name Skill Level value ${req.skill ?? 10}`);
+  instance.postMessage(`setoption name Skill Level value ${skill}`);
+  instance.postMessage('setoption name Hash value 64');
+  try {
+    instance.postMessage(`setoption name Contempt value ${contempt}`);
+  } catch {}
   instance.postMessage(`position fen ${req.fen}`);
-  instance.postMessage(`go depth ${req.depth || 4} movetime ${req.time || 500}`);
+  instance.postMessage(`go depth ${depth} movetime ${time}`);
 }
 
 process.on('message', (msg) => {

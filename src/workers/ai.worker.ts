@@ -9,13 +9,14 @@ import {
   isKingInCheck,
 } from '../shared/xiangqi';
 
-export type AIEngineType = 'fairy_stockfish' | 'pikafish' | 'builtin';
-export type AIDifficulty = 'novice' | 'veteran' | 'master' | 'grandmaster';
+export type AIEngineType = 'fairy_stockfish' | 'pikafish';
+// Retain type for backward compatibility
+export type AIDifficulty = 'max' | 'novice' | 'veteran' | 'master' | 'grandmaster';
 
 interface WorkerRequest {
   id: number;
   fen: string;
-  difficulty: AIDifficulty;
+  difficulty?: AIDifficulty;
   engine?: AIEngineType;
   isDarkXiangqi?: boolean;
 }
@@ -209,24 +210,14 @@ function alphaBeta(
 
 export function findBestMove(
   fen: string,
-  difficulty: AIDifficulty,
+  _difficulty?: AIDifficulty,
   isDarkXiangqi = false
 ): Move | null {
   const { board, turn } = parseFen(fen);
   const legalMoves = orderMoves(getAllLegalMoves(board, turn, isDarkXiangqi));
   if (legalMoves.length === 0) return null;
 
-  const configMap: Record<
-    AIDifficulty,
-    { depth: number; noise: number; useQuiescence: boolean }
-  > = {
-    novice: { depth: 1, noise: 160, useQuiescence: false },
-    veteran: { depth: 2, noise: 65, useQuiescence: false },
-    master: { depth: 3, noise: 15, useQuiescence: true },
-    grandmaster: { depth: 4, noise: 0, useQuiescence: true },
-  };
-
-  const cfg = configMap[difficulty] || configMap.veteran;
+  // Maximum strength heuristic search: depth 3 with full quiescence, zero noise
   const nextTurn: PieceColor = turn === 'r' ? 'b' : 'r';
 
   let bestMove = legalMoves[0];
@@ -239,18 +230,15 @@ export function findBestMove(
     let score = alphaBeta(
       nextBoard,
       nextTurn,
-      cfg.depth - 1,
+      2,
       alpha,
       beta,
       turn,
-      cfg.useQuiescence,
+      true,
       isDarkXiangqi
     );
     if (isKingInCheck(nextBoard, nextTurn, isDarkXiangqi)) {
-      score += 18;
-    }
-    if (cfg.noise > 0) {
-      score += (Math.random() - 0.5) * cfg.noise;
+      score += 20;
     }
     if (score > bestScore) {
       bestScore = score;
@@ -391,6 +379,8 @@ async function initFairyEngine(): Promise<boolean> {
 
       fairyInstance.postMessage('uci');
       fairyInstance.postMessage('setoption name UCI_Variant value xiangqi');
+      fairyInstance.postMessage('setoption name Skill Level value 20');
+      fairyInstance.postMessage('setoption name Hash value 64');
       fairyInstance.postMessage('isready');
 
       return new Promise<boolean>((resolve) => {
@@ -415,26 +405,19 @@ async function initFairyEngine(): Promise<boolean> {
   return fairyInitPromise;
 }
 
-const FAIRY_DIFFICULTY_CONFIG: Record<
-  AIDifficulty,
-  { depth: number; time: number; skill: number }
-> = {
-  novice: { depth: 2, time: 200, skill: 0 },
-  veteran: { depth: 4, time: 380, skill: 7 },
-  master: { depth: 6, time: 650, skill: 14 },
-  grandmaster: { depth: 8, time: 1200, skill: 20 },
-};
-
 async function requestClientFairyMove(
   fen: string,
-  difficulty: AIDifficulty = 'grandmaster'
+  engine: AIEngineType = 'fairy_stockfish'
 ): Promise<{ from: { row: number; col: number }; to: { row: number; col: number } } | null> {
   const ready = await initFairyEngine();
   if (!ready || !fairyInstance) return null;
 
   const { board, turn } = parseFen(fen);
-  // Always use grandmaster configuration (Skill Level 20, max depth)
-  const cfg = FAIRY_DIFFICULTY_CONFIG.grandmaster;
+  // Max Strength Profile: Skill 20, Depth 16-18, Movetime 2000-2400ms
+  const isPika = engine === 'pikafish';
+  const depth = isPika ? 18 : 16;
+  const time = isPika ? 2400 : 2000;
+  const contempt = isPika ? 25 : 10;
 
   return new Promise((resolve) => {
     currentUciResolve = (bestUci) => {
@@ -445,33 +428,36 @@ async function requestClientFairyMove(
       }
     };
 
-    fairyInstance.postMessage(`setoption name Skill Level value ${cfg.skill}`);
+    fairyInstance.postMessage('setoption name Skill Level value 20');
+    fairyInstance.postMessage('setoption name Hash value 64');
+    try {
+      fairyInstance.postMessage(`setoption name Contempt value ${contempt}`);
+    } catch {}
     fairyInstance.postMessage(`position fen ${fen}`);
-    fairyInstance.postMessage(`go depth ${cfg.depth} movetime ${cfg.time}`);
+    fairyInstance.postMessage(`go depth ${depth} movetime ${time}`);
 
     setTimeout(() => {
       if (currentUciResolve) {
         currentUciResolve = null;
         resolve(null);
       }
-    }, cfg.time + 1500);
+    }, time + 2000);
   });
 }
 
 async function requestServerFairyMove(
   fen: string,
-  difficulty: AIDifficulty = 'grandmaster',
   engine: AIEngineType = 'fairy_stockfish'
 ): Promise<{ from: { row: number; col: number }; to: { row: number; col: number } } | null> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
+  const timeout = setTimeout(() => controller.abort(), 3500);
   try {
     const res = await fetch('/api/ai/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
       signal: controller.signal,
-      body: JSON.stringify({ fen, difficulty: 'grandmaster', engine: 'fairy_stockfish' }),
+      body: JSON.stringify({ fen, engine }),
     });
     clearTimeout(timeout);
     if (!res.ok) return null;
@@ -488,22 +474,27 @@ async function requestServerFairyMove(
 
 async function requestFairyMove(
   fen: string,
-  difficulty: AIDifficulty = 'grandmaster',
   engine: AIEngineType = 'fairy_stockfish'
 ): Promise<{
   move: { from: { row: number; col: number }; to: { row: number; col: number } };
   engineUsed: string;
 } | null> {
-  // 1. Try client-side WebAssembly Fairy-Stockfish first at max Elo
-  const clientMove = await requestClientFairyMove(fen, 'grandmaster');
+  // 1. Try client-side WebAssembly first
+  const clientMove = await requestClientFairyMove(fen, engine);
   if (clientMove) {
-    return { move: clientMove, engineUsed: 'fairy_stockfish_wasm_client' };
+    return {
+      move: clientMove,
+      engineUsed: engine === 'pikafish' ? 'pikafish_nnue_client' : 'fairy_stockfish_wasm_client',
+    };
   }
 
-  // 2. If browser iframe restricts SharedArrayBuffer, run Fairy-Stockfish WASM via isolated backend runner at max Elo
-  const serverMove = await requestServerFairyMove(fen, 'grandmaster', 'fairy_stockfish');
+  // 2. Try server-side isolated runner
+  const serverMove = await requestServerFairyMove(fen, engine);
   if (serverMove) {
-    return { move: serverMove, engineUsed: 'fairy_stockfish_wasm_server' };
+    return {
+      move: serverMove,
+      engineUsed: engine === 'pikafish' ? 'pikafish_nnue_server' : 'fairy_stockfish_wasm_server',
+    };
   }
 
   return null;
@@ -511,17 +502,17 @@ async function requestFairyMove(
 
 if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'function') {
   self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-    const { id, fen, isDarkXiangqi = false } = e.data;
+    const { id, fen, engine = 'fairy_stockfish', isDarkXiangqi = false } = e.data;
 
     // Dark Xiangqi (Cờ Úp) uses the dedicated native engine
     if (isDarkXiangqi) {
-      const move = findBestMove(fen, 'grandmaster', isDarkXiangqi);
-      self.postMessage({ id, move, engineUsed: 'builtin' });
+      const move = findBestMove(fen, 'master', isDarkXiangqi);
+      self.postMessage({ id, move, engineUsed: 'dark_xiangqi_engine' });
       return;
     }
 
-    // Standard Xiangqi: Always use Fairy-Stockfish WASM at highest Elo
-    const fairyResult = await requestFairyMove(fen, 'grandmaster', 'fairy_stockfish');
+    // Standard Xiangqi: Use Fairy-Stockfish or Pikafish at MAX STRENGTH
+    const fairyResult = await requestFairyMove(fen, engine);
 
     if (fairyResult) {
       self.postMessage({
@@ -530,12 +521,12 @@ if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'functio
         engineUsed: fairyResult.engineUsed,
       });
     } else {
-      // Graceful offline fallback if WASM/network is completely restricted
-      const fallbackMove = findBestMove(fen, 'grandmaster', false);
+      // Graceful offline fallback
+      const fallbackMove = findBestMove(fen, 'master', false);
       self.postMessage({
         id,
         move: fallbackMove ? { from: fallbackMove.from, to: fallbackMove.to } : null,
-        engineUsed: 'builtin_fallback',
+        engineUsed: 'offline_fallback',
       });
     }
   };

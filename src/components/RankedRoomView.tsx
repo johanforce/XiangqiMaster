@@ -103,6 +103,12 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   const lastSeenChatLengthRef = useRef(0);
   const joiningRoomRef = useRef<string | null>(null);
 
+  const arenaGateImg = theme?.images?.arenaGate || '/images/ranked_arena_gate.jpg';
+  const masterDuelImg = theme?.images?.masterDuel || '/images/master_duel.jpg';
+  const lobbyPavilionImg = theme?.images?.lobbyPavilion || '/images/ranked_lobby_pavilion.jpg';
+  const championHallImg = theme?.images?.championHall || '/images/champion_hall.jpg';
+  const leaderboardBgImg = theme?.images?.leaderboardBg || '/images/leaderboard_bg.jpg';
+
   // Sync Ranked view state from URL changes
   useEffect(() => {
     const syncRankedFromUrl = () => {
@@ -203,8 +209,6 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   };
 
   useEffect(() => {
-    // Khi đang trong phòng thi đấu hoặc phòng chờ, không polling hay lắng nghe danh sách sảnh
-    if (activeRoom) return;
     fetchOpenRooms();
     const timer = setInterval(fetchOpenRooms, 3000);
     if (socket) {
@@ -219,7 +223,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       };
     }
     return () => clearInterval(timer);
-  }, [socket, selectedMode, Boolean(activeRoom)]);
+  }, [socket, selectedMode, activeRoom]);
 
   // Keep chat unread count and auto-scroll
   useEffect(() => {
@@ -244,13 +248,6 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   useEffect(() => {
     if (activeRoom?.status === 'playing') {
       setReviewMode(false);
-      setReviewPly(activeRoom.moves?.length || 0);
-      const params = new URLSearchParams(window.location.search);
-      if (params.has('ply')) {
-        params.delete('ply');
-        const newSearch = params.toString() ? `?${params.toString()}` : '';
-        navigateUrl(`${window.location.pathname}${newSearch}`, true);
-      }
     }
     if (activeRoom?.status === 'finished' && activeRoom?.moves) {
       setReviewPly(activeRoom.moves.length);
@@ -267,7 +264,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         time: '5 phút + 3 giây / nước',
         desc: 'Phản xạ thần tốc, quyết định trong tích tắc trên từng nước đi.',
         icon: Flame,
-        bg: '/images/master_duel.jpg',
+        bg: masterDuelImg,
         accent: 'text-orange-400 border-orange-500/30 bg-orange-500/10',
       },
       {
@@ -276,7 +273,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         time: '30 phút · 120 giây / nước',
         desc: 'Đấu trí chuyên sâu theo chuẩn giải đấu kỳ đài chuyên nghiệp.',
         icon: Clock,
-        bg: '/images/ranked_duel_stage.jpg',
+        bg: masterDuelImg,
         accent: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
       },
       {
@@ -285,7 +282,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         time: '15 phút · 120 giây / nước',
         desc: 'Biến ảo khôn lường với nghệ thuật mở quân và sát cục bất ngờ.',
         icon: EyeOff,
-        bg: '/images/champion_hall.jpg',
+        bg: championHallImg,
         accent: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
       },
     ];
@@ -294,9 +291,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
         {/* Hero Gate Banner with Cinematic Background Image */}
         <div
-          className="relative rounded-3xl border border-amber-900/40 p-6 sm:p-10 shadow-2xl overflow-hidden bg-cover bg-center"
+          className="relative rounded-3xl border border-amber-900/40 p-6 sm:p-10 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700"
           style={{
-            backgroundImage: `linear-gradient(to right, rgba(12, 10, 9, 0.90) 0%, rgba(15, 13, 11, 0.74) 55%, rgba(12, 10, 9, 0.88) 100%), url('/images/ranked_arena_gate.jpg')`,
+            backgroundImage: `linear-gradient(to right, rgba(12, 10, 9, 0.90) 0%, rgba(15, 13, 11, 0.74) 55%, rgba(12, 10, 9, 0.88) 100%), url('${arenaGateImg}')`,
           }}
         >
           <div className="relative z-10 max-w-2xl space-y-5">
@@ -386,9 +383,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
         {/* Khu vực xem trước Sảnh Phòng Đấu với hình nền */}
         <div
-          className="relative rounded-3xl border border-stone-800/90 p-5 sm:p-6 shadow-2xl overflow-hidden bg-cover bg-center space-y-4"
+          className="relative rounded-3xl border border-stone-800/90 p-5 sm:p-6 shadow-2xl overflow-hidden bg-cover bg-center space-y-4 transition-all duration-700"
           style={{
-            backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 14, 0.84) 0%, rgba(12, 10, 9, 0.94) 100%), url('/images/ranked_lobby_pavilion.jpg')`,
+            backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 14, 0.84) 0%, rgba(12, 10, 9, 0.94) 100%), url('${lobbyPavilionImg}')`,
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-800/80 pb-3">
@@ -435,7 +432,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                       })
                     }
                     style={{
-                      backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('/images/ranked_duel_stage.jpg')`,
+                      backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('${masterDuelImg}')`,
                     }}
                     className="rounded-2xl bg-cover bg-center border border-stone-800 hover:border-amber-500/50 p-4 space-y-2.5 cursor-pointer transition-all backdrop-blur-xs shadow-lg block"
                   >
@@ -583,7 +580,6 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       {
         code: activeRoom.code,
         uid: currentUser.uid,
-        username: currentUser.username,
         from,
         to,
       },
@@ -663,7 +659,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         sub: 'Toàn bộ sảnh đấu',
         icon: Swords,
         count: roomCounts.all,
-        bg: '/images/ranked_arena_gate.jpg',
+        bg: arenaGateImg,
       },
       {
         id: 'blitz',
@@ -671,7 +667,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         sub: '5 phút + 3s',
         icon: Flame,
         count: roomCounts.blitz,
-        bg: '/images/master_duel.jpg',
+        bg: masterDuelImg,
       },
       {
         id: 'standard',
@@ -679,7 +675,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         sub: '30p · 2p/nước',
         icon: Clock,
         count: roomCounts.standard,
-        bg: '/images/ranked_duel_stage.jpg',
+        bg: masterDuelImg,
       },
       {
         id: 'dark',
@@ -687,7 +683,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         sub: '15p · 2p/nước',
         icon: EyeOff,
         count: roomCounts.dark,
-        bg: '/images/champion_hall.jpg',
+        bg: championHallImg,
       },
     ] as const;
 
@@ -695,9 +691,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
         {/* Banner tiêu đề sảnh hoàng gia có hình nền */}
         <div
-          className="relative rounded-3xl border border-amber-900/40 p-5 sm:p-7 shadow-2xl overflow-hidden bg-cover bg-center"
+          className="relative rounded-3xl border border-amber-900/40 p-5 sm:p-7 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700"
           style={{
-            backgroundImage: `linear-gradient(to right, rgba(15, 13, 12, 0.88) 0%, rgba(18, 15, 13, 0.74) 50%, rgba(12, 10, 9, 0.90) 100%), url('/images/ranked_lobby_pavilion.jpg')`,
+            backgroundImage: `linear-gradient(to right, rgba(15, 13, 12, 0.88) 0%, rgba(18, 15, 13, 0.74) 50%, rgba(12, 10, 9, 0.90) 100%), url('${lobbyPavilionImg}')`,
           }}
         >
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -787,9 +783,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
         {/* 2. Thanh tác vụ: Nhập mã nhanh & Tạo phòng */}
         <div
-          className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border border-stone-800/90 rounded-2xl p-3.5 sm:p-4 shadow-xl bg-cover bg-center"
+          className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border border-stone-800/90 rounded-2xl p-3.5 sm:p-4 shadow-xl bg-cover bg-center transition-all duration-700"
           style={{
-            backgroundImage: `linear-gradient(to right, rgba(18, 16, 15, 0.92) 0%, rgba(14, 12, 11, 0.94) 100%), url('/images/leaderboard_bg.jpg')`,
+            backgroundImage: `linear-gradient(to right, rgba(18, 16, 15, 0.92) 0%, rgba(14, 12, 11, 0.94) 100%), url('${leaderboardBgImg}')`,
           }}
         >
           <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -822,7 +818,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </button>
             <button
               onClick={() => handleCreateRoom()}
-              className="min-h-[42px] px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] active:scale-95"
+              className={`min-h-[42px] px-6 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 ${
+                theme?.web.primaryBtnClass ||
+                'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+              }`}
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Tạo phòng mới</span>
@@ -835,9 +834,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           roomCounts.all > 0 && selectedMode !== 'all' ? (
             /* Có phòng ở thể loại khác nhưng thể loại hiện tại đang rỗng */
             <div
-              className="py-16 flex flex-col items-center justify-center gap-4 rounded-3xl border border-stone-800/90 p-8 text-center shadow-2xl bg-cover bg-center"
+              className="py-16 flex flex-col items-center justify-center gap-4 rounded-3xl border border-stone-800/90 p-8 text-center shadow-2xl bg-cover bg-center transition-all duration-700"
               style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.80) 0%, rgba(10, 9, 8, 0.92) 100%), url('/images/ranked_arena_gate.jpg')`,
+                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.80) 0%, rgba(10, 9, 8, 0.92) 100%), url('${arenaGateImg}')`,
               }}
             >
               <div className="w-14 h-14 rounded-full bg-stone-950/90 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
@@ -847,7 +846,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <div className="text-sm font-bold text-stone-100">
                   Chưa có phòng nào cho thể loại này
                 </div>
-                <div className="text-xs text-amber-300">
+                <div className={`text-xs ${theme?.web.textAccentClass || 'text-amber-300'}`}>
                   Đang có <strong className="font-extrabold underline">{roomCounts.all} phòng</strong> đang mở ở các thể loại khác!
                 </div>
               </div>
@@ -855,7 +854,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <a
                   href="/ranked"
                   onClick={(e) => handleLinkClick(e, '/ranked', () => setSelectedMode('all'))}
-                  className="min-h-[42px] px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                  className={`min-h-[42px] px-5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${
+                    theme?.web.primaryBtnClass || 'bg-amber-500 text-stone-950'
+                  }`}
                 >
                   <Swords className="w-4 h-4 stroke-[2]" />
                   <span>Xem tất cả {roomCounts.all} phòng đang mở</span>
@@ -872,9 +873,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           ) : (
             /* Hoàn toàn chưa có phòng nào */
             <div
-              className="py-20 flex flex-col items-center justify-center gap-4 rounded-3xl border border-stone-800/90 p-8 text-center shadow-2xl bg-cover bg-center"
+              className="py-20 flex flex-col items-center justify-center gap-4 rounded-3xl border border-stone-800/90 p-8 text-center shadow-2xl bg-cover bg-center transition-all duration-700"
               style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.78) 0%, rgba(10, 9, 8, 0.92) 100%), url('/images/ranked_arena_gate.jpg')`,
+                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.78) 0%, rgba(10, 9, 8, 0.92) 100%), url('${arenaGateImg}')`,
               }}
             >
               <div className="w-16 h-16 rounded-full bg-stone-950/90 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
@@ -886,7 +887,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               </div>
               <button
                 onClick={() => handleCreateRoom()}
-                className="min-h-[44px] px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                className={`min-h-[44px] px-6 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${
+                  theme?.web.primaryBtnClass || 'bg-amber-500 text-stone-950'
+                }`}
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Tạo phòng ngay</span>
@@ -905,7 +908,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <div
                   key={r.code}
                   style={{
-                    backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('/images/ranked_duel_stage.jpg')`,
+                    backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('${masterDuelImg}')`,
                   }}
                   className="rounded-2xl bg-cover bg-center border border-stone-800 hover:border-amber-500/60 p-4.5 flex flex-col justify-between gap-3.5 shadow-xl hover:shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all duration-200 group"
                 >
@@ -983,7 +986,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             handleJoinRoom(r.code, false)
                           )
                         }
-                        className="w-full min-h-[40px] rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_0_16px_rgba(245,158,11,0.25)] active:scale-95"
+                        className={`w-full min-h-[40px] rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                          theme?.web.primaryBtnClass ||
+                          'bg-gradient-to-r from-amber-600 to-amber-700 text-stone-950 shadow-[0_0_16px_rgba(245,158,11,0.25)]'
+                        }`}
                       >
                         <Swords className="w-3.5 h-3.5 stroke-[2.2]" />
                         <span>Vào chơi ({r.playerCount}/2 ghế)</span>
@@ -1056,9 +1062,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-4 animate-in fade-in duration-300">
         {/* Thanh tiêu đề phòng chờ hoàng gia có hình nền */}
         <div
-          className="flex items-center justify-between border border-amber-900/40 rounded-2xl px-5 py-3.5 shadow-2xl bg-cover bg-center"
+          className="flex items-center justify-between border border-amber-900/40 rounded-2xl px-5 py-3.5 shadow-2xl bg-cover bg-center transition-all duration-700"
           style={{
-            backgroundImage: `linear-gradient(to right, rgba(16, 14, 13, 0.88) 0%, rgba(18, 15, 13, 0.78) 100%), url('/images/ranked_lobby_pavilion.jpg')`,
+            backgroundImage: `linear-gradient(to right, rgba(16, 14, 13, 0.88) 0%, rgba(18, 15, 13, 0.78) 100%), url('${lobbyPavilionImg}')`,
           }}
         >
           <div className="flex items-center gap-3">
@@ -1097,9 +1103,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           <div className="lg:col-span-7 space-y-4">
             {/* Kỳ Đài Song Hùng Đối Kháng có hình nền */}
             <div
-              className="rounded-3xl border border-amber-900/40 p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden bg-cover bg-center"
+              className="rounded-3xl border border-amber-900/40 p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden bg-cover bg-center transition-all duration-700"
               style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.82) 0%, rgba(10, 9, 8, 0.92) 100%), url('/images/ranked_duel_stage.jpg')`,
+                backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.82) 0%, rgba(10, 9, 8, 0.92) 100%), url('${masterDuelImg}')`,
               }}
             >
               {/* Tiêu đề kỳ đài */}
@@ -1309,9 +1315,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
             {/* Khán Đài Danh Dự (6 Ghế Khán Giả) có hình nền */}
             <div
-              className="rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-xl bg-cover bg-center"
+              className="rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-xl bg-cover bg-center transition-all duration-700"
               style={{
-                backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('/images/champion_hall.jpg')`,
+                backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('${championHallImg}')`,
               }}
             >
               <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
@@ -1366,9 +1372,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
           {/* Cột phải: KHUNG CHAT LIÊN TỤC có hình nền - Chiều cao cố định không co giãn */}
           <div
-            className="lg:col-span-5 rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-2xl flex flex-col h-[560px] max-h-[560px] bg-cover bg-center shrink-0"
+            className="lg:col-span-5 rounded-3xl border border-stone-800 p-5 space-y-3.5 shadow-2xl flex flex-col h-[560px] max-h-[560px] bg-cover bg-center shrink-0 transition-all duration-700"
             style={{
-              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.90) 0%, rgba(12, 10, 9, 0.96) 100%), url('/images/leaderboard_bg.jpg')`,
+              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.90) 0%, rgba(12, 10, 9, 0.96) 100%), url('${leaderboardBgImg}')`,
             }}
           >
             <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2.5 flex items-center justify-between shrink-0">
@@ -1478,16 +1484,8 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   // VIEW 3: TRONG VÁN ĐẤU HOẶC XEM LẠI TÀN CUỘC (PLAYING / FINISHED)
   // Bàn cờ render tại đây
   // =========================================================================
-  const isRed = Boolean(
-    activeRoom.redPlayer &&
-      (activeRoom.redPlayer.uid === currentUser.uid ||
-        activeRoom.redPlayer.username?.toLowerCase() === currentUser.username?.toLowerCase())
-  );
-  const isBlack = Boolean(
-    activeRoom.blackPlayer &&
-      (activeRoom.blackPlayer.uid === currentUser.uid ||
-        activeRoom.blackPlayer.username?.toLowerCase() === currentUser.username?.toLowerCase())
-  );
+  const isRed = activeRoom.redPlayer?.uid === currentUser.uid;
+  const isBlack = activeRoom.blackPlayer?.uid === currentUser.uid;
   const myColor = isRed ? 'r' : isBlack ? 'b' : undefined;
 
   const moves = activeRoom.moves || [];
@@ -1530,7 +1528,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     return (
       <div
         style={{
-          backgroundImage: `linear-gradient(to right, rgba(18, 16, 15, 0.88) 0%, rgba(14, 12, 11, 0.92) 100%), url('/images/ranked_duel_stage.jpg')`,
+          backgroundImage: `linear-gradient(to right, rgba(18, 16, 15, 0.88) 0%, rgba(14, 12, 11, 0.92) 100%), url('${masterDuelImg}')`,
         }}
         className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl transition-all bg-cover bg-center ${
           isMe
@@ -1686,9 +1684,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {activeRoom.status === 'finished' && (
           <div
             style={{
-              backgroundImage: `linear-gradient(to right, rgba(18, 15, 13, 0.86) 0%, rgba(14, 12, 10, 0.92) 100%), url('/images/champion_hall.jpg')`,
+              backgroundImage: `linear-gradient(to right, rgba(18, 15, 13, 0.86) 0%, rgba(14, 12, 10, 0.92) 100%), url('${championHallImg}')`,
             }}
-            className="w-full rounded-2xl bg-cover bg-center border-2 border-amber-500/80 p-4 space-y-3 shadow-2xl"
+            className="w-full rounded-2xl bg-cover bg-center border-2 border-amber-500/80 p-4 space-y-3 shadow-2xl transition-all duration-700"
           >
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
@@ -2076,9 +2074,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {sideTab === 'notation' && (
           <div
             style={{
-              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('/images/ranked_lobby_pavilion.jpg')`,
+              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('${lobbyPavilionImg}')`,
             }}
-            className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-4 min-h-[380px] flex flex-col shadow-xl"
+            className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-4 min-h-[380px] flex flex-col shadow-xl transition-all duration-700"
           >
             <div className="border-b border-stone-800/80 pb-3 flex items-center justify-between gap-2 flex-wrap">
               <div>
@@ -2163,9 +2161,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {sideTab === 'spectators' && (
           <div
             style={{
-              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('/images/champion_hall.jpg')`,
+              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('${championHallImg}')`,
             }}
-            className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-3 min-h-[380px] shadow-xl"
+            className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-3 min-h-[380px] shadow-xl transition-all duration-700"
           >
             <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
               <div className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
@@ -2204,9 +2202,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {sideTab === 'chat' && (
           <div
             style={{
-              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('/images/leaderboard_bg.jpg')`,
+              backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.88) 0%, rgba(12, 10, 9, 0.95) 100%), url('${leaderboardBgImg}')`,
             }}
-            className="rounded-2xl bg-cover bg-center border border-stone-800 p-4 space-y-3 shadow-xl h-[480px] max-h-[480px] flex flex-col shrink-0"
+            className="rounded-2xl bg-cover bg-center border border-stone-800 p-4 space-y-3 shadow-xl h-[480px] max-h-[480px] flex flex-col shrink-0 transition-all duration-700"
           >
             <div className="text-xs font-bold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2 flex items-center justify-between shrink-0">
               <span className="flex items-center gap-1.5">

@@ -26,17 +26,20 @@ import { UserProfile } from './AuthModal';
 import { getEloRankTitle } from '../shared/elo';
 import { Logo } from './Logo';
 import { handleLinkClick, MainTab } from '../utils/navigation';
+import { BoardTheme } from '../utils/themes';
 
 interface HomeViewProps {
   currentUser: UserProfile | null;
   onNavigate: (tab: MainTab) => void;
   onOpenAuth: () => void;
+  theme?: BoardTheme;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   currentUser,
   onNavigate,
   onOpenAuth,
+  theme,
 }) => {
   const [topPlayers, setTopPlayers] = useState<any[]>([]);
   const [loadingTop, setLoadingTop] = useState(true);
@@ -72,9 +75,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Hero Background Image with Atmospheric Overlay */}
         <div className="absolute inset-0 z-0">
           <img
-            src="/images/hero_cover.jpg"
+            src={theme?.images?.heroCover || '/images/hero_cover.jpg'}
             alt="Bàn cờ tướng cổ điển"
-            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.45] contrast-[1.1]"
+            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.45] contrast-[1.1] transition-all duration-700"
+            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/30" />
           <div className="absolute inset-0 bg-radial-gradient from-transparent via-stone-950/40 to-stone-950/90" />
@@ -86,14 +90,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <Logo size="lg" variant="full" theme="dark" />
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md border ${
+              theme?.web.accentBadgeClass || 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${theme?.web.textAccentClass || 'text-amber-400'}`} />
             <span>Fairy-Stockfish WASM · Kỳ Phổ WXF · Cờ Úp Dân Gian</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-stone-100 tracking-tight leading-tight sm:leading-none">
             KỲ ĐẠO ĐỈNH CAO
-            <span className="block text-2xl sm:text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 mt-2 font-serif">
+            <span
+              className={`block text-2xl sm:text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${
+                theme?.web.accentGradient || 'from-amber-400 via-amber-200 to-amber-500'
+              } mt-2 font-serif`}
+            >
               Tinh Hoa Cờ Tướng Việt Nam
             </span>
           </h1>
@@ -109,7 +121,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <a
               href="/ranked"
               onClick={(e) => handleLinkClick(e, '/ranked')}
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-sm shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:shadow-[0_0_35px_rgba(245,158,11,0.5)] transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
+              className={`px-6 py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 transform hover:-translate-y-0.5 ${
+                theme?.web.primaryBtnClass ||
+                'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-[0_0_25px_rgba(245,158,11,0.35)]'
+              }`}
             >
               <Swords className="w-4 h-4" />
               <span>Đấu Xếp Hạng ngay</span>
@@ -119,16 +134,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <a
               href="/ai"
               onClick={(e) => handleLinkClick(e, '/ai')}
-              className="px-6 py-3.5 rounded-2xl bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-100 font-bold text-sm backdrop-blur-md transition-all flex items-center gap-2 transform hover:-translate-y-0.5"
+              className={`px-6 py-3.5 rounded-2xl font-bold text-sm backdrop-blur-md transition-all flex items-center gap-2 transform hover:-translate-y-0.5 ${
+                theme?.web.secondaryBtnClass ||
+                'bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-100'
+              }`}
             >
-              <Bot className="w-4 h-4 text-amber-400" />
+              <Bot className={`w-4 h-4 ${theme?.web.textAccentClass || 'text-amber-400'}`} />
               <span>Đấu với Máy (AI)</span>
             </a>
 
             <a
               href="/viewer"
               onClick={(e) => handleLinkClick(e, '/viewer')}
-              className="px-5 py-3.5 rounded-2xl bg-stone-950/60 hover:bg-stone-900 border border-stone-800 text-stone-300 text-sm font-medium transition-colors flex items-center gap-2"
+              className={`px-5 py-3.5 rounded-2xl text-sm font-medium transition-colors flex items-center gap-2 ${
+                theme?.web.subtleBtnClass ||
+                'bg-stone-950/60 hover:bg-stone-900 border border-stone-800 text-stone-300'
+              }`}
             >
               <BookOpen className="w-4 h-4" />
               <span>Xem Kỳ Phổ</span>
@@ -137,9 +158,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <a
               href="/library"
               onClick={(e) => handleLinkClick(e, '/library')}
-              className="px-5 py-3.5 rounded-2xl bg-amber-950/40 hover:bg-amber-900/40 border border-amber-500/40 text-amber-300 text-sm font-semibold transition-colors flex items-center gap-2"
+              className={`px-5 py-3.5 rounded-2xl text-sm font-semibold transition-colors flex items-center gap-2 ${
+                theme?.web.secondaryBtnClass ||
+                'bg-amber-950/40 hover:bg-amber-900/40 border border-amber-500/40 text-amber-300'
+              }`}
             >
-              <Library className="w-4 h-4 text-amber-400" />
+              <Library className={`w-4 h-4 ${theme?.web.textAccentClass || 'text-amber-400'}`} />
               <span>Tàng Thư Các</span>
             </a>
           </div>
@@ -221,7 +245,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 Đấu Với Máy (AI)
               </h3>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Tích hợp Fairy-Stockfish WASM kỳ lực Grandmaster đỉnh cao (~2700 Elo), hỗ trợ đấu cờ tiêu chuẩn, kho giải cờ thế và tạo thế nghệ thuật.
+                Tích hợp Fairy-Stockfish WASM và Pikafish NNUE. 4 cấp độ từ Tân thủ đến Kỳ tiên (~2300+ Elo), có gợi ý nước đi và đi lại.
               </p>
             </div>
             <div className="pt-4 mt-2 border-t border-stone-800/60 flex items-center justify-between text-xs text-amber-400 font-semibold">
@@ -356,7 +380,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <a
               href="/library"
               onClick={(e) => handleLinkClick(e, '/library')}
-              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shrink-0 transition-colors"
+              className={`px-4 py-2.5 rounded-xl text-white text-xs font-semibold shrink-0 transition-colors ${
+                theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500'
+              }`}
             >
               Mở Tàng Thư
             </a>
@@ -371,25 +397,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   key={art.id}
                   href={artUrl}
                   onClick={(e) => handleLinkClick(e, artUrl)}
-                  className="group rounded-2xl bg-stone-950/80 border border-stone-800 hover:border-amber-500/50 p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5"
+                  className={`group rounded-2xl bg-stone-950/80 border p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 ${
+                    theme?.web.cardBorderClass || 'border-stone-800 hover:border-amber-500/50'
+                  }`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                      <span className={`px-2 py-0.5 rounded border font-semibold ${
+                        theme?.web.accentBadgeClass || 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      }`}>
                         {art.category || 'Khai cuộc'}
                       </span>
                       <span className="font-mono-num text-stone-400">
                         {moveCount > 0 ? `${moveCount} bước` : 'Thế cờ'}
                       </span>
                     </div>
-                    <h3 className="text-sm font-bold text-stone-100 group-hover:text-amber-300 transition-colors line-clamp-2">
+                    <h3 className={`text-sm font-bold text-stone-100 transition-colors line-clamp-2 group-hover:${theme?.web.textAccentClass || 'text-amber-300'}`}>
                       {art.title}
                     </h3>
                     <p className="text-xs text-stone-400 line-clamp-2 leading-relaxed">
                       {art.summary || art.content}
                     </p>
                   </div>
-                  <div className="mt-3 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-[11px] text-amber-400 font-medium">
+                  <div className={`mt-3 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-[11px] font-medium ${
+                    theme?.web.textAccentClass || 'text-amber-400'
+                  }`}>
                     <span>{art.authorName || 'Kỳ Đàn'}</span>
                     <span>Xem bài & bàn cờ →</span>
                   </div>
@@ -403,7 +435,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 3. SPOTLIGHT: SO TÀI ĐỈNH CAO & THẨM MỸ NGHỆ THUẬT */}
       <section className="relative rounded-3xl overflow-hidden bg-stone-900/90 border border-stone-800 p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center shadow-xl">
         <div className="lg:col-span-6 space-y-4">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400 font-mono">
+          <div className={`inline-flex items-center gap-2 text-xs font-semibold font-mono ${
+            theme?.web.textAccentClass || 'text-amber-400'
+          }`}>
             <Crown className="w-4 h-4" />
             <span>SỞ HÀ HÁN GIỚI · NGHỆ THUẬT CỜ TƯỚNG</span>
           </div>
@@ -420,19 +454,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <div className="grid grid-cols-2 gap-3 pt-2">
             <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800/80">
-              <div className="text-amber-400 font-bold text-sm">6 Chủ đề Bàn cờ</div>
+              <div className={`font-bold text-sm ${theme?.web.textAccentClass || 'text-amber-400'}`}>6 Chủ đề Bàn cờ</div>
               <div className="text-[11px] text-stone-400 mt-0.5">Vân gỗ & ánh sáng tinh xảo</div>
             </div>
             <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800/80">
-              <div className="text-amber-400 font-bold text-sm">Chữ Hán & Chữ Việt</div>
+              <div className={`font-bold text-sm ${theme?.web.textAccentClass || 'text-amber-400'}`}>Chữ Hán & Chữ Việt</div>
               <div className="text-[11px] text-stone-400 mt-0.5">Dễ đọc cho mọi người chơi</div>
             </div>
             <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800/80">
-              <div className="text-amber-400 font-bold text-sm">Âm thanh gỗ thật</div>
+              <div className={`font-bold text-sm ${theme?.web.textAccentClass || 'text-amber-400'}`}>Âm thanh gỗ thật</div>
               <div className="text-[11px] text-stone-400 mt-0.5">Hiệu ứng gõ quân vang dội</div>
             </div>
             <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800/80">
-              <div className="text-amber-400 font-bold text-sm">Gợi ý & Đi lại</div>
+              <div className={`font-bold text-sm ${theme?.web.textAccentClass || 'text-amber-400'}`}>Gợi ý & Đi lại</div>
               <div className="text-[11px] text-stone-400 mt-0.5">Thuận tiện học tập rèn luyện</div>
             </div>
           </div>
@@ -441,7 +475,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <a
               href="/ai"
               onClick={(e) => handleLinkClick(e, '/ai')}
-              className="inline-flex px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-colors items-center gap-2"
+              className={`inline-flex px-5 py-2.5 rounded-xl text-white font-semibold text-xs transition-colors items-center gap-2 ${
+                theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500'
+              }`}
             >
               <span>Trải nghiệm ván cờ mẫu</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -451,13 +487,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="lg:col-span-6 relative rounded-2xl overflow-hidden border border-stone-800 shadow-2xl">
           <img
-            src="/images/master_duel.jpg"
+            src={theme?.images?.masterDuel || '/images/master_duel.jpg'}
             alt="Cận cảnh bàn cờ tướng truyền thống"
-            className="w-full h-80 sm:h-96 object-cover object-center hover:scale-105 transition-transform duration-700"
+            className="w-full h-80 sm:h-96 object-cover object-center hover:scale-105 transition-all duration-700"
+            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-transparent pointer-events-none" />
           <div className="absolute bottom-3 left-4 right-4 text-xs text-stone-300 font-mono flex items-center justify-between">
-            <span className="font-semibold text-amber-300">Sở Hà · Hán Giới</span>
+            <span className={`font-semibold ${theme?.web.textAccentClass || 'text-amber-300'}`}>Sở Hà · Hán Giới</span>
             <span>Trí tuệ phương Đông</span>
           </div>
         </div>
@@ -577,7 +614,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 5. FOOTER CALL TO ACTION */}
-      <section className="rounded-3xl bg-gradient-to-r from-amber-950/40 via-stone-900 to-stone-900 border border-amber-500/30 p-8 text-center space-y-4 shadow-2xl">
+      <section className={`rounded-3xl bg-gradient-to-r ${
+        theme?.web.bannerGradient || 'from-amber-950/40 via-stone-900 to-stone-900'
+      } border ${
+        theme?.web.cardBorderClass || 'border-amber-500/30'
+      } p-8 text-center space-y-4 shadow-2xl`}>
         <h3 className="text-xl sm:text-2xl font-black text-stone-100">
           Sẵn Sàng Khai Cuộc Trận Đấu Đầu Tiên?
         </h3>
@@ -588,7 +629,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <a
             href="/ranked"
             onClick={(e) => handleLinkClick(e, '/ranked')}
-            className="px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg transition-colors flex items-center gap-1.5"
+            className={`px-6 py-3 rounded-xl text-white font-bold text-xs shadow-lg transition-colors flex items-center gap-1.5 ${
+              theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500'
+            }`}
           >
             <Swords className="w-4 h-4" />
             <span>Đấu Xếp Hạng ngay</span>
@@ -596,14 +639,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <a
             href="/ai"
             onClick={(e) => handleLinkClick(e, '/ai')}
-            className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 font-bold text-xs border border-stone-700 transition-colors"
+            className={`px-6 py-3 rounded-xl font-bold text-xs border transition-colors ${
+              theme?.web.secondaryBtnClass || 'bg-stone-800 hover:bg-stone-700 text-stone-100 border-stone-700'
+            }`}
           >
             Đấu với Máy (AI)
           </a>
           {!currentUser && (
             <button
               onClick={onOpenAuth}
-              className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-xs border border-amber-500/40 transition-colors"
+              className={`px-6 py-3 rounded-xl font-bold text-xs border transition-colors ${
+                theme?.web.subtleBtnClass || 'bg-stone-800 hover:bg-stone-700 text-amber-300 border-amber-500/40'
+              }`}
             >
               Tạo tài khoản miễn phí
             </button>

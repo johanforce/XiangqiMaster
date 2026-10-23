@@ -501,7 +501,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   onClick={() => stepTo(clampedPly + 1)}
                   disabled={clampedPly >= articleMoves.length}
-                  className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white flex items-center gap-1 text-xs font-semibold transition-colors shadow"
+                  className={`px-3.5 py-2 rounded-xl disabled:opacity-40 text-white flex items-center gap-1 text-xs font-semibold transition-colors shadow ${
+                    theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500'
+                  }`}
                   title="Tiến 1 bước"
                 >
                   <span>Tiếp</span>
@@ -626,8 +628,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-stone-900 shadow-2xl p-6 sm:p-8">
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
-          style={{ backgroundImage: `url('/images/ranked_lobby_pavilion.jpg')` }}
+          className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none transition-all duration-700"
+          style={{ backgroundImage: `url('${theme?.images?.lobbyPavilion || '/images/ranked_lobby_pavilion.jpg'}')` }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-stone-950 via-stone-950/90 to-stone-900/75 pointer-events-none" />
 
@@ -697,7 +699,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 }
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === cat
-                    ? 'bg-amber-600 text-white shadow'
+                    ? theme?.web.primaryBtnClass || 'bg-amber-600 text-white shadow'
                     : 'bg-stone-950/80 text-stone-400 hover:text-stone-200 border border-stone-800'
                 }`}
               >
