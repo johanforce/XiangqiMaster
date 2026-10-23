@@ -69,6 +69,12 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
   const researchMoveCount = Math.max(0, moves.length - baseMoveCount);
   const canResearchMove = plyIndex >= baseMoveCount;
 
+  const primaryBtn = theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500 text-white';
+  const textAccent = theme?.web.textAccentClass || 'text-amber-400';
+  const badgeAccent = theme?.web.accentBadgeClass || 'bg-amber-500/15 border border-amber-500/30 text-amber-300';
+  const borderAccent = theme?.web.borderAccentClass || 'border-amber-500/40';
+  const inputFocus = theme?.web.inputFocusClass || 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40';
+
   const buildViewerUrl = (fmt = notationFormat, ply = plyIndex) => {
     const params = new URLSearchParams();
     if (fmt !== 'wxf') params.set('format', fmt);
@@ -272,8 +278,8 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-amber-300 font-medium">
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className={`flex items-center gap-2 ${textAccent} font-medium`}>
+              <Lock className={`w-4 h-4 ${textAccent} shrink-0`} />
               <span>
                 Đang xem kỳ phổ gốc (Nước {plyIndex}/{baseMoveCount} — Chỉ đọc)
               </span>
@@ -287,7 +293,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                 setPlyIndex(baseMoveCount);
                 navigateUrl(buildViewerUrl(notationFormat, baseMoveCount), true);
               }}
-              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-colors"
+              className={`px-2.5 py-1 rounded-lg ${primaryBtn} font-semibold transition-colors`}
             >
               Tới cuối kỳ phổ gốc để đi tiếp
             </button>
@@ -342,7 +348,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
           <button
             onClick={() => setAutoPlay((a) => !a)}
             title="Tự chạy"
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-amber-600 text-white hover:bg-amber-500 transition-colors"
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl ${primaryBtn} transition-colors`}
           >
             {autoPlay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
@@ -408,7 +414,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
         <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-stone-200">
-              <FileText className="w-4 h-4 text-amber-500" />
+              <FileText className={`w-4 h-4 ${textAccent}`} />
               <span>Kỳ phổ & Nghiên cứu nước đi</span>
             </div>
             <div className="flex items-center gap-1 bg-stone-950 p-1 rounded-lg text-xs">
@@ -423,7 +429,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                     }
                     className={`px-2.5 py-1 rounded-md font-medium uppercase transition-colors ${
                       notationFormat === fmt
-                        ? 'bg-amber-600 text-white'
+                        ? primaryBtn
                         : 'text-stone-400 hover:text-stone-200'
                     }`}
                   >
@@ -439,7 +445,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
             placeholder="Dán kỳ phổ đã sao chép (WXF / ICCS / FEN) vào đây để nạp và đi tiếp..."
-            className="w-full rounded-xl bg-stone-950 border border-stone-800 p-3 text-xs font-mono-num text-stone-200 focus:outline-none focus:border-amber-500"
+            className={`w-full rounded-xl bg-stone-950 border border-stone-800 p-3 text-xs font-mono-num text-stone-200 focus:outline-none ${inputFocus}`}
           />
 
           <div className="flex items-center justify-between gap-2">
@@ -449,7 +455,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                 title="Dán nhanh từ bộ nhớ tạm"
                 className="px-3 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
-                <ClipboardPaste className="w-3.5 h-3.5 text-amber-400" />
+                <ClipboardPaste className={`w-3.5 h-3.5 ${textAccent}`} />
                 <span>Dán kỳ phổ</span>
               </button>
               <button
@@ -469,7 +475,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                 loadFromText(rawInput);
                 onToast('Đã nạp kỳ phổ — bạn có thể đi tiếp trên bàn cờ!');
               }}
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold whitespace-nowrap transition-colors"
+              className={`px-4 py-2 rounded-xl ${primaryBtn} text-xs font-semibold whitespace-nowrap transition-colors`}
             >
               Nạp kỳ phổ
             </button>
@@ -507,7 +513,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between px-1 text-[11px] font-sans text-stone-400">
                       <span className="flex items-center gap-1 font-medium">
-                        <Lock className="w-3 h-3 text-amber-500" />
+                        <Lock className={`w-3 h-3 ${textAccent}`} />
                         Kỳ phổ gốc ({baseMoveCount} nước — cố định)
                       </span>
                       {plyIndex < baseMoveCount && (
@@ -517,7 +523,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                             setPlyIndex(baseMoveCount);
                             navigateUrl(buildViewerUrl(notationFormat, baseMoveCount), true);
                           }}
-                          className="text-amber-400 hover:underline"
+                          className={`${textAccent} hover:underline`}
                         >
                           Tới cuối kỳ phổ gốc
                         </button>
@@ -545,7 +551,7 @@ export const NotationViewerView: React.FC<NotationViewerViewProps> = ({
                             }
                             className={`min-h-[34px] shrink-0 flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
                               active
-                                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
+                                ? `${badgeAccent} font-semibold`
                                 : 'text-stone-300 hover:bg-stone-800/70'
                             }`}
                           >

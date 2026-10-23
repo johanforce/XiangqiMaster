@@ -724,11 +724,20 @@ export default function App() {
   return (
     <div
       className="min-h-screen flex flex-col text-stone-100 transition-all duration-700"
-      style={currentTheme.web.pageBgStyle}
+      style={{
+        ...currentTheme.web.pageBgStyle,
+        '--theme-accent': currentTheme.web.accentColor,
+        '--theme-accent-text': currentTheme.web.accentTextColor,
+        '--theme-accent-glow': currentTheme.web.accentGlow,
+        '--theme-card-border': currentTheme.web.cardBorderColor,
+      } as React.CSSProperties}
     >
       {/* Reconnection Banner */}
       {reconnecting && (
-        <div className="w-full bg-amber-600/90 text-white text-xs font-medium py-1.5 px-4 flex items-center justify-center gap-2 z-50">
+        <div
+          className="w-full text-white text-xs font-medium py-1.5 px-4 flex items-center justify-center gap-2 z-50 shadow-md"
+          style={{ backgroundColor: currentTheme.web.accentColor }}
+        >
           <WifiOff className="w-3.5 h-3.5 animate-pulse" />
           <span>Đang kết nối lại…</span>
         </div>
@@ -736,7 +745,14 @@ export default function App() {
 
       {/* Single-Line Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-stone-900 border border-amber-500/60 text-amber-200 text-xs font-medium shadow-2xl whitespace-nowrap">
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-stone-900/95 border text-xs font-semibold shadow-2xl whitespace-nowrap backdrop-blur-md"
+          style={{
+            borderColor: currentTheme.web.cardBorderColor,
+            color: currentTheme.web.accentTextColor,
+            boxShadow: `0 0 25px ${currentTheme.web.accentGlow}`,
+          }}
+        >
           {toastMsg}
         </div>
       )}
@@ -951,7 +967,7 @@ export default function App() {
             className="w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 text-stone-200 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors"
           >
             {soundEnabled ? (
-              <Volume2 className="w-4 h-4 text-amber-400" />
+              <Volume2 className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} />
             ) : (
               <VolumeX className="w-4 h-4 text-stone-500" />
             )}
@@ -960,7 +976,7 @@ export default function App() {
           <button
             onClick={() => setThemeDrawerOpen((o) => !o)}
             title="Đổi giao diện bàn cờ (6 chủ đề)"
-            className="w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 text-amber-400 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors"
+            className={`w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors ${currentTheme.web.textAccentClass}`}
           >
             <Palette className="w-4 h-4" />
           </button>
@@ -973,13 +989,13 @@ export default function App() {
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-amber-400" />
+                <Palette className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} />
                 <span className="text-xs font-bold text-stone-200 uppercase tracking-wider">
                   Chọn Giao Diện Kỳ Đài (Đồng Bộ Bàn Cờ, Hình Ảnh & Màu Sắc Web)
                 </span>
               </div>
               <span className="text-[11px] text-stone-400">
-                Chủ đề đang dùng: <span className="text-amber-400 font-semibold">{currentTheme.name}</span>
+                Chủ đề đang dùng: <span className={`font-semibold ${currentTheme.web.textAccentClass}`}>{currentTheme.name}</span>
               </span>
             </div>
 
@@ -993,9 +1009,13 @@ export default function App() {
                       setThemeId(t.id);
                       savePreferences(t.id, pieceCharMode, soundEnabled);
                     }}
+                    style={{
+                      borderColor: active ? t.web.accentColor : undefined,
+                      boxShadow: active ? `0 0 16px ${t.web.accentGlow}` : undefined,
+                    }}
                     className={`group relative overflow-hidden rounded-2xl border text-left transition-all flex flex-col ${
                       active
-                        ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg scale-[1.02]'
+                        ? 'ring-2 scale-[1.02]'
                         : 'border-stone-800 bg-stone-950/80 hover:border-stone-700 hover:bg-stone-900/60'
                     }`}
                   >
@@ -1020,7 +1040,10 @@ export default function App() {
                       </div>
 
                       {active && (
-                        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-amber-500 text-stone-950 text-[10px] font-bold shadow">
+                        <div
+                          className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold shadow text-white"
+                          style={{ backgroundColor: t.web.accentColor }}
+                        >
                           Đang dùng
                         </div>
                       )}
@@ -1029,7 +1052,7 @@ export default function App() {
                     {/* Theme Info */}
                     <div className="p-2.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <div className={`text-xs font-bold truncate ${active ? 'text-amber-300' : 'text-stone-200'}`}>
+                        <div className={`text-xs font-bold truncate ${active ? t.web.textAccentClass : 'text-stone-200'}`}>
                           {t.name}
                         </div>
                         <p className="text-[10px] text-stone-400 line-clamp-1 mt-0.5">
@@ -1071,7 +1094,7 @@ export default function App() {
           (aiScreenState === 'setup' ? (
             /* SCREEN 1: PRE-GAME AI SETTINGS */
             <div className="w-full max-w-4xl mx-auto space-y-6 py-2">
-              <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-stone-900 shadow-2xl p-6 sm:p-8">
+              <div className={`relative overflow-hidden rounded-3xl border ${currentTheme.web.cardBorderClass} bg-stone-900 shadow-2xl p-6 sm:p-8`}>
                 <div
                   className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none"
                   style={{ backgroundImage: `url('${currentTheme.images.masterDuel}')` }}
@@ -1081,8 +1104,8 @@ export default function App() {
                 <div className="relative z-10 space-y-6">
                   {/* Title Header */}
                   <div className="space-y-2 border-b border-stone-800 pb-5">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-                      <Bot className="w-3.5 h-3.5" />
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${currentTheme.web.accentBadgeClass} text-xs font-semibold`}>
+                      <Bot className={`w-3.5 h-3.5 ${currentTheme.web.textAccentClass}`} />
                       <span>Thiết Lập Trận Đấu Với Máy (AI)</span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-display font-bold text-stone-100">
@@ -1099,7 +1122,7 @@ export default function App() {
                       <label className="text-xs sm:text-sm font-bold text-stone-200 uppercase tracking-wider">
                         1. Chọn Động Cơ Tính Toán (AI Engine)
                       </label>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                      <span className={`text-[11px] px-2.5 py-0.5 rounded-md font-semibold ${currentTheme.web.accentBadgeClass}`}>
                         Kỳ Lực Đỉnh Cao (Max Strength)
                       </span>
                     </div>
@@ -1114,9 +1137,13 @@ export default function App() {
                             onClick={(e) =>
                               handleLinkClick(e, targetUrl, () => setAiEngine(eng.id))
                             }
+                            style={{
+                              borderColor: active ? currentTheme.web.accentColor : undefined,
+                              boxShadow: active ? `0 0 16px ${currentTheme.web.accentGlow}` : undefined,
+                            }}
                             className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
                               active
-                                ? 'bg-amber-600/20 border-amber-500 text-stone-100 shadow-lg ring-1 ring-amber-500/50'
+                                ? `${currentTheme.web.accentBgClass} text-stone-100 ring-1`
                                 : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-200'
                             }`}
                           >
@@ -1125,23 +1152,25 @@ export default function App() {
                                 <span className="text-sm font-bold text-stone-100">
                                   {eng.name}
                                 </span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-stone-800 text-amber-400 border border-stone-700 font-semibold shrink-0">
+                                <span className={`text-[10px] px-2 py-0.5 rounded bg-stone-800 border border-stone-700 font-semibold shrink-0 ${currentTheme.web.textAccentClass}`}>
                                   {eng.badge}
                                 </span>
                               </div>
                               <p className="text-xs text-stone-400 leading-relaxed">{eng.desc}</p>
-                              <div className="text-[11px] text-amber-300/80 italic">
+                              <div className={`text-[11px] italic ${currentTheme.web.textAccentClass}`}>
                                 {eng.highlight}
                               </div>
                             </div>
                             <div className="mt-4 pt-2.5 border-t border-stone-800/70 flex items-center justify-between text-[11px]">
-                              <span className={active ? 'text-amber-300 font-semibold' : 'text-stone-500'}>
+                              <span className={active ? `${currentTheme.web.textAccentClass} font-semibold` : 'text-stone-500'}>
                                 {active ? 'Đang chọn' : 'Bấm để chọn'}
                               </span>
                               <div
-                                className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                  active ? 'border-amber-400 bg-amber-400' : 'border-stone-600'
-                                }`}
+                                className="w-4 h-4 rounded-full border flex items-center justify-center"
+                                style={{
+                                  borderColor: active ? currentTheme.web.accentColor : undefined,
+                                  backgroundColor: active ? currentTheme.web.accentColor : undefined,
+                                }}
                               >
                                 {active && <div className="w-1.5 h-1.5 rounded-full bg-stone-950" />}
                               </div>
@@ -1153,22 +1182,22 @@ export default function App() {
                   </div>
 
                   {/* Step 2: Maximum AI Strength Notice */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-stone-900 to-amber-950/30 border border-amber-500/40 relative overflow-hidden">
+                  <div className={`p-4 rounded-2xl bg-gradient-to-r ${currentTheme.web.bannerGradient} border ${currentTheme.web.borderAccentClass} relative overflow-hidden`}>
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-400">
+                      <div className={`w-10 h-10 rounded-xl ${currentTheme.web.accentBgClass} border ${currentTheme.web.borderAccentClass} flex items-center justify-center shrink-0 ${currentTheme.web.textAccentClass}`}>
                         <Zap className="w-5 h-5" />
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-amber-300">
+                          <span className={`text-sm font-bold ${currentTheme.web.textAccentClass}`}>
                             2. Kỳ Lực Tối Thượng (Max Strength) — Đã Tự Động Kích Hoạt
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${currentTheme.web.accentBadgeClass}`}>
                             Sát Lực Cao Nhất
                           </span>
                         </div>
                         <p className="text-xs text-stone-300 leading-relaxed">
-                          Hệ thống đã loại bỏ các cấp độ hạn chế kỳ lực. Cả <strong className="text-amber-200">Fairy-Stockfish</strong> và <strong className="text-amber-200">Pikafish</strong> đều vận hành ở mức tính toán cao nhất (Skill Level 20, Depth 16–18 nước, Contempt tích cực và Hash 64MB) để cống hiến những ván cờ sắc bén, thâm sâu nhất.
+                          Hệ thống đã loại bỏ các cấp độ hạn chế kỳ lực. Cả <strong className={currentTheme.web.textAccentClass}>Fairy-Stockfish</strong> và <strong className={currentTheme.web.textAccentClass}>Pikafish</strong> đều vận hành ở mức tính toán cao nhất (Skill Level 20, Depth 16–18 nước, Contempt tích cực và Hash 64MB) để cống hiến những ván cờ sắc bén, thâm sâu nhất.
                         </p>
                       </div>
                     </div>
@@ -1208,13 +1237,19 @@ export default function App() {
                               () => setPlayerSide('b')
                             )
                           }
+                          style={{
+                            borderColor: playerSide === 'b' ? currentTheme.web.accentColor : undefined,
+                          }}
                           className={`p-3.5 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
                             playerSide === 'b'
-                              ? 'bg-stone-800 border-amber-400 text-stone-100 shadow-md'
+                              ? 'bg-stone-800 text-stone-100 shadow-md'
                               : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:text-stone-200'
                           }`}
                         >
-                          <span className="w-3.5 h-3.5 rounded-full bg-stone-950 border border-amber-400 inline-block" />
+                          <span
+                            className="w-3.5 h-3.5 rounded-full bg-stone-950 border inline-block"
+                            style={{ borderColor: currentTheme.web.accentColor }}
+                          />
                           <span>Quân Đen (Đi hậu)</span>
                         </a>
                       </div>
@@ -1233,7 +1268,7 @@ export default function App() {
                           }}
                           className={`p-3.5 rounded-2xl border font-bold text-xs transition-all ${
                             pieceCharMode === 'hanzi'
-                              ? 'bg-amber-600/20 border-amber-500 text-amber-300'
+                              ? currentTheme.web.activeTabClass
                               : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:text-stone-200'
                           }`}
                         >
@@ -1247,7 +1282,7 @@ export default function App() {
                           }}
                           className={`p-3.5 rounded-2xl border font-bold text-xs transition-all ${
                             pieceCharMode === 'viet'
-                              ? 'bg-amber-600/20 border-amber-500 text-amber-300'
+                              ? currentTheme.web.activeTabClass
                               : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:text-stone-200'
                           }`}
                         >
@@ -1261,7 +1296,7 @@ export default function App() {
                   <div className="pt-4 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-xs text-stone-400">
                       Cấu hình đã chọn:{' '}
-                      <span className="text-amber-300 font-semibold">
+                      <span className={`font-semibold ${currentTheme.web.textAccentClass}`}>
                         {AI_ENGINES.find((e) => e.id === aiEngine)?.name}
                       </span>{' '}
                       ·{' '}
@@ -1462,7 +1497,7 @@ export default function App() {
                 <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 space-y-3">
                   <div className="flex items-center justify-between border-b border-stone-800 pb-3">
                     <div className="flex items-center gap-2">
-                      <Bot className="w-4 h-4 text-amber-400" />
+                      <Bot className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} />
                       <span className="text-xs font-bold text-stone-100 uppercase tracking-wider">
                         Thông Tin Trận Đấu Với Máy
                       </span>
@@ -1476,7 +1511,7 @@ export default function App() {
                           () => setAiScreenState('setup')
                         )
                       }
-                      className="px-3 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 text-xs font-semibold transition-colors"
+                      className={`px-3 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs font-semibold transition-colors ${currentTheme.web.textAccentClass}`}
                     >
                       Đổi cài đặt
                     </a>
@@ -1512,7 +1547,7 @@ export default function App() {
                     </span>
                     <button
                       onClick={handleCopyAINotation}
-                      className="text-amber-400 hover:underline font-medium"
+                      className={`${currentTheme.web.textAccentClass} hover:underline font-medium`}
                     >
                       Sao chép WXF
                     </button>
@@ -1534,7 +1569,7 @@ export default function App() {
                             <span className="text-stone-500 mr-1.5 shrink-0">
                               {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}.` : '...'}
                             </span>
-                            <span className="font-semibold text-amber-300 shrink-0">{m.wxf}</span>
+                            <span className={`font-semibold shrink-0 ${currentTheme.web.textAccentClass}`}>{m.wxf}</span>
                             <span className="font-sans text-[11px] text-stone-400 truncate ml-1">
                               ({m.viet})
                             </span>
@@ -1602,11 +1637,11 @@ export default function App() {
             />
           ) : (
             <div className="py-16 text-center space-y-3">
-              <ShieldCheck className="w-8 h-8 text-amber-500 mx-auto stroke-1" />
+              <ShieldCheck className={`w-8 h-8 mx-auto stroke-1 ${currentTheme.web.textAccentClass}`} />
               <div className="text-sm text-stone-400">Chỉ dành cho Quản trị viên</div>
               <button
                 onClick={() => setAuthModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-semibold"
+                className={`px-4 py-2 rounded-xl text-xs font-semibold ${currentTheme.web.primaryBtnClass}`}
               >
                 Đăng nhập Admin
               </button>
@@ -1619,6 +1654,7 @@ export default function App() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         currentUser={currentUser}
+        theme={currentTheme}
         currentEnv={serverEnv}
         onEnvChange={handleServerEnvChange}
         onAuthSuccess={(user, sess, decayNotice) => {

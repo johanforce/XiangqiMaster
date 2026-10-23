@@ -40,6 +40,7 @@ import {
   FormattedMove,
   PIECE_NAMES_HANZI,
   PIECE_NAMES_VIET,
+  isKingInCheck,
 } from '../shared/xiangqi';
 import { BoardTheme, BOARD_THEMES } from '../utils/themes';
 import { sound } from '../utils/sound';
@@ -71,6 +72,13 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
   showToast,
   initialPuzzleFen,
 }) => {
+  const primaryBtn = theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500 text-white';
+  const textAccent = theme?.web.textAccentClass || 'text-amber-400';
+  const badgeAccent = theme?.web.accentBadgeClass || 'bg-amber-500/15 border border-amber-500/30 text-amber-300';
+  const borderAccent = theme?.web.borderAccentClass || 'border-amber-500/40';
+  const borderCard = theme?.web.cardBorderClass || 'border-stone-800 hover:border-amber-500/50';
+  const inputFocus = theme?.web.inputFocusClass || 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40';
+
   // Sub-tab: 'solve' (Danh sách thế cờ & giải) | 'create' (Tạo thế cờ / Xếp cờ)
   const [subTab, setSubTab] = useState<'solve' | 'create'>('solve');
 
@@ -173,8 +181,16 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
 
       try {
         const { nextBoard, move } = applyMove(currentPuzzleBoard, from, to);
-        const formatted = formatMoveNotation(currentPuzzleBoard, move, 'r', pieceCharMode);
+        const notation = formatMoveNotation(currentPuzzleBoard, move.from, move.to);
         const nextFen = boardToFen(nextBoard, 'b');
+        const formatted: FormattedMove = {
+          ...move,
+          ply: puzzleMoves.length + 1,
+          color: 'r',
+          ...notation,
+          fen: nextFen,
+          isCheck: isKingInCheck(nextBoard, 'b'),
+        };
 
         // Play move sound
         if (move.captured) {
@@ -231,8 +247,16 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
 
         // Apply AI move
         const { nextBoard: aiBoard, move: aiMoveObj } = applyMove(nextBoard, aiBest.from, aiBest.to);
-        const aiFormatted = formatMoveNotation(nextBoard, aiMoveObj, 'b', pieceCharMode);
+        const aiNotation = formatMoveNotation(nextBoard, aiMoveObj.from, aiMoveObj.to);
         const aiFen = boardToFen(aiBoard, 'r');
+        const aiFormatted: FormattedMove = {
+          ...aiMoveObj,
+          ply: nextMovesList.length + 1,
+          color: 'b',
+          ...aiNotation,
+          fen: aiFen,
+          isCheck: isKingInCheck(aiBoard, 'r'),
+        };
 
         if (aiMoveObj.captured) {
           sound.playCapture();
@@ -375,6 +399,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
       sound.playMove();
     } else if (selectedPalettePiece) {
       next[row][col] = {
+        id: `${selectedPalettePiece.color}_${selectedPalettePiece.type}_${row}_${col}`,
         color: selectedPalettePiece.color,
         type: selectedPalettePiece.type,
       };
@@ -482,7 +507,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 py-2">
       {/* TOP HEADER & SUB-MODE SELECTOR */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-stone-900 shadow-2xl p-5 sm:p-6">
+      <div className={`relative overflow-hidden rounded-3xl border ${borderAccent} bg-stone-900 shadow-2xl p-5 sm:p-6`}>
         <div
           className="absolute inset-0 bg-cover bg-center opacity-15 pointer-events-none"
           style={{ backgroundImage: `url('/images/ranked_arena_gate.jpg')` }}
@@ -491,7 +516,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${badgeAccent} text-xs font-semibold`}>
               <Puzzle className="w-3.5 h-3.5" />
               <span>Cờ Thế & Tàn Cuộc Nghệ Thuật</span>
             </div>
@@ -511,7 +536,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
               }}
               className={`min-h-[44px] px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
                 subTab === 'solve'
-                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+                  ? `${primaryBtn} shadow-lg`
                   : 'text-stone-400 hover:text-stone-200'
               }`}
             >
@@ -525,7 +550,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
               }}
               className={`min-h-[44px] px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
                 subTab === 'create'
-                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+                  ? `${primaryBtn} shadow-lg`
                   : 'text-stone-400 hover:text-stone-200'
               }`}
             >
@@ -552,12 +577,12 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     onClick={() => setActivePuzzle(null)}
                     className="min-h-[44px] px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <ArrowLeft className="w-4 h-4 text-amber-400" />
+                    <ArrowLeft className={`w-4 h-4 ${textAccent}`} />
                     <span>Danh sách thế cờ</span>
                   </button>
 
                   <div className="text-right">
-                    <div className="text-sm font-bold text-amber-300 truncate max-w-[200px] sm:max-w-xs">
+                    <div className={`text-sm font-bold ${textAccent} truncate max-w-[200px] sm:max-w-xs`}>
                       {activePuzzle.title}
                     </div>
                     <div className="text-[11px] text-stone-400">{activePuzzle.goal}</div>
@@ -568,7 +593,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                 {puzzleStatus.solved && (
                   <div className="w-full p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/80 text-emerald-200 text-xs flex items-center justify-between gap-3 shadow-lg">
                     <div className="flex items-center gap-2.5">
-                      <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                      <Trophy className={`w-5 h-5 ${textAccent} shrink-0`} />
                       <div>
                         <div className="font-bold text-emerald-300">THẮNG LỢI XUẤT SẮC!</div>
                         <div>{puzzleStatus.reason}</div>
@@ -620,7 +645,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   <button
                     onClick={handlePuzzleReset}
                     title="Đặt lại thế cờ ban đầu"
-                    className="min-h-[44px] px-3.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    className={`min-h-[44px] px-3.5 rounded-xl ${primaryBtn} text-xs font-semibold flex items-center gap-1.5 transition-colors`}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Đặt lại thế</span>
@@ -640,7 +665,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     onClick={handlePuzzleHint}
                     disabled={puzzleStatus.solved || puzzleStatus.failed || aiThinking}
                     title="Gợi ý từ Fairy-Stockfish"
-                    className="min-h-[44px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                    className={`min-h-[44px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 ${textAccent} text-xs font-medium flex items-center gap-1.5 transition-colors`}
                   >
                     <Lightbulb className="w-3.5 h-3.5" />
                     <span>Gợi ý AI</span>
@@ -670,7 +695,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   <button
                     onClick={handleNextPuzzle}
                     title="Chuyển sang thế cờ tiếp theo"
-                    className="min-h-[44px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors ml-auto"
+                    className={`min-h-[44px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 ${textAccent} border ${borderAccent} text-xs font-semibold flex items-center gap-1.5 transition-colors ml-auto`}
                   >
                     <span>Thế kế tiếp</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -683,10 +708,10 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                 {/* Puzzle Information Box */}
                 <div className="rounded-2xl bg-stone-900 border border-stone-800 p-4 space-y-3">
                   <div className="flex items-center justify-between border-b border-stone-800 pb-2.5">
-                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    <span className={`text-xs font-bold ${textAccent} uppercase tracking-wider`}>
                       Mục Tiêu Thế Cờ
                     </span>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded-md ${badgeAccent} font-semibold`}>
                       {activePuzzle.difficulty}
                     </span>
                   </div>
@@ -695,8 +720,8 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     {activePuzzle.description}
                   </p>
 
-                  <div className="p-3 rounded-xl bg-stone-950 border border-stone-800 text-xs text-amber-200/90 space-y-1">
-                    <div className="font-semibold text-amber-300">Gợi ý chiến thuật:</div>
+                  <div className="p-3 rounded-xl bg-stone-950 border border-stone-800 text-xs text-stone-300 space-y-1">
+                    <div className={`font-semibold ${textAccent}`}>Gợi ý chiến thuật:</div>
                     <div>{activePuzzle.hint}</div>
                   </div>
 
@@ -707,7 +732,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         onClick={() => onSetPieceCharMode('hanzi')}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors ${
                           pieceCharMode === 'hanzi'
-                            ? 'bg-amber-600 text-white'
+                            ? primaryBtn
                             : 'bg-stone-800 text-stone-400 hover:text-stone-200'
                         }`}
                       >
@@ -717,7 +742,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         onClick={() => onSetPieceCharMode('viet')}
                         className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors ${
                           pieceCharMode === 'viet'
-                            ? 'bg-amber-600 text-white'
+                            ? primaryBtn
                             : 'bg-stone-800 text-stone-400 hover:text-stone-200'
                         }`}
                       >
@@ -734,7 +759,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                       Diễn Biến Nước Đi ({puzzleMoves.length})
                     </span>
                     {aiThinking && (
-                      <span className="text-[11px] text-amber-400 animate-pulse font-semibold">
+                      <span className={`text-[11px] ${textAccent} animate-pulse font-semibold`}>
                         Fairy-Stockfish đang tính...
                       </span>
                     )}
@@ -800,7 +825,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     onClick={() => setSelectedCategory(cat.id)}
                     className={`min-h-[40px] px-4 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
                       selectedCategory === cat.id
-                        ? 'bg-amber-600 text-white shadow-md'
+                        ? `${primaryBtn} shadow-md`
                         : 'bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200'
                     }`}
                   >
@@ -819,11 +844,11 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   return (
                     <div
                       key={p.id}
-                      className="group p-5 rounded-2xl bg-stone-900/90 border border-stone-800 hover:border-amber-500/50 hover:bg-stone-900 transition-all flex flex-col justify-between space-y-4 shadow-lg hover:shadow-amber-500/5 relative overflow-hidden"
+                      className={`group p-5 rounded-2xl bg-stone-900/90 border ${borderCard} hover:bg-stone-900 transition-all flex flex-col justify-between space-y-4 shadow-lg relative overflow-hidden`}
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+                          <span className={`text-[11px] px-2.5 py-0.5 rounded-md ${badgeAccent} font-semibold`}>
                             {p.categoryLabel}
                           </span>
                           <div className="flex items-center gap-1.5">
@@ -842,11 +867,11 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                           </div>
                         </div>
 
-                        <h3 className="text-base font-bold text-stone-100 group-hover:text-amber-300 transition-colors line-clamp-1">
+                        <h3 className={`text-base font-bold text-stone-100 group-hover:${textAccent} transition-colors line-clamp-1`}>
                           {p.title}
                         </h3>
                         {p.subtitle && (
-                          <div className="text-xs text-amber-400/90 font-medium line-clamp-1">
+                          <div className={`text-xs ${textAccent} opacity-90 font-medium line-clamp-1`}>
                             {p.subtitle}
                           </div>
                         )}
@@ -861,7 +886,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         </div>
                         <button
                           onClick={() => startSolvingPuzzle(p)}
-                          className="min-h-[40px] px-4 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
+                          className={`min-h-[40px] px-4 rounded-xl ${primaryBtn} text-xs shadow-md transition-all flex items-center gap-1.5`}
                         >
                           <Play className="w-3.5 h-3.5 fill-current" />
                           <span>Vào giải</span>
@@ -976,7 +1001,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                 <button
                   onClick={handleSaveCustomPuzzle}
                   disabled={!editorValidation.isValid}
-                  className="min-h-[44px] px-4 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+                  className={`min-h-[44px] px-4 rounded-xl bg-stone-800 hover:bg-stone-700 disabled:opacity-40 ${textAccent} border ${borderAccent} text-xs font-bold transition-all flex items-center gap-1.5`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Lưu thế cờ</span>
@@ -985,7 +1010,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                 <button
                   onClick={handlePlayCreatedPuzzle}
                   disabled={!editorValidation.isValid}
-                  className="min-h-[44px] px-5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-red-600 hover:from-amber-500 hover:to-red-500 disabled:opacity-40 text-white text-xs font-bold shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2"
+                  className={`min-h-[44px] px-5 rounded-xl ${primaryBtn} disabled:opacity-40 text-xs font-bold shadow-lg transition-all flex items-center gap-2`}
                 >
                   <Swords className="w-4 h-4" />
                   <span>Giải với máy ngay</span>
@@ -1002,7 +1027,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                 <span className="text-xs font-bold text-stone-200 uppercase tracking-wider">
                   Hộp Quân Cờ Để Đặt
                 </span>
-                <span className="text-[11px] text-amber-400">
+                <span className={`text-[11px] ${textAccent}`}>
                   {isEraserActive
                     ? 'Đang bật: Xóa quân'
                     : selectedPalettePiece
@@ -1010,8 +1035,8 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         selectedPalettePiece.color === 'r' ? 'Đỏ' : 'Đen'
                       } ${
                         pieceCharMode === 'viet'
-                          ? PIECE_NAMES_VIET[selectedPalettePiece.type]
-                          : PIECE_NAMES_HANZI[selectedPalettePiece.color][selectedPalettePiece.type]
+                          ? (PIECE_NAMES_VIET as unknown as Record<string, string>)[selectedPalettePiece.type]
+                          : (PIECE_NAMES_HANZI[selectedPalettePiece.color] as unknown as Record<string, string>)[selectedPalettePiece.type]
                       }`
                     : 'Bấm ô để gỡ quân'}
                 </span>
@@ -1028,8 +1053,8 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                       selectedPalettePiece?.type === type;
                     const label =
                       pieceCharMode === 'viet'
-                        ? PIECE_NAMES_VIET[type]
-                        : PIECE_NAMES_HANZI.r[type];
+                        ? (PIECE_NAMES_VIET as unknown as Record<string, string>)[type]
+                        : (PIECE_NAMES_HANZI.r as unknown as Record<string, string>)[type];
                     return (
                       <button
                         key={`r-${type}`}
@@ -1039,7 +1064,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         }}
                         className={`w-11 h-11 rounded-full font-bold text-base border-2 transition-all flex items-center justify-center shadow-md ${
                           active
-                            ? 'bg-red-600 border-white text-white ring-2 ring-amber-400 scale-105'
+                            ? 'bg-red-600 border-white text-white ring-2 ring-red-400 scale-105'
                             : 'bg-red-950/80 border-red-500/60 text-red-300 hover:scale-105'
                         }`}
                       >
@@ -1061,8 +1086,8 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                       selectedPalettePiece?.type === type;
                     const label =
                       pieceCharMode === 'viet'
-                        ? PIECE_NAMES_VIET[type]
-                        : PIECE_NAMES_HANZI.b[type];
+                        ? (PIECE_NAMES_VIET as unknown as Record<string, string>)[type]
+                        : (PIECE_NAMES_HANZI.b as unknown as Record<string, string>)[type];
                     return (
                       <button
                         key={`b-${type}`}
@@ -1072,7 +1097,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                         }}
                         className={`w-11 h-11 rounded-full font-bold text-base border-2 transition-all flex items-center justify-center shadow-md ${
                           active
-                            ? 'bg-stone-800 border-amber-400 text-amber-300 ring-2 ring-amber-400 scale-105'
+                            ? 'bg-stone-800 border-stone-400 text-stone-100 ring-2 ring-stone-400 scale-105'
                             : 'bg-stone-950 border-stone-700 text-stone-300 hover:scale-105'
                         }`}
                       >
@@ -1092,7 +1117,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   }}
                   className={`min-h-[44px] px-4 rounded-xl border font-bold text-xs transition-all flex items-center gap-2 ${
                     isEraserActive
-                      ? 'bg-amber-600/30 border-amber-500 text-amber-300'
+                      ? `${badgeAccent} font-semibold`
                       : 'bg-stone-950 border-stone-800 text-stone-400 hover:text-stone-200'
                   }`}
                 >
@@ -1117,9 +1142,9 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   {editorValidation.hasRedKing ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   ) : (
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <AlertTriangle className={`w-4 h-4 ${textAccent} shrink-0`} />
                   )}
-                  <span className={editorValidation.hasRedKing ? 'text-stone-300' : 'text-amber-300'}>
+                  <span className={editorValidation.hasRedKing ? 'text-stone-300' : textAccent}>
                     Tướng Đỏ: {editorValidation.hasRedKing ? 'Hợp lệ trong cung' : 'Thiếu hoặc nằm ngoài cung'}
                   </span>
                 </div>
@@ -1128,9 +1153,9 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   {editorValidation.hasBlackKing ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   ) : (
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <AlertTriangle className={`w-4 h-4 ${textAccent} shrink-0`} />
                   )}
-                  <span className={editorValidation.hasBlackKing ? 'text-stone-300' : 'text-amber-300'}>
+                  <span className={editorValidation.hasBlackKing ? 'text-stone-300' : textAccent}>
                     Tướng Đen: {editorValidation.hasBlackKing ? 'Hợp lệ trong cung' : 'Thiếu hoặc nằm ngoài cung'}
                   </span>
                 </div>
@@ -1153,7 +1178,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                   <span>Thế cờ hoàn toàn hợp lệ để thi đấu và lưu trữ.</span>
                 </div>
               ) : (
-                <div className="mt-2 p-2 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-medium flex items-center gap-2">
+                <div className={`mt-2 p-2 rounded-xl ${badgeAccent} text-xs font-medium flex items-center gap-2`}>
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>Vui lòng điều chỉnh để bàn cờ hợp lệ trước khi bắt đầu.</span>
                 </div>
@@ -1174,7 +1199,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     value={customTitleInput}
                     onChange={(e) => setCustomTitleInput(e.target.value)}
                     placeholder="Ví dụ: Đơn Xe Khéo Thắng Song Mã..."
-                    className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-500"
+                    className={`w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 placeholder-stone-600 focus:outline-none ${inputFocus}`}
                   />
                 </div>
 
@@ -1185,7 +1210,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     value={customGoalInput}
                     onChange={(e) => setCustomGoalInput(e.target.value)}
                     placeholder="Ví dụ: Đỏ đi trước sát cục trong 5 nước..."
-                    className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-500"
+                    className={`w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 placeholder-stone-600 focus:outline-none ${inputFocus}`}
                   />
                 </div>
               </div>
@@ -1202,7 +1227,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     navigator.clipboard.writeText(editorFen);
                     showToast('Đã sao chép FEN vào clipboard');
                   }}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
+                  className={`text-xs ${textAccent} hover:opacity-80 font-semibold flex items-center gap-1`}
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>Sao chép FEN</span>
@@ -1221,7 +1246,7 @@ export const PuzzleView: React.FC<PuzzleViewProps> = ({
                     value={fenPasteInput}
                     onChange={(e) => setFenPasteInput(e.target.value)}
                     placeholder="Dán chuỗi FEN vào đây..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs font-mono-num placeholder-stone-600 focus:outline-none focus:border-amber-500"
+                    className={`flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs font-mono-num placeholder-stone-600 focus:outline-none ${inputFocus}`}
                   />
                   <button
                     onClick={handleLoadPastedFen}

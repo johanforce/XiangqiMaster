@@ -109,6 +109,20 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   const championHallImg = theme?.images?.championHall || '/images/champion_hall.jpg';
   const leaderboardBgImg = theme?.images?.leaderboardBg || '/images/leaderboard_bg.jpg';
 
+  const primaryBtn = theme?.web.primaryBtnClass || 'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-stone-950';
+  const secondaryBtn = theme?.web.secondaryBtnClass || 'bg-stone-900 border border-stone-800 text-stone-200';
+  const textAccent = theme?.web.textAccentClass || 'text-amber-400';
+  const badgeAccent = theme?.web.accentBadgeClass || 'bg-amber-500/15 border border-amber-500/35 text-amber-300';
+  const borderCard = theme?.web.cardBorderClass || 'border-stone-800/80 hover:border-amber-500/50';
+  const inputFocus = theme?.web.inputFocusClass || 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40';
+  const activeTab = theme?.web.activeTabClass || 'bg-amber-950/80 text-amber-300 border border-amber-500/40';
+  const bannerGrad = theme?.web.bannerGradient || 'from-amber-950/60 via-stone-900/90 to-stone-950';
+  const cardBorderColor = theme?.web.cardBorderColor || '#4a2b16';
+  const accentColor = theme?.web.accentColor || '#f59e0b';
+  const accentGlow = theme?.web.accentGlow || 'rgba(245, 158, 11, 0.35)';
+  const borderAccent = theme?.web.borderAccentClass || 'border-amber-500/40';
+  const accentBg = theme?.web.accentBgClass || 'bg-amber-500/15';
+
   // Sync Ranked view state from URL changes
   useEffect(() => {
     const syncRankedFromUrl = () => {
@@ -283,7 +297,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         desc: 'Biến ảo khôn lường với nghệ thuật mở quân và sát cục bất ngờ.',
         icon: EyeOff,
         bg: championHallImg,
-        accent: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+        accent: `${textAccent} ${borderAccent} ${accentBg}`,
       },
     ];
 
@@ -291,14 +305,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
         {/* Hero Gate Banner with Cinematic Background Image */}
         <div
-          className="relative rounded-3xl border border-amber-900/40 p-6 sm:p-10 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700"
+          className={`relative rounded-3xl border ${borderAccent} p-6 sm:p-10 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700`}
           style={{
             backgroundImage: `linear-gradient(to right, rgba(12, 10, 9, 0.90) 0%, rgba(15, 13, 11, 0.74) 55%, rgba(12, 10, 9, 0.88) 100%), url('${arenaGateImg}')`,
           }}
         >
           <div className="relative z-10 max-w-2xl space-y-5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 text-xs font-semibold backdrop-blur-xs">
-              <Swords className="w-3.5 h-3.5 text-amber-400" />
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${badgeAccent} text-xs font-semibold backdrop-blur-xs`}>
+              <Swords className={`w-3.5 h-3.5 ${textAccent}`} />
               <span>Kỳ Đài Xếp Hạng Thời Gian Thực · Chuẩn FIDE Elo</span>
             </div>
 
@@ -317,14 +331,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               {!isPendingApproval ? (
                 <button
                   onClick={onOpenAuth}
-                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 shadow-[0_0_25px_rgba(245,158,11,0.35)] active:scale-95"
+                  className={`min-h-[44px] px-6 py-2.5 rounded-xl ${primaryBtn} text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 active:scale-95`}
                 >
                   <LogIn className="w-4 h-4 stroke-[2.2]" />
                   <span>Đăng nhập để đấu xếp hạng</span>
                 </button>
               ) : (
-                <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-stone-950/90 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-lg">
-                  <Lock className="w-4 h-4 text-amber-400" />
+                <div className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-stone-950/90 border ${borderAccent} ${textAccent} text-xs font-bold shadow-lg`}>
+                  <Lock className={`w-4 h-4 ${textAccent}`} />
                   <span>Tài khoản đang chờ Quản trị viên duyệt xếp hạng</span>
                 </div>
               )}
@@ -352,17 +366,26 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 key={m.title}
                 href={modeUrl}
                 onClick={(e) => handleLinkClick(e, modeUrl, () => setSelectedMode(m.id))}
-                className={`relative rounded-2xl border p-5 shadow-xl overflow-hidden bg-cover bg-center flex flex-col justify-between min-h-[160px] group transition-all ${
-                  active
-                    ? 'border-amber-500 ring-1 ring-amber-400/50 -translate-y-0.5'
-                    : 'border-stone-800/90 hover:border-amber-500/50'
-                }`}
                 style={{
                   backgroundImage: `linear-gradient(to bottom, rgba(15, 13, 12, 0.78) 0%, rgba(10, 9, 8, 0.94) 100%), url('${m.bg}')`,
+                  borderColor: active ? accentColor : undefined,
+                  boxShadow: active ? `0 0 20px ${accentGlow}` : undefined,
                 }}
+                className={`relative rounded-2xl border p-5 shadow-xl overflow-hidden bg-cover bg-center flex flex-col justify-between min-h-[160px] group transition-all ${
+                  active
+                    ? 'ring-1 -translate-y-0.5'
+                    : 'border-stone-800/90 hover:border-stone-700'
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${m.accent}`}>
+                  <div
+                    className="w-10 h-10 rounded-xl border flex items-center justify-center"
+                    style={{
+                      borderColor: active ? accentColor : undefined,
+                      color: active ? accentColor : undefined,
+                      backgroundColor: active ? `${accentColor}18` : undefined,
+                    }}
+                  >
                     <Icon className="w-5 h-5" />
                   </div>
                   <span className="text-[11px] font-mono-num text-stone-300 bg-stone-950/80 border border-stone-800 px-2.5 py-1 rounded-lg">
@@ -371,7 +394,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 </div>
 
                 <div className="mt-4 space-y-1">
-                  <h3 className="text-sm font-bold text-stone-100 group-hover:text-amber-300 transition-colors">
+                  <h3 className={`text-sm font-bold text-stone-100 transition-colors ${active ? textAccent : ''}`}>
                     {m.title}
                   </h3>
                   <p className="text-xs text-stone-400 leading-relaxed">{m.desc}</p>
@@ -390,7 +413,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-800/80 pb-3">
             <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" />
+              <Trophy className={`w-4 h-4 ${textAccent}`} />
               <h2 className="text-sm font-bold text-stone-100 uppercase tracking-wider">
                 Các Bàn Đấu Đang Hoạt Động ({openRooms.length})
               </h2>
@@ -398,7 +421,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             {!isPendingApproval && (
               <button
                 onClick={onOpenAuth}
-                className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors"
+                className={`text-xs font-semibold ${textAccent} hover:underline transition-colors`}
               >
                 Đăng nhập để vào bàn →
               </button>
@@ -434,10 +457,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     style={{
                       backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('${masterDuelImg}')`,
                     }}
-                    className="rounded-2xl bg-cover bg-center border border-stone-800 hover:border-amber-500/50 p-4 space-y-2.5 cursor-pointer transition-all backdrop-blur-xs shadow-lg block"
+                    className={`rounded-2xl bg-cover bg-center border p-4 space-y-2.5 cursor-pointer transition-all backdrop-blur-xs shadow-lg block ${borderCard}`}
                   >
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono-num font-bold text-amber-400">#{r.code}</span>
+                      <span className={`font-mono-num font-bold ${textAccent}`}>#{r.code}</span>
                       <span className="text-stone-300 font-medium">{modeLabel}</span>
                     </div>
                     <div className="text-xs text-stone-100 font-semibold truncate">
@@ -691,14 +714,22 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
         {/* Banner tiêu đề sảnh hoàng gia có hình nền */}
         <div
-          className="relative rounded-3xl border border-amber-900/40 p-5 sm:p-7 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700"
+          className={`relative rounded-3xl border ${borderAccent} p-5 sm:p-7 shadow-2xl overflow-hidden bg-cover bg-center transition-all duration-700`}
           style={{
             backgroundImage: `linear-gradient(to right, rgba(15, 13, 12, 0.88) 0%, rgba(18, 15, 13, 0.74) 50%, rgba(12, 10, 9, 0.90) 100%), url('${lobbyPavilionImg}')`,
           }}
         >
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/25 to-amber-950/70 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)] backdrop-blur-xs">
+              <div
+                className="w-12 h-12 rounded-2xl border flex items-center justify-center backdrop-blur-xs shadow-lg"
+                style={{
+                  borderColor: accentColor,
+                  color: accentColor,
+                  backgroundColor: `${accentColor}25`,
+                  boxShadow: `0 0 20px ${accentGlow}`,
+                }}
+              >
                 <Swords className="w-6 h-6 stroke-[1.8]" />
               </div>
               <div>
@@ -706,7 +737,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <h1 className="text-lg sm:text-xl font-extrabold text-stone-100 tracking-tight">
                     Sảnh Đấu Xếp Hạng
                   </h1>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeAccent}`}>
                     Kỳ Đài Realtime
                   </span>
                 </div>
@@ -740,10 +771,12 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   backgroundImage: active
                     ? `linear-gradient(to bottom, rgba(24, 18, 12, 0.72) 0%, rgba(15, 12, 10, 0.90) 100%), url('${item.bg}')`
                     : `linear-gradient(to bottom, rgba(18, 16, 15, 0.86) 0%, rgba(12, 10, 9, 0.95) 100%), url('${item.bg}')`,
+                  borderColor: active ? accentColor : undefined,
+                  boxShadow: active ? `0 0 20px ${accentGlow}` : undefined,
                 }}
                 className={`group relative p-3.5 sm:p-4 rounded-2xl border text-left transition-all duration-200 overflow-hidden min-h-[96px] flex flex-col justify-between bg-cover bg-center ${
                   active
-                    ? 'border-amber-500 text-stone-100 shadow-[0_0_24px_rgba(245,158,11,0.22)] ring-1 ring-amber-400/60 -translate-y-0.5'
+                    ? 'ring-1 -translate-y-0.5 text-stone-100'
                     : 'border-stone-800 text-stone-400 hover:text-stone-200 hover:border-stone-700'
                 }`}
               >
@@ -751,9 +784,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors backdrop-blur-xs ${
                       active
-                        ? 'bg-amber-500/25 text-amber-300 border border-amber-400/50 shadow-inner'
+                        ? 'border shadow-inner'
                         : 'bg-stone-950/85 border border-stone-800 text-stone-400 group-hover:text-stone-200'
                     }`}
+                    style={{
+                      borderColor: active ? accentColor : undefined,
+                      color: active ? accentColor : undefined,
+                      backgroundColor: active ? `${accentColor}25` : undefined,
+                    }}
                   >
                     <Icon className="w-4.5 h-4.5" />
                   </div>
@@ -769,7 +807,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 </div>
 
                 <div className="mt-2 relative z-10">
-                  <div className={`text-sm font-bold flex items-center gap-1.5 ${active ? 'text-amber-300' : 'text-stone-200'}`}>
+                  <div className={`text-sm font-bold flex items-center gap-1.5 ${active ? textAccent : 'text-stone-200'}`}>
                     <span>{item.label}</span>
                   </div>
                   <div className="text-[11px] text-stone-300/90 font-mono-num mt-0.5">
@@ -796,7 +834,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 value={roomCodeInput}
                 onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
                 placeholder="Nhập mã phòng (6 ký tự)"
-                className="w-full rounded-xl bg-stone-950/90 border border-stone-800 pl-4 pr-3 py-2.5 text-xs font-mono-num uppercase tracking-widest text-stone-100 placeholder:text-stone-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40 shadow-inner transition-colors"
+                className={`w-full rounded-xl bg-stone-950/90 border border-stone-800 pl-4 pr-3 py-2.5 text-xs font-mono-num uppercase tracking-widest text-stone-100 placeholder:text-stone-500 focus:outline-none shadow-inner transition-colors ${inputFocus}`}
               />
             </div>
             <button
@@ -818,10 +856,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </button>
             <button
               onClick={() => handleCreateRoom()}
-              className={`min-h-[42px] px-6 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 ${
-                theme?.web.primaryBtnClass ||
-                'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]'
-              }`}
+              className={`min-h-[42px] px-6 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 ${primaryBtn}`}
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Tạo phòng mới</span>
@@ -839,14 +874,17 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.80) 0%, rgba(10, 9, 8, 0.92) 100%), url('${arenaGateImg}')`,
               }}
             >
-              <div className="w-14 h-14 rounded-full bg-stone-950/90 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
+              <div
+                className="w-14 h-14 rounded-full bg-stone-950/90 border flex items-center justify-center shadow-inner"
+                style={{ borderColor: accentColor, color: accentColor }}
+              >
                 <Swords className="w-7 h-7 stroke-[1.4]" />
               </div>
               <div className="space-y-1.5 max-w-md">
                 <div className="text-sm font-bold text-stone-100">
                   Chưa có phòng nào cho thể loại này
                 </div>
-                <div className={`text-xs ${theme?.web.textAccentClass || 'text-amber-300'}`}>
+                <div className={`text-xs ${textAccent}`}>
                   Đang có <strong className="font-extrabold underline">{roomCounts.all} phòng</strong> đang mở ở các thể loại khác!
                 </div>
               </div>
@@ -854,9 +892,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <a
                   href="/ranked"
                   onClick={(e) => handleLinkClick(e, '/ranked', () => setSelectedMode('all'))}
-                  className={`min-h-[42px] px-5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${
-                    theme?.web.primaryBtnClass || 'bg-amber-500 text-stone-950'
-                  }`}
+                  className={`min-h-[42px] px-5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${primaryBtn}`}
                 >
                   <Swords className="w-4 h-4 stroke-[2]" />
                   <span>Xem tất cả {roomCounts.all} phòng đang mở</span>
@@ -878,7 +914,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.78) 0%, rgba(10, 9, 8, 0.92) 100%), url('${arenaGateImg}')`,
               }}
             >
-              <div className="w-16 h-16 rounded-full bg-stone-950/90 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
+              <div
+                className="w-16 h-16 rounded-full bg-stone-950/90 border flex items-center justify-center shadow-inner"
+                style={{ borderColor: accentColor, color: accentColor }}
+              >
                 <Swords className="w-8 h-8 stroke-[1.4]" />
               </div>
               <div className="space-y-1">
@@ -887,9 +926,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               </div>
               <button
                 onClick={() => handleCreateRoom()}
-                className={`min-h-[44px] px-6 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${
-                  theme?.web.primaryBtnClass || 'bg-amber-500 text-stone-950'
-                }`}
+                className={`min-h-[44px] px-6 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 ${primaryBtn}`}
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Tạo phòng ngay</span>
@@ -910,12 +947,15 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   style={{
                     backgroundImage: `linear-gradient(to bottom, rgba(20, 18, 16, 0.85) 0%, rgba(12, 10, 9, 0.94) 100%), url('${masterDuelImg}')`,
                   }}
-                  className="rounded-2xl bg-cover bg-center border border-stone-800 hover:border-amber-500/60 p-4.5 flex flex-col justify-between gap-3.5 shadow-xl hover:shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all duration-200 group"
+                  className={`rounded-2xl bg-cover bg-center border p-4.5 flex flex-col justify-between gap-3.5 shadow-xl hover:shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-all duration-200 group ${borderCard}`}
                 >
                   {/* Header thẻ phòng */}
                   <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono-num font-black text-amber-400 text-xs px-2.5 py-0.5 rounded-lg bg-stone-950 border border-amber-500/30 shadow-inner tracking-wider">
+                      <span
+                        className={`font-mono-num font-black text-xs px-2.5 py-0.5 rounded-lg bg-stone-950 border shadow-inner tracking-wider ${textAccent}`}
+                        style={{ borderColor: `${accentColor}40` }}
+                      >
                         #{r.code}
                       </span>
                       <span className="text-[11px] text-stone-300 font-semibold">{modeLabel}</span>
@@ -924,7 +964,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     <span
                       className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-xs ${
                         isWaiting
-                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          ? badgeAccent
                           : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                       }`}
                     >
@@ -936,7 +976,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between text-stone-300">
                       <div className="flex items-center gap-1.5">
-                        <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Crown className={`w-3.5 h-3.5 shrink-0 ${textAccent}`} />
                         <span className="text-stone-400 text-[11px]">Chủ phòng:</span>
                         <span className="font-bold text-stone-200 truncate max-w-[120px]">{r.hostName}</span>
                       </div>
@@ -956,7 +996,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             {r.redPlayer ? (r.redPlayer.displayName || r.redPlayer.username) : 'Ghế trống'}
                           </span>
                         </div>
-                        <span className="text-amber-400/90 font-bold shrink-0">
+                        <span className={`font-bold shrink-0 ${textAccent}`}>
                           {r.redPlayer ? `${r.redPlayer.elo} xu` : '—'}
                         </span>
                       </div>
@@ -969,7 +1009,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             {r.blackPlayer ? (r.blackPlayer.displayName || r.blackPlayer.username) : 'Ghế trống'}
                           </span>
                         </div>
-                        <span className="text-amber-400/90 font-bold shrink-0">
+                        <span className={`font-bold shrink-0 ${textAccent}`}>
                           {r.blackPlayer ? `${r.blackPlayer.elo} xu` : '—'}
                         </span>
                       </div>
@@ -986,10 +1026,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             handleJoinRoom(r.code, false)
                           )
                         }
-                        className={`w-full min-h-[40px] rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                          theme?.web.primaryBtnClass ||
-                          'bg-gradient-to-r from-amber-600 to-amber-700 text-stone-950 shadow-[0_0_16px_rgba(245,158,11,0.25)]'
-                        }`}
+                        className={`w-full min-h-[40px] rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${primaryBtn}`}
                       >
                         <Swords className="w-3.5 h-3.5 stroke-[2.2]" />
                         <span>Vào chơi ({r.playerCount}/2 ghế)</span>
@@ -1062,13 +1099,16 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-4 animate-in fade-in duration-300">
         {/* Thanh tiêu đề phòng chờ hoàng gia có hình nền */}
         <div
-          className="flex items-center justify-between border border-amber-900/40 rounded-2xl px-5 py-3.5 shadow-2xl bg-cover bg-center transition-all duration-700"
+          className={`flex items-center justify-between border ${borderAccent} rounded-2xl px-5 py-3.5 shadow-2xl bg-cover bg-center transition-all duration-700`}
           style={{
             backgroundImage: `linear-gradient(to right, rgba(16, 14, 13, 0.88) 0%, rgba(18, 15, 13, 0.78) 100%), url('${lobbyPavilionImg}')`,
           }}
         >
           <div className="flex items-center gap-3">
-            <span className="font-mono-num font-black text-amber-400 px-3.5 py-1.5 rounded-xl bg-stone-950/90 border border-amber-500/30 text-sm shadow-inner tracking-widest">
+            <span
+              className={`font-mono-num font-black px-3.5 py-1.5 rounded-xl bg-stone-950/90 border text-sm shadow-inner tracking-widest ${textAccent}`}
+              style={{ borderColor: `${accentColor}40` }}
+            >
               PHÒNG: {activeRoom.code}
             </span>
             <span className="text-xs text-stone-200 font-semibold hidden sm:flex items-center gap-1.5">
@@ -1085,7 +1125,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               className="px-3.5 py-2 rounded-xl bg-stone-950/90 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-inner"
               title="Sao chép mã phòng"
             >
-              <Copy className="w-3.5 h-3.5 text-amber-400" />
+              <Copy className={`w-3.5 h-3.5 ${textAccent}`} />
               <span className="hidden sm:inline">Sao chép mã</span>
             </button>
             <button
@@ -1103,15 +1143,15 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           <div className="lg:col-span-7 space-y-4">
             {/* Kỳ Đài Song Hùng Đối Kháng có hình nền */}
             <div
-              className="rounded-3xl border border-amber-900/40 p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden bg-cover bg-center transition-all duration-700"
+              className={`rounded-3xl border ${borderAccent} p-5 sm:p-6 space-y-5 shadow-2xl relative overflow-hidden bg-cover bg-center transition-all duration-700`}
               style={{
                 backgroundImage: `linear-gradient(to bottom, rgba(16, 14, 13, 0.82) 0%, rgba(10, 9, 8, 0.92) 100%), url('${masterDuelImg}')`,
               }}
             >
               {/* Tiêu đề kỳ đài */}
               <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
-                <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-400">
-                  <Swords className="w-4 h-4 text-amber-400" />
+                <div className={`flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider ${textAccent}`}>
+                  <Swords className="w-4 h-4" />
                   <span>KỲ ĐÀI SONG HÙNG ĐỐI KHÁNG</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-mono-num">
@@ -1140,7 +1180,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     </span>
 
                     {activeRoom.redPlayer?.uid === activeRoom.hostUid && (
-                      <span className="flex items-center gap-1 text-[10px] text-amber-400 font-extrabold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/30 shadow-xs">
+                      <span className={`flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-xs ${badgeAccent}`}>
                         <Crown className="w-3 h-3 fill-current" />
                         <span>Chủ phòng</span>
                       </span>
@@ -1171,7 +1211,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-xs font-mono-num font-bold text-amber-400 mt-0.5">
+                        <div className={`text-xs font-mono-num font-bold mt-0.5 ${textAccent}`}>
                           {activeRoom.redPlayer.elo ?? 1300} xu
                         </div>
                       </div>
@@ -1208,10 +1248,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
                 {/* Ghế Đen (Hậu Thủ) */}
                 <div
+                  style={{
+                    borderColor: activeRoom.blackPlayer && activeRoom.blackPlayer.uid === currentUser.uid ? accentColor : undefined,
+                    boxShadow: activeRoom.blackPlayer && activeRoom.blackPlayer.uid === currentUser.uid ? `0 0 24px ${accentGlow}` : undefined,
+                  }}
                   className={`relative rounded-2xl border p-4.5 flex flex-col justify-between min-h-[175px] transition-all overflow-hidden backdrop-blur-xs ${
                     activeRoom.blackPlayer
                       ? activeRoom.blackPlayer.uid === currentUser.uid
-                        ? 'border-2 border-amber-500/90 bg-gradient-to-br from-stone-900/90 via-stone-900/95 to-amber-950/50 shadow-[0_0_24px_rgba(245,158,11,0.25)]'
+                        ? 'border-2 bg-gradient-to-br from-stone-900/90 via-stone-900/95 to-stone-950'
                         : 'border-stone-700 bg-gradient-to-br from-stone-800/50 to-stone-950/90 shadow-md'
                       : 'border-2 border-dashed border-stone-700/80 bg-stone-950/65'
                   }`}
@@ -1223,7 +1267,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     </span>
 
                     {activeRoom.blackPlayer?.uid === activeRoom.hostUid && (
-                      <span className="flex items-center gap-1 text-[10px] text-amber-400 font-extrabold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/30 shadow-xs">
+                      <span className={`flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full border shadow-xs ${badgeAccent}`}>
                         <Crown className="w-3 h-3 fill-current" />
                         <span>Chủ phòng</span>
                       </span>
@@ -1233,7 +1277,10 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   {activeRoom.blackPlayer ? (
                     <div className="my-3 flex items-center gap-3 relative z-10">
                       <div className="relative">
-                        <div className="w-13 h-13 rounded-full bg-gradient-to-br from-stone-800 to-stone-950 border-2 border-amber-500/50 flex items-center justify-center text-2xl shadow-xl ring-2 ring-amber-500/20">
+                        <div
+                          className="w-13 h-13 rounded-full bg-gradient-to-br from-stone-800 to-stone-950 border-2 flex items-center justify-center text-2xl shadow-xl ring-2"
+                          style={{ borderColor: accentColor }}
+                        >
                           🐵
                         </div>
                         <span
@@ -1254,7 +1301,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-xs font-mono-num font-bold text-amber-400 mt-0.5">
+                        <div className={`text-xs font-mono-num font-bold mt-0.5 ${textAccent}`}>
                           {activeRoom.blackPlayer.elo ?? 1300} xu
                         </div>
                       </div>
@@ -1282,7 +1329,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                         <span>Chuyển sang ghế Đỏ</span>
                       </button>
                     ) : isBlack ? (
-                      <div className="w-full py-1.5 rounded-lg bg-stone-950/80 border border-stone-800 text-center text-[11px] font-bold text-amber-300">
+                      <div className={`w-full py-1.5 rounded-lg bg-stone-950/80 border border-stone-800 text-center text-[11px] font-bold ${textAccent}`}>
                         Ghế của bạn
                       </div>
                     ) : null}
@@ -1296,7 +1343,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <button
                     onClick={handleStartMatch}
                     disabled={!bothReady}
-                    className="w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 disabled:from-stone-800 disabled:to-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-black text-sm flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all active:scale-98 cursor-pointer"
+                    className={`w-full min-h-[52px] rounded-2xl ${primaryBtn} disabled:from-stone-800 disabled:to-stone-800 disabled:opacity-40 disabled:cursor-not-allowed font-black text-sm flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer`}
                   >
                     <Play className="w-5 h-5 fill-current" />
                     <span>{bothReady ? 'BẮT ĐẦU VÁN ĐẤU (CHỦ PHÒNG KHAI CUỘC)' : 'CHỜ ĐỐI THỦ VÀO GHẾ ĐỂ BẮT ĐẦU'}</span>
@@ -1321,7 +1368,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               }}
             >
               <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                <span className={`text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 ${textAccent}`}>
                   <Users className="w-4 h-4" />
                   <span>KHÁN ĐÀI THEO DÕI ({activeRoom.spectators?.length || 0}/6)</span>
                 </span>
@@ -1329,7 +1376,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   <button
                     onClick={() => handleSwitchSeat('spectator')}
                     disabled={(activeRoom.spectators?.length || 0) >= 6}
-                    className="text-xs text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+                    className={`text-xs font-bold transition-colors cursor-pointer ${textAccent} hover:underline`}
                   >
                     Xuống khán đài
                   </button>
@@ -1342,10 +1389,13 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   return (
                     <div
                       key={idx}
+                      style={{
+                        borderColor: spec && spec.uid === currentUser.uid ? accentColor : undefined,
+                      }}
                       className={`p-3 rounded-2xl border flex items-center gap-2.5 min-h-[58px] transition-all backdrop-blur-xs ${
                         spec
                           ? spec.uid === currentUser.uid
-                            ? 'bg-amber-950/40 border-amber-500/60 text-stone-100 shadow-md ring-1 ring-amber-500/30'
+                            ? 'bg-stone-900 border text-stone-100 shadow-md ring-1'
                             : 'bg-stone-950/85 border-stone-800 text-stone-300 shadow-inner'
                           : 'border-dashed border-stone-700/80 bg-stone-950/50 text-stone-500'
                       }`}
@@ -1358,7 +1408,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                           {spec ? spec.username : 'Ghế trống'}
                         </div>
                         {spec && (
-                          <div className="text-[10px] text-amber-400 font-mono-num font-semibold">
+                          <div className={`text-[10px] font-mono-num font-semibold ${textAccent}`}>
                             {spec.elo ?? 1300} xu
                           </div>
                         )}
@@ -1377,7 +1427,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               backgroundImage: `linear-gradient(to bottom, rgba(18, 16, 15, 0.90) 0%, rgba(12, 10, 9, 0.96) 100%), url('${leaderboardBgImg}')`,
             }}
           >
-            <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2.5 flex items-center justify-between shrink-0">
+            <div className={`text-xs font-extrabold uppercase tracking-wider border-b border-stone-800/80 pb-2.5 flex items-center justify-between shrink-0 ${textAccent}`}>
               <span className="flex items-center gap-1.5">
                 <Send className="w-3.5 h-3.5" />
                 <span>TRÒ CHUYỆN PHÒNG</span>
@@ -1405,7 +1455,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                   ) : (
                     <div key={c.id} className="leading-relaxed bg-stone-900/60 p-2 rounded-xl border border-stone-800/60 break-words">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-bold text-amber-400">{c.senderName}</span>
+                        <span className={`font-bold ${textAccent}`}>{c.senderName}</span>
                         {c.isSpectator ? (
                           <span className="text-[9px] text-stone-400 px-1.5 py-0.2 rounded bg-stone-800">
                             Khán giả
@@ -1464,12 +1514,12 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-xl bg-stone-950/90 border border-stone-800 px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-amber-500 shadow-inner"
+                className={`flex-1 rounded-xl bg-stone-950/90 border border-stone-800 px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none shadow-inner ${inputFocus}`}
               />
               <button
                 type="submit"
                 title="Gửi"
-                className="min-w-[42px] min-h-[42px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold flex items-center justify-center transition-all shadow-md active:scale-95"
+                className={`min-w-[42px] min-h-[42px] rounded-xl font-bold flex items-center justify-center transition-all shadow-md active:scale-95 ${primaryBtn}`}
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -1532,9 +1582,9 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         }}
         className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl transition-all bg-cover bg-center ${
           isMe
-            ? 'border-2 border-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.22)]'
+            ? `${borderAccent} shadow-[0_0_16px_var(--theme-accent-glow,rgba(245,158,11,0.22))]`
             : isTurn && activeRoom.status === 'playing'
-            ? 'border border-amber-500/50 shadow-md'
+            ? `${borderAccent} shadow-md`
             : 'border border-stone-800'
         }`}
       >
@@ -1545,7 +1595,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-md ${
                 colorLabel === 'Đỏ'
                   ? 'bg-gradient-to-br from-red-800 to-red-950 text-red-100 border border-red-500/60'
-                  : 'bg-gradient-to-br from-stone-800 to-stone-950 text-amber-200 border border-amber-500/40'
+                  : 'bg-gradient-to-br from-stone-800 to-stone-950 text-stone-100 border border-stone-700'
               }`}
             >
               {seat ? (
@@ -1593,7 +1643,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             </div>
 
             <div className="text-xs font-mono-num flex items-center gap-2 mt-0.5">
-              <span className="font-semibold text-amber-400">
+              <span className={`font-semibold ${textAccent}`}>
                 {seat?.elo ?? 1300} xu
               </span>
               {seat && !seat.connected && (
@@ -1613,7 +1663,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           {activeRoom.moveTimeLimitMs > 0 && isTurn && activeRoom.status === 'playing' && (
             <div
               title="Thời gian tối đa cho nước đi này (2 phút)"
-              className="px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-semibold"
+              className={`px-2 py-1 rounded-lg ${badgeAccent} text-xs font-semibold`}
             >
               {formatClock(activeRoom.currentMoveRemainingMs)}
             </div>
@@ -1622,7 +1672,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           <div
             className={`px-3.5 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-inner ${
               isMe
-                ? 'border border-amber-500/70 bg-stone-950 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                ? `${borderAccent} bg-stone-950 ${textAccent} shadow-[0_0_10px_var(--theme-accent-glow,rgba(245,158,11,0.2))]`
                 : 'border border-stone-800 bg-stone-950 text-stone-100'
             }`}
           >
@@ -1644,11 +1694,17 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           activeRoom.drawOfferBy &&
           myColor &&
           activeRoom.drawOfferBy !== myColor && (
-            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/15 border-2 border-amber-500 text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.3)] animate-pulse">
-              <div className="flex items-center gap-2.5 font-medium text-xs sm:text-sm text-amber-300">
-                <Handshake className="w-5 h-5 text-amber-400 shrink-0" />
+            <div
+              style={{
+                borderColor: accentColor,
+                boxShadow: `0 0 25px ${accentGlow}`,
+              }}
+              className={`w-full flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-stone-950/90 border-2 ${textAccent} animate-pulse`}
+            >
+              <div className="flex items-center gap-2.5 font-medium text-xs sm:text-sm text-stone-200">
+                <Handshake className={`w-5 h-5 ${textAccent} shrink-0`} />
                 <span>
-                  <strong className="text-amber-200">Đối thủ đề nghị hòa ván này!</strong> Bạn có chấp nhận không?
+                  <strong className={textAccent}>Đối thủ đề nghị hòa ván này!</strong> Bạn có chấp nhận không?
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -1685,13 +1741,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           <div
             style={{
               backgroundImage: `linear-gradient(to right, rgba(18, 15, 13, 0.86) 0%, rgba(14, 12, 10, 0.92) 100%), url('${championHallImg}')`,
+              borderColor: accentColor,
             }}
-            className="w-full rounded-2xl bg-cover bg-center border-2 border-amber-500/80 p-4 space-y-3 shadow-2xl transition-all duration-700"
+            className="w-full rounded-2xl bg-cover bg-center border-2 p-4 space-y-3 shadow-2xl transition-all duration-700"
           >
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
-                <span className="text-base font-extrabold text-amber-300">
+                <Trophy className={`w-5 h-5 ${textAccent} shrink-0`} />
+                <span className={`text-base font-extrabold ${textAccent}`}>
                   {activeRoom.winner === 'red' || activeRoom.winner === 'r'
                     ? 'Đỏ chiến thắng!'
                     : activeRoom.winner === 'black' || activeRoom.winner === 'b'
@@ -1699,7 +1756,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     : 'Hòa cờ!'}
                 </span>
               </div>
-              <div className="px-3 py-1 rounded-lg bg-stone-950 border border-stone-800 text-xs text-amber-300/90 font-medium">
+              <div className={`px-3 py-1 rounded-lg bg-stone-950 border border-stone-800 text-xs ${textAccent} font-medium`}>
                 {activeRoom.endReason || 'Ván đấu đã kết thúc'}
               </div>
             </div>
@@ -1725,7 +1782,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     {activeRoom.eloResult.redBoostPenalty > 0 && (
                       <span
                         title="Trừ điểm chống cày Elo"
-                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
+                        className={`px-1 py-0.5 rounded ${badgeAccent} text-[10px]`}
                       >
                         −{activeRoom.eloResult.redBoostPenalty}
                       </span>
@@ -1752,7 +1809,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     {activeRoom.eloResult.blackBoostPenalty > 0 && (
                       <span
                         title="Trừ điểm chống cày Elo"
-                        className="px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]"
+                        className={`px-1 py-0.5 rounded ${badgeAccent} text-[10px]`}
                       >
                         −{activeRoom.eloResult.blackBoostPenalty}
                       </span>
@@ -1775,7 +1832,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               </button>
               <button
                 onClick={handleReturnToWaitingRoom}
-                className="flex-1 min-h-[42px] rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                className={`flex-1 min-h-[42px] rounded-xl ${primaryBtn} text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer`}
                 title="Quay lại phòng chờ để chuẩn bị ván đấu tiếp theo cùng đối thủ và khán giả"
               >
                 <Users className="w-3.5 h-3.5" />
@@ -1804,18 +1861,27 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
         {/* Banner cảnh báo & NÚT DI CHUYỂN VỀ NƯỚC HIỆN TẠI (khi người chơi đang xem lại nước cũ trong trận đấu) */}
         {activeRoom.status === 'playing' && !isLiveState && (
-          <div className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-950/85 via-stone-900/95 to-amber-950/85 border border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.25)] text-amber-200">
+          <div
+            style={{
+              borderColor: accentColor,
+              boxShadow: `0 0 20px ${accentGlow}`,
+            }}
+            className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-stone-950/95 border text-stone-200"
+          >
             <div className="flex items-center gap-2.5 text-xs font-medium min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span
+                style={{ backgroundColor: accentColor }}
+                className="w-2.5 h-2.5 rounded-full animate-ping shrink-0"
+              />
               <span className="truncate">
-                Đang xem lại: <strong className="text-amber-300 font-mono-num font-bold">Nước {reviewPly}/{moves.length}</strong>
+                Đang xem lại: <strong className={`${textAccent} font-mono-num font-bold`}>Nước {reviewPly}/{moves.length}</strong>
               </span>
               <span className="text-[11px] text-stone-400 hidden sm:inline">(Tạm khóa để xem)</span>
             </div>
             <button
               type="button"
               onClick={handleReturnToLive}
-              className="shrink-0 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer transition-all"
+              className={`shrink-0 px-3.5 py-1.5 rounded-xl ${primaryBtn} text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer transition-all`}
               title="Quay về nước hiện tại để tiếp tục đi cờ"
             >
               <FastForward className="w-4 h-4 fill-current shrink-0" />
@@ -1859,7 +1925,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             disabled={activeRoom.status !== 'playing' || !myColor}
             className="min-h-[46px] rounded-xl bg-stone-900/90 hover:bg-stone-800 border border-stone-800 text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-sm active:scale-95 cursor-pointer"
           >
-            <Handshake className="w-4 h-4 text-amber-400 shrink-0" />
+            <Handshake className={`w-4 h-4 ${textAccent} shrink-0`} />
             <span>Xin Hòa</span>
           </button>
           <button
@@ -1895,7 +1961,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {/* Thanh công cụ phụ */}
         <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-stone-900/80 border border-stone-800/80 rounded-xl px-3.5 py-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-mono-num font-bold text-amber-400 px-2 py-0.5 rounded bg-stone-950 border border-stone-800">
+            <span className={`font-mono-num font-bold ${textAccent} px-2 py-0.5 rounded bg-stone-950 border border-stone-800`}>
               Phòng: {activeRoom.code}
             </span>
             <span className="text-stone-400 font-mono-num">
@@ -1908,7 +1974,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <button
                 type="button"
                 onClick={handleReturnToLive}
-                className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
+                className={`px-2.5 py-1 rounded-lg ${primaryBtn} text-xs font-bold flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer`}
                 title="Di chuyển ngay về nước hiện tại để đi cờ"
               >
                 <FastForward className="w-3.5 h-3.5 fill-current" />
@@ -1964,18 +2030,18 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
         {/* Google Material 3 Room Info Card with Prominent Side Thoát Trận Button */}
         <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-900/90 border border-stone-800 shadow-lg backdrop-blur-sm">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold shrink-0 shadow-inner">
+            <div className={`w-10 h-10 rounded-2xl ${badgeAccent} flex items-center justify-center font-bold shrink-0 shadow-inner`}>
               {activeRoom.mode === 'blitz' ? (
-                <Flame className="w-5 h-5 text-amber-400" />
+                <Flame className={`w-5 h-5 ${textAccent}`} />
               ) : activeRoom.mode === 'dark' ? (
-                <EyeOff className="w-5 h-5 text-amber-400" />
+                <EyeOff className={`w-5 h-5 ${textAccent}`} />
               ) : (
-                <Clock className="w-5 h-5 text-amber-400" />
+                <Clock className={`w-5 h-5 ${textAccent}`} />
               )}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono-num font-extrabold text-amber-300 text-sm tracking-wide">
+                <span className={`font-mono-num font-extrabold ${textAccent} text-sm tracking-wide`}>
                   PHÒNG {activeRoom.code}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-800 text-stone-300 border border-stone-700">
@@ -2026,7 +2092,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             }
             className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
               sideTab === 'notation'
-                ? 'bg-amber-600 text-white shadow-md'
+                ? `${primaryBtn} shadow-md`
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -2042,7 +2108,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             }
             className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
               sideTab === 'spectators'
-                ? 'bg-amber-600 text-white shadow-md'
+                ? `${primaryBtn} shadow-md`
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -2058,7 +2124,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             }
             className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all relative ${
               sideTab === 'chat'
-                ? 'bg-amber-600 text-white shadow-md'
+                ? `${primaryBtn} shadow-md`
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -2080,7 +2146,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
           >
             <div className="border-b border-stone-800/80 pb-3 flex items-center justify-between gap-2 flex-wrap">
               <div>
-                <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-400">
+                <div className={`flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider ${textAccent}`}>
                   <RotateCcw className="w-4 h-4" />
                   <span>KÝ PHỔ NƯỚC ĐI ({moves.length})</span>
                 </div>
@@ -2095,7 +2161,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
               <button
                 type="button"
                 onClick={handleReturnToLive}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 active:scale-98 transition-all cursor-pointer animate-pulse"
+                className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-all cursor-pointer animate-pulse`}
                 title="Di chuyển ngay về nước hiện tại để mở khóa bàn cờ và đi tiếp"
               >
                 <FastForward className="w-4 h-4 fill-current shrink-0" />
@@ -2106,7 +2172,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             {moves.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-stone-400 py-16">
                 <div className="w-14 h-14 rounded-full border border-stone-800/80 bg-stone-950/75 flex items-center justify-center">
-                  <RotateCcw className="w-7 h-7 stroke-1 text-amber-400/70" />
+                  <RotateCcw className={`w-7 h-7 stroke-1 ${textAccent}`} />
                 </div>
                 <div className="text-xs text-stone-300 text-center max-w-[240px] leading-relaxed">
                   Trận đấu vừa bắt đầu. Chưa có nước cờ nào.
@@ -2131,7 +2197,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                         }
                         className={`min-h-[34px] shrink-0 px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between cursor-pointer ${
                           isSelected
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-xs'
+                            ? `${badgeAccent} font-semibold shadow-xs`
                             : 'hover:bg-stone-800/60 text-stone-300'
                         }`}
                       >
@@ -2166,7 +2232,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             className="rounded-2xl bg-cover bg-center border border-stone-800 p-5 space-y-3 min-h-[380px] shadow-xl transition-all duration-700"
           >
             <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <div className={`text-xs font-bold uppercase tracking-wider ${textAccent} flex items-center gap-1.5`}>
                 <Users className="w-4 h-4" />
                 <span>Khán giả đang xem ({activeRoom.spectators?.length || 0}/6)</span>
               </div>
@@ -2174,7 +2240,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
 
             {!activeRoom.spectators || activeRoom.spectators.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 text-stone-400 py-16">
-                <Users className="w-8 h-8 stroke-1 text-amber-400/70" />
+                <Users className={`w-8 h-8 stroke-1 ${textAccent}`} />
                 <span className="text-xs text-stone-300">Chưa có ai đang xem phòng này</span>
               </div>
             ) : (
@@ -2206,7 +2272,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             }}
             className="rounded-2xl bg-cover bg-center border border-stone-800 p-4 space-y-3 shadow-xl h-[480px] max-h-[480px] flex flex-col shrink-0 transition-all duration-700"
           >
-            <div className="text-xs font-bold uppercase tracking-wider text-amber-400 border-b border-stone-800/80 pb-2 flex items-center justify-between shrink-0">
+            <div className={`text-xs font-bold uppercase tracking-wider ${textAccent} border-b border-stone-800/80 pb-2 flex items-center justify-between shrink-0`}>
               <span className="flex items-center gap-1.5">
                 <Send className="w-3.5 h-3.5" />
                 <span>Trò chuyện trong phòng</span>
@@ -2230,7 +2296,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                     </div>
                   ) : (
                     <div key={c.id} className="leading-relaxed bg-stone-900/50 p-2 rounded-lg border border-stone-800/50 break-words">
-                      <span className="font-semibold text-amber-400">{c.senderName}</span>
+                      <span className={`font-semibold ${textAccent}`}>{c.senderName}</span>
                       {c.isSpectator && (
                         <span className="ml-1 text-[10px] text-stone-400">· Xem</span>
                       )}
@@ -2283,12 +2349,12 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-xl bg-stone-950 border border-stone-800 px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-amber-500"
+                className={`flex-1 rounded-xl bg-stone-950 border border-stone-800 px-3 py-2 text-xs text-stone-100 ${inputFocus}`}
               />
               <button
                 type="submit"
                 title="Gửi"
-                className="min-w-[40px] min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center transition-colors shrink-0"
+                className={`min-w-[40px] min-h-[40px] rounded-xl ${primaryBtn} flex items-center justify-center transition-colors shrink-0`}
               >
                 <Send className="w-3.5 h-3.5" />
               </button>

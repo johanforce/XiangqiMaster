@@ -17,6 +17,7 @@ import {
 import { Logo } from './Logo';
 import { ServerEnv, getServerEnv, setServerEnv, isStagingUnlocked } from '../utils/serverEnv';
 import { StagingPasswordModal } from './StagingPasswordModal';
+import { BoardTheme } from '../utils/themes';
 
 export interface UserProfile {
   uid: string;
@@ -41,6 +42,7 @@ interface AuthModalProps {
   onToast: (msg: string) => void;
   currentEnv?: ServerEnv;
   onEnvChange?: (env: ServerEnv) => void;
+  theme?: BoardTheme;
 }
 
 type AuthTab = 'login' | 'register' | 'rename' | 'password';
@@ -53,6 +55,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onToast,
   currentEnv,
   onEnvChange,
+  theme,
 }) => {
   const [tab, setTab] = useState<AuthTab>('login');
   const [username, setUsername] = useState('');
@@ -252,9 +255,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const activeTabClass = theme ? theme.web.primaryBtnClass : 'bg-amber-600 text-white shadow-xs';
+  const primaryBtnClass = theme ? theme.web.primaryBtnClass : 'bg-amber-600 hover:bg-amber-500 text-white';
+  const inputFocusClass = theme ? theme.web.inputFocusClass : 'focus:border-amber-500';
+  const textAccentClass = theme ? theme.web.textAccentClass : 'text-amber-400';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl overflow-hidden text-stone-100 max-h-[90vh] flex flex-col">
+      <div
+        className="w-full max-w-md rounded-2xl bg-stone-900 border shadow-2xl overflow-hidden text-stone-100 max-h-[90vh] flex flex-col"
+        style={{ borderColor: theme ? theme.web.cardBorderColor : undefined }}
+      >
         {/* Header with Official Logo */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-stone-800">
           <Logo size="sm" variant="full" theme="dark" />
@@ -277,7 +288,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
               tab === 'login'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? activeTabClass
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -292,7 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
               tab === 'register'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? activeTabClass
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -308,7 +319,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             title="Giới hạn 1 lần / 3 ngày"
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
               tab === 'rename'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? activeTabClass
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -323,7 +334,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
               tab === 'password'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? activeTabClass
                 : 'text-stone-400 hover:text-stone-200'
             }`}
           >
@@ -473,7 +484,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Nhập tên đăng nhập"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <div>
@@ -489,13 +500,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Nhập mật khẩu"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                className={`w-full min-h-[44px] rounded-xl disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 ${primaryBtnClass}`}
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Đăng nhập</span>
@@ -515,7 +526,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="3–24 ký tự chữ, số, _"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <div>
@@ -526,13 +537,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Tối thiểu 6 ký tự"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                className={`w-full min-h-[44px] rounded-xl disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 ${primaryBtnClass}`}
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Tạo tài khoản</span>
@@ -545,7 +556,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {currentUser ? (
                 <div className="p-3 rounded-xl bg-stone-950 border border-stone-800 text-xs flex items-center justify-between">
                   <span className="text-stone-400">Tên hiện tại:</span>
-                  <span className="font-bold text-amber-300">
+                  <span className={`font-bold ${textAccentClass}`}>
                     {currentUser.displayName || currentUser.username}
                   </span>
                 </div>
@@ -558,7 +569,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Nhập tên đăng nhập hiện tại"
-                    className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden focus:border-amber-500"
+                    className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden ${inputFocusClass}`}
                   />
                 </div>
               )}
@@ -568,7 +579,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   title="Giới hạn đổi tên 1 lần mỗi 3 ngày"
                 >
                   <span className="font-semibold text-stone-300">Tên hiển thị mới:</span>
-                  <span className="text-[10px] text-amber-400 font-semibold">(1 lần / 3 ngày)</span>
+                  <span className={`text-[10px] font-semibold ${textAccentClass}`}>(1 lần / 3 ngày)</span>
                 </label>
                 <input
                   type="text"
@@ -576,7 +587,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="Ví dụ: Hành Sơn Vương"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden ${inputFocusClass}`}
                 />
                 <p className="text-[11px] text-stone-500 mt-1">
                   Đổi trường tên hiển thị (displayName) trên bàn cờ, bảng xếp hạng và phòng chơi (tối đa 30 ký tự, hỗ trợ tiếng Việt có dấu).
@@ -590,13 +601,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Nhập mật khẩu để xác nhận"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-hidden ${inputFocusClass}`}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading || !newUsername.trim() || !password}
-                className="w-full min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className={`w-full min-h-[44px] rounded-xl disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer ${primaryBtnClass}`}
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Lưu tên mới</span>
@@ -614,7 +625,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                    className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                   />
                 </div>
               )}
@@ -625,7 +636,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <div>
@@ -636,13 +647,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Tối thiểu 6 ký tự"
-                  className="w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none focus:border-amber-500"
+                  className={`w-full rounded-xl bg-stone-950 border border-stone-800 px-3.5 py-2.5 text-sm text-stone-100 focus:outline-none ${inputFocusClass}`}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                className={`w-full min-h-[44px] rounded-xl disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 ${primaryBtnClass}`}
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>Đổi mật khẩu</span>

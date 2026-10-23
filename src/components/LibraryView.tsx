@@ -60,7 +60,12 @@ const CATEGORIES = [
   'Cẩm nang chiến thuật',
 ];
 
-function renderFormattedArticleContent(text: string) {
+function renderFormattedArticleContent(
+  text: string,
+  textAccent = 'text-amber-300',
+  borderAccent = 'border-amber-500/70',
+  accentBg = 'bg-amber-950/15'
+) {
   const lines = String(text || '').split('\n');
   return lines.map((line, idx) => {
     const trimmed = line.trim();
@@ -71,7 +76,7 @@ function renderFormattedArticleContent(text: string) {
       return (
         <h4
           key={idx}
-          className="text-base font-display font-bold text-amber-300 mt-4 mb-1.5"
+          className={`text-base font-display font-bold ${textAccent} mt-4 mb-1.5`}
         >
           {trimmed.slice(4)}
         </h4>
@@ -81,7 +86,7 @@ function renderFormattedArticleContent(text: string) {
       return (
         <h3
           key={idx}
-          className="text-lg font-display font-bold text-amber-400 mt-5 mb-2 border-b border-stone-800/80 pb-1"
+          className={`text-lg font-display font-bold ${textAccent} mt-5 mb-2 border-b border-stone-800/80 pb-1`}
         >
           {trimmed.slice(3)}
         </h3>
@@ -101,7 +106,7 @@ function renderFormattedArticleContent(text: string) {
       return (
         <blockquote
           key={idx}
-          className="my-2.5 pl-3.5 py-2 border-l-2 border-amber-500/70 bg-amber-950/15 rounded-r-xl text-stone-300 italic text-sm"
+          className={`my-2.5 pl-3.5 py-2 border-l-2 ${borderAccent} ${accentBg} rounded-r-xl text-stone-300 italic text-sm`}
         >
           {trimmed.slice(2)}
         </blockquote>
@@ -110,7 +115,7 @@ function renderFormattedArticleContent(text: string) {
     if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
       return (
         <div key={idx} className="flex items-start gap-2 text-sm text-stone-200 my-1 pl-1">
-          <span className="text-amber-400 font-bold mt-0.5">•</span>
+          <span className={`${textAccent} font-bold mt-0.5`}>•</span>
           <span className="leading-relaxed">{trimmed.slice(2)}</span>
         </div>
       );
@@ -123,7 +128,7 @@ function renderFormattedArticleContent(text: string) {
         {parts.map((part, pIdx) => {
           if (part.startsWith('**') && part.endsWith('**')) {
             return (
-              <strong key={pIdx} className="font-semibold text-amber-300">
+              <strong key={pIdx} className={`font-semibold ${textAccent}`}>
                 {part.slice(2, -2)}
               </strong>
             );
@@ -153,6 +158,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [plyIndex, setPlyIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [notationFormat, setNotationFormat] = useState<'wxf' | 'viet' | 'iccs'>('viet');
+
+  const primaryBtn = theme?.web.primaryBtnClass || 'bg-amber-600 hover:bg-amber-500 text-white';
+  const textAccent = theme?.web.textAccentClass || 'text-amber-400';
+  const badgeAccent = theme?.web.accentBadgeClass || 'bg-amber-500/15 border border-amber-500/30 text-amber-300';
+  const borderAccent = theme?.web.borderAccentClass || 'border-amber-500/40';
+  const borderCard = theme?.web.cardBorderClass || 'border-stone-800 hover:border-amber-500/50';
+  const inputFocus = theme?.web.inputFocusClass || 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40';
+  const accentBg = theme?.web.accentBgClass || 'bg-amber-950/15';
 
   // Sync with URL (/library, /library?q=...&category=..., /library/:articleId?ply=...&format=...)
   useEffect(() => {
@@ -363,7 +376,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 setSelectedArticle(null);
               })
             }
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-500 transition-colors"
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${primaryBtn} text-xs font-semibold transition-colors`}
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại Tàng Thư</span>
@@ -387,12 +400,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             }
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 text-amber-400" />
+            <ArrowLeft className={`w-4 h-4 ${textAccent}`} />
             <span>Danh mục Tàng Thư</span>
           </a>
 
           <div className="flex items-center gap-2 text-xs text-stone-400">
-            <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+            <span className={`px-2.5 py-1 rounded-lg ${badgeAccent} font-semibold`}>
               {selectedArticle.category || 'Bí kíp'}
             </span>
             {isAdmin && (
@@ -404,7 +417,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     `/admin/library?edit=${encodeURIComponent(selectedArticle.id)}`
                   )
                 }
-                className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/30 font-medium transition-colors"
+                className={`px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 ${textAccent} border ${borderAccent} font-medium transition-colors`}
               >
                 Sửa bài viết (Admin)
               </a>
@@ -418,7 +431,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="lg:col-span-6 rounded-2xl bg-stone-900/90 border border-stone-800 p-5 sm:p-7 shadow-xl space-y-4">
             <div className="space-y-2 border-b border-stone-800 pb-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
-                <span className="inline-flex items-center gap-1 text-amber-400 font-medium">
+                <span className={`inline-flex items-center gap-1 ${textAccent} font-medium`}>
                   <Tag className="w-3.5 h-3.5" />
                   {selectedArticle.category || 'Khai cuộc'}
                 </span>
@@ -448,7 +461,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             </div>
 
             <div className="prose prose-invert max-w-none pt-1">
-              {renderFormattedArticleContent(selectedArticle.content)}
+              {renderFormattedArticleContent(selectedArticle.content, textAccent, borderAccent, accentBg)}
             </div>
           </div>
 
@@ -457,12 +470,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <div className="rounded-2xl bg-stone-900/90 border border-stone-800 p-4 shadow-xl flex flex-col items-center">
               <div className="w-full flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <BookOpen className={`w-4 h-4 ${textAccent}`} />
                   <span className="text-xs font-semibold text-stone-200 uppercase tracking-wider">
                     Bàn Cờ Minh Họa (Chỉ Xem Theo Bước)
                   </span>
                 </div>
-                <span className="text-[11px] font-mono-num px-2.5 py-0.5 rounded-md bg-stone-950 border border-stone-800 text-amber-300">
+                <span className={`text-[11px] font-mono-num px-2.5 py-0.5 rounded-md bg-stone-950 border border-stone-800 ${textAccent}`}>
                   Bước {clampedPly} / {articleMoves.length}
                 </span>
               </div>
@@ -547,7 +560,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         }
                         className={`px-2 py-0.5 rounded uppercase font-semibold transition-colors ${
                           notationFormat === fmt
-                            ? 'bg-amber-600 text-white'
+                            ? primaryBtn
                             : 'text-stone-400 hover:text-stone-200'
                         }`}
                       >
@@ -626,7 +639,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   return (
     <div className="w-full max-w-6xl mx-auto space-y-5">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-stone-900 shadow-2xl p-6 sm:p-8">
+      <div className={`relative overflow-hidden rounded-3xl border ${borderAccent} bg-stone-900 shadow-2xl p-6 sm:p-8`}>
         <div
           className="absolute inset-0 bg-cover bg-center opacity-25 pointer-events-none transition-all duration-700"
           style={{ backgroundImage: `url('${theme?.images?.lobbyPavilion || '/images/ranked_lobby_pavilion.jpg'}')` }}
@@ -635,7 +648,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${badgeAccent} text-xs font-semibold`}>
               <Library className="w-3.5 h-3.5" />
               <span>Tàng Thư Các · Kho Tàng Bí Kíp Cờ Tướng</span>
             </div>
@@ -652,7 +665,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
             <a
               href="/admin/library"
               onClick={(e) => handleLinkClick(e, '/admin/library')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-red-700 hover:from-amber-500 hover:to-red-600 text-white text-xs font-semibold shadow-lg transition-all shrink-0"
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl ${primaryBtn} text-xs font-semibold shadow-lg transition-all shrink-0`}
             >
               <Plus className="w-4 h-4" />
               <span>Viết bài mới trong Quản trị</span>
@@ -677,7 +690,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 navigateUrl(qs ? `/library?${qs}` : '/library', true);
               }}
               placeholder="Tìm kiếm tiêu đề bài viết, khai cuộc, sát pháp, tác giả..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-950/90 border border-stone-700/80 text-xs sm:text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none focus:border-amber-500"
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-950/90 border border-stone-700/80 text-xs sm:text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none ${inputFocus}`}
             />
           </div>
         </div>
@@ -699,7 +712,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 }
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === cat
-                    ? theme?.web.primaryBtnClass || 'bg-amber-600 text-white shadow'
+                    ? `${primaryBtn} shadow`
                     : 'bg-stone-950/80 text-stone-400 hover:text-stone-200 border border-stone-800'
                 }`}
               >
@@ -717,7 +730,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         </div>
       ) : filteredArticles.length === 0 ? (
         <div className="rounded-2xl bg-stone-900/80 border border-stone-800 p-12 text-center space-y-3">
-          <Sparkles className="w-8 h-8 text-amber-400/60 mx-auto" />
+          <Sparkles className={`w-8 h-8 ${textAccent} opacity-60 mx-auto`} />
           <div className="text-base font-display font-bold text-stone-200">
             {searchQuery.trim() || selectedCategory !== 'Tất cả'
               ? 'Không tìm thấy bài viết phù hợp với từ khóa'
@@ -751,11 +764,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     setPlyIndex(totalSteps);
                   })
                 }
-                className="group rounded-2xl bg-stone-900/90 border border-stone-800 hover:border-amber-500/50 p-5 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-lg"
+                className={`group rounded-2xl bg-stone-900/90 border ${borderCard} p-5 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-lg`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="px-2.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold">
+                    <span className={`px-2.5 py-0.5 rounded-md ${badgeAccent} font-semibold`}>
                       {art.category || 'Khai cuộc'}
                     </span>
                     <span className="font-mono-num text-stone-400">
@@ -763,7 +776,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-display font-bold text-stone-100 group-hover:text-amber-300 transition-colors line-clamp-2">
+                  <h3 className={`text-lg font-display font-bold text-stone-100 group-hover:${textAccent} transition-colors line-clamp-2`}>
                     {art.title}
                   </h3>
 
@@ -774,7 +787,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                 <div className="mt-4 pt-3 border-t border-stone-800/80 flex items-center justify-between text-[11px] text-stone-500">
                   <span>{art.authorName || 'Kỳ Đàn Quản Trị'}</span>
-                  <span className="text-amber-400 font-medium group-hover:translate-x-0.5 transition-transform">
+                  <span className={`${textAccent} font-medium group-hover:translate-x-0.5 transition-transform`}>
                     Đọc & Xem bàn cờ →
                   </span>
                 </div>

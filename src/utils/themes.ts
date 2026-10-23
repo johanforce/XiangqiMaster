@@ -40,6 +40,9 @@ export interface WebThemeStyles {
   bannerGradient: string;
   activeTabClass: string;
   textAccentClass: string;
+  inputFocusClass: string;
+  borderAccentClass: string;
+  accentBgClass: string;
 }
 
 export interface BoardTheme {
@@ -163,6 +166,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-amber-950/60 via-stone-900/90 to-stone-950',
       activeTabClass: 'bg-amber-950/80 text-amber-300 border border-amber-500/40 shadow-sm',
       textAccentClass: 'text-amber-400',
+      inputFocusClass: 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50',
+      borderAccentClass: 'border-amber-500/40',
+      accentBgClass: 'bg-amber-500/15',
     },
   },
 
@@ -244,6 +250,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-emerald-950/70 via-[#0a1e1a]/95 to-stone-950',
       activeTabClass: 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm',
       textAccentClass: 'text-emerald-400',
+      inputFocusClass: 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50',
+      borderAccentClass: 'border-emerald-500/40',
+      accentBgClass: 'bg-emerald-500/15',
     },
   },
 
@@ -325,6 +334,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-stone-900/70 via-[#161413]/95 to-stone-950',
       activeTabClass: 'bg-stone-800 text-red-400 border border-red-900/50 shadow-sm',
       textAccentClass: 'text-red-400',
+      inputFocusClass: 'focus:border-red-600 focus:ring-1 focus:ring-red-600/50',
+      borderAccentClass: 'border-red-700/50',
+      accentBgClass: 'bg-red-950/40',
     },
   },
 
@@ -406,6 +418,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-red-950/70 via-[#210808]/95 to-stone-950',
       activeTabClass: 'bg-red-950/80 text-yellow-300 border border-yellow-500/50 shadow-sm',
       textAccentClass: 'text-yellow-400',
+      inputFocusClass: 'focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50',
+      borderAccentClass: 'border-yellow-500/40',
+      accentBgClass: 'bg-yellow-500/20',
     },
   },
 
@@ -487,6 +502,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-sky-950/60 via-[#0a1527]/95 to-stone-950',
       activeTabClass: 'bg-sky-950/80 text-cyan-300 border border-cyan-400/50 shadow-sm',
       textAccentClass: 'text-cyan-400',
+      inputFocusClass: 'focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50',
+      borderAccentClass: 'border-cyan-500/40',
+      accentBgClass: 'bg-cyan-500/15',
     },
   },
 
@@ -568,6 +586,9 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       bannerGradient: 'from-stone-900/70 via-[#181613]/95 to-stone-950',
       activeTabClass: 'bg-stone-800 text-amber-200 border border-stone-500/40 shadow-sm',
       textAccentClass: 'text-amber-200',
+      inputFocusClass: 'focus:border-stone-400 focus:ring-1 focus:ring-amber-600/50',
+      borderAccentClass: 'border-stone-500/40',
+      accentBgClass: 'bg-stone-500/15',
     },
   },
 };
