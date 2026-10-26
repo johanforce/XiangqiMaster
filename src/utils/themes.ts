@@ -209,11 +209,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
 
     images: {
       heroCover: '/images/themes/jade.jpg',
-      arenaGate: '/src/assets/images/jade_arena_gate_1792743107476.jpg',
-      masterDuel: '/src/assets/images/jade_master_duel_1792743107101.jpg',
-      championHall: '/src/assets/images/jade_champion_hall_1792743107986.jpg',
-      leaderboardBg: '/src/assets/images/jade_champion_hall_1792743107986.jpg',
-      lobbyPavilion: '/src/assets/images/jade_arena_gate_1792743107476.jpg',
+      arenaGate: '/images/themes/jade_arena_gate.jpg',
+      masterDuel: '/images/themes/jade_master_duel.jpg',
+      championHall: '/images/themes/jade_champion_hall.jpg',
+      leaderboardBg: '/images/themes/jade_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/jade_arena_gate.jpg',
     },
     web: {
       tagline: 'Đình đài ngọc bích ven hồ sen thanh tịnh, non xanh mây biếc',
@@ -293,11 +293,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
 
     images: {
       heroCover: '/images/themes/sumi_ink.jpg',
-      arenaGate: '/src/assets/images/sumi_arena_gate_1792743108656.jpg',
-      masterDuel: '/src/assets/images/sumi_master_duel_1792743109683.jpg',
-      championHall: '/src/assets/images/sumi_champion_hall_1792743109855.jpg',
-      leaderboardBg: '/src/assets/images/sumi_champion_hall_1792743109855.jpg',
-      lobbyPavilion: '/src/assets/images/sumi_arena_gate_1792743108656.jpg',
+      arenaGate: '/images/themes/sumi_arena_gate.jpg',
+      masterDuel: '/images/themes/sumi_master_duel.jpg',
+      championHall: '/images/themes/sumi_champion_hall.jpg',
+      leaderboardBg: '/images/themes/sumi_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/sumi_arena_gate.jpg',
     },
     web: {
       tagline: 'Bút pháp thủy mặc thiền tịnh, phong thái cao nhân ẩn sĩ',
@@ -377,11 +377,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
 
     images: {
       heroCover: '/images/themes/imperial.jpg',
-      arenaGate: '/src/assets/images/imperial_arena_gate_1792743111800.jpg',
-      masterDuel: '/src/assets/images/imperial_master_duel_1792743112712.jpg',
-      championHall: '/src/assets/images/imperial_champion_hall_1792743113186.jpg',
-      leaderboardBg: '/src/assets/images/imperial_champion_hall_1792743113186.jpg',
-      lobbyPavilion: '/src/assets/images/imperial_arena_gate_1792743111800.jpg',
+      arenaGate: '/images/themes/imperial_arena_gate.jpg',
+      masterDuel: '/images/themes/imperial_master_duel.jpg',
+      championHall: '/images/themes/imperial_champion_hall.jpg',
+      leaderboardBg: '/images/themes/imperial_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/imperial_arena_gate.jpg',
     },
     web: {
       tagline: 'Điện son thếp vàng Tử Cấm Thành uy nghiêm, khí phách vương giả',
@@ -461,11 +461,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
 
     images: {
       heroCover: '/images/themes/midnight.jpg',
-      arenaGate: '/src/assets/images/midnight_arena_gate_1792743114468.jpg',
-      masterDuel: '/src/assets/images/midnight_master_duel_1792743114621.jpg',
-      championHall: '/src/assets/images/midnight_champion_hall_1792743115282.jpg',
-      leaderboardBg: '/src/assets/images/midnight_champion_hall_1792743115282.jpg',
-      lobbyPavilion: '/src/assets/images/midnight_arena_gate_1792743114468.jpg',
+      arenaGate: '/images/themes/midnight_arena_gate.jpg',
+      masterDuel: '/images/themes/midnight_master_duel.jpg',
+      championHall: '/images/themes/midnight_champion_hall.jpg',
+      leaderboardBg: '/images/themes/midnight_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/midnight_arena_gate.jpg',
     },
     web: {
       tagline: 'Đêm trăng lơ lửng ngàn thiên đăng, kỳ đài phát sáng lung linh',
@@ -545,11 +545,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
 
     images: {
       heroCover: '/images/themes/minimal.jpg',
-      arenaGate: '/src/assets/images/minimal_arena_gate_1792743116206.jpg',
-      masterDuel: '/src/assets/images/minimal_master_duel_1792743116297.jpg',
-      championHall: '/src/assets/images/minimal_champion_hall_1792743116395.jpg',
-      leaderboardBg: '/src/assets/images/minimal_champion_hall_1792743116395.jpg',
-      lobbyPavilion: '/src/assets/images/minimal_arena_gate_1792743116206.jpg',
+      arenaGate: '/images/themes/minimal_arena_gate.jpg',
+      masterDuel: '/images/themes/minimal_master_duel.jpg',
+      championHall: '/images/themes/minimal_champion_hall.jpg',
+      leaderboardBg: '/images/themes/minimal_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/minimal_arena_gate.jpg',
     },
     web: {
       tagline: 'Phòng trà thiền định tối giản, tre thanh nhã và ánh mai ấm áp',

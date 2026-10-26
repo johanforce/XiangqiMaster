@@ -3819,6 +3819,11 @@ async function startServer() {
     });
   });
 
+  const publicPath = path.resolve(process.cwd(), 'public');
+  app.use('/images', express.static(path.join(publicPath, 'images')));
+  app.use('/src/assets/images', express.static(path.join(publicPath, 'src/assets/images')));
+  app.use('/src/assets/images', express.static(path.join(process.cwd(), 'src/assets/images')));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
