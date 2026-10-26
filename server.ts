@@ -194,6 +194,7 @@ async function getAdminConfigRealtime(env: ServerEnv = 'prod'): Promise<EloConfi
     standardMoveSec: 120,
     darkMinutes: 15,
     darkMoveSec: 120,
+    globalTheme: 'classic_wood',
     ...(globalCfg || {}),
   };
 }
@@ -2076,7 +2077,7 @@ async function startServer() {
     try {
       if (!(await verifyAdminRequest(req, res))) return;
       const env = getReqEnv(req);
-      const updates = {
+      const updates: Record<string, any> = {
         antiBoostWindowGames: Number(req.body.antiBoostWindowGames ?? 5),
         antiBoostThreshold: Number(req.body.antiBoostThreshold ?? 2),
         antiBoostMaxPenalty: Number(req.body.antiBoostMaxPenalty ?? 2),
@@ -2093,10 +2094,52 @@ async function startServer() {
         stagingPassword: String(req.body.stagingPassword || '123456').trim(),
         updatedAt: Date.now(),
       };
+      if (req.body.globalTheme) {
+        updates.globalTheme = String(req.body.globalTheme).trim();
+      }
       await setDocRealtime('adminConfig', 'global', updates, true, env);
+      if (req.body.globalTheme) {
+        io.emit('system:theme_changed', { theme: updates.globalTheme, env });
+      }
       return res.json({ ok: true, config: updates });
     } catch {
       return res.status(500).json({ error: 'Lỗi lưu cấu hình' });
+    }
+  });
+
+  // ==================== SYSTEM THEME API (ADMIN CONTROLLED) ====================
+
+  app.get('/api/system/theme', async (req, res) => {
+    try {
+      const env = getReqEnv(req);
+      const cfg = await getAdminConfigRealtime(env);
+      return res.json({ ok: true, theme: cfg.globalTheme || 'classic_wood' });
+    } catch {
+      return res.json({ ok: true, theme: 'classic_wood' });
+    }
+  });
+
+  app.post('/api/admin/theme', async (req, res) => {
+    try {
+      if (!(await verifyAdminRequest(req, res))) return;
+      const env = getReqEnv(req);
+      const theme = String(req.body?.theme || 'classic_wood').trim();
+      const validThemes = [
+        'classic_wood',
+        'jade',
+        'sumi_ink',
+        'imperial',
+        'midnight_neon',
+        'minimal_light',
+      ];
+      if (!validThemes.includes(theme)) {
+        return res.status(400).json({ error: 'Mã giao diện không hợp lệ' });
+      }
+      await setDocRealtime('adminConfig', 'global', { globalTheme: theme, updatedAt: Date.now() }, true, env);
+      io.emit('system:theme_changed', { theme, env });
+      return res.json({ ok: true, theme });
+    } catch {
+      return res.status(500).json({ error: 'Lỗi cập nhật giao diện hệ thống' });
     }
   });
 

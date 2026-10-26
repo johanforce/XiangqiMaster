@@ -27,6 +27,7 @@ import {
   Trophy,
   AlertTriangle,
   FastForward,
+  BookOpen,
 } from 'lucide-react';
 import { RatedMode } from '../shared/elo';
 import { parseFen, Pos } from '../shared/xiangqi';
@@ -45,6 +46,7 @@ interface RankedRoomViewProps {
   setActiveRoom: React.Dispatch<React.SetStateAction<any | null>>;
   onOpenAuth: () => void;
   onToast: (msg: string) => void;
+  onOpenViewer?: (notationText: string) => void;
 }
 
 const QUICK_MESSAGES = ['Chào', 'Hay lắm', 'Đợi chút', 'Hòa nhé?', 'Ván hay!'];
@@ -78,6 +80,7 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
   setActiveRoom,
   onOpenAuth,
   onToast,
+  onOpenViewer,
 }) => {
   const [selectedMode, setSelectedMode] = useState<RatedMode | 'all'>(() =>
     parseRankedModeFromPath(window.location.pathname)
@@ -628,24 +631,117 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
     if (type === 'text') setChatInput('');
   };
 
-  const handleCopyRoomNotation = () => {
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Fallback below
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const res = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return res;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleCopyRoomNotation = async (format: 'wxf' | 'viet' = 'wxf') => {
     if (!activeRoom) return;
     const moves = activeRoom.moves || [];
+    if (moves.length === 0) {
+      onToast('Chưa có nước cờ nào để sao chép kỳ phổ');
+      return;
+    }
+    const pairs: string[] = [];
+    for (let i = 0; i < moves.length; i += 2) {
+      const m1 = format === 'viet' ? (moves[i]?.viet || moves[i]?.wxf || '') : (moves[i]?.wxf || '');
+      const m2 = format === 'viet' ? (moves[i + 1]?.viet || moves[i + 1]?.wxf || '') : (moves[i + 1]?.wxf || '');
+      pairs.push(`${Math.floor(i / 2) + 1}. ${m1}${m2 ? ' ' + m2 : ''}`);
+    }
+    const modeName =
+      activeRoom.mode === 'blitz'
+        ? 'Cờ Chớp 5p+3s'
+        : activeRoom.mode === 'dark'
+        ? 'Cờ Úp Dân Gian'
+        : 'Cờ Tiêu Chuẩn 30p';
+    const redName = activeRoom.redPlayer?.displayName || activeRoom.redPlayer?.username || 'Bên Đỏ';
+    const blackName = activeRoom.blackPlayer?.displayName || activeRoom.blackPlayer?.username || 'Bên Đen';
+    const resultStr =
+      activeRoom.winner === 'red' || activeRoom.winner === 'r'
+        ? '1-0 (Đỏ thắng)'
+        : activeRoom.winner === 'black' || activeRoom.winner === 'b'
+        ? '0-1 (Đen thắng)'
+        : activeRoom.winner === 'draw'
+        ? '1/2-1/2 (Hòa)'
+        : '* (Đang đấu)';
+
+    const header = [
+      `[Event "Xiangqi Master - Đấu Xếp Hạng (${modeName})"]`,
+      `[Site "Xiangqi Master Online"]`,
+      `[Date "${new Date().toISOString().slice(0, 10)}"]`,
+      `[Round "${activeRoom.code}"]`,
+      `[Red "${redName}"]`,
+      `[Black "${blackName}"]`,
+      `[Result "${resultStr}"]`,
+      ...(activeRoom.initialFen ? [`[FEN "${activeRoom.initialFen}"]`] : []),
+    ].join('\n');
+
+    const fullNotation = `${header}\n\n${pairs.join(' ')}`;
+    const ok = await copyToClipboard(fullNotation);
+    if (ok) {
+      onToast(
+        format === 'viet'
+          ? `Đã sao chép kỳ phổ chữ Việt (${moves.length} nước)`
+          : `Đã sao chép kỳ phổ WXF (${moves.length} nước)`
+      );
+    } else {
+      onToast('Không thể tự động sao chép, vui lòng thử lại');
+    }
+  };
+
+  const handleOpenInViewer = () => {
+    if (!activeRoom || !onOpenViewer) return;
+    const moves = activeRoom.moves || [];
+    if (moves.length === 0) {
+      onToast('Chưa có nước cờ nào để mở nghiên cứu');
+      return;
+    }
     const pairs: string[] = [];
     for (let i = 0; i < moves.length; i += 2) {
       const m1 = moves[i]?.wxf || '';
       const m2 = moves[i + 1]?.wxf || '';
       pairs.push(`${Math.floor(i / 2) + 1}. ${m1}${m2 ? ' ' + m2 : ''}`);
     }
+    const modeName =
+      activeRoom.mode === 'blitz'
+        ? 'Cờ Chớp'
+        : activeRoom.mode === 'dark'
+        ? 'Cờ Úp'
+        : 'Cờ Tiêu Chuẩn';
+    const redName = activeRoom.redPlayer?.displayName || activeRoom.redPlayer?.username || 'Đỏ';
+    const blackName = activeRoom.blackPlayer?.displayName || activeRoom.blackPlayer?.username || 'Đen';
     const header = [
-      `[Event "Xiangqi Master - ${activeRoom.mode}"]`,
-      `[Red "${activeRoom.redPlayer?.username || 'Đỏ'}"]`,
-      `[Black "${activeRoom.blackPlayer?.username || 'Đen'}"]`,
-      `[Result "${activeRoom.winner}"]`,
+      `[Event "Xiangqi Master - ${modeName}"]`,
+      `[Round "${activeRoom.code}"]`,
+      `[Red "${redName}"]`,
+      `[Black "${blackName}"]`,
+      `[Result "${activeRoom.winner || '*'}"]`,
       `[Date "${new Date().toISOString().slice(0, 10)}"]`,
+      ...(activeRoom.initialFen ? [`[FEN "${activeRoom.initialFen}"]`] : []),
     ].join('\n');
-    navigator.clipboard.writeText(`${header}\n\n${pairs.join(' ')}`);
-    onToast('Đã sao chép kỳ phổ');
+    onOpenViewer(`${header}\n\n${pairs.join(' ')}`);
   };
 
   const handleReturnToLive = () => {
@@ -1831,6 +1927,24 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <span>Xem lại tàn cuộc</span>
               </button>
               <button
+                onClick={() => handleCopyRoomNotation('wxf')}
+                className="flex-1 min-h-[42px] rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-stone-700"
+                title="Sao chép toàn bộ kỳ phổ ván đấu chuẩn WXF"
+              >
+                <Copy className={`w-3.5 h-3.5 ${textAccent}`} />
+                <span>Sao chép kỳ phổ</span>
+              </button>
+              {onOpenViewer && (
+                <button
+                  onClick={handleOpenInViewer}
+                  className={`min-h-[42px] px-3.5 rounded-xl bg-stone-800 hover:bg-stone-700 ${textAccent} text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${borderAccent}`}
+                  title="Mở ván đấu trong Trình xem kỳ phổ để phân tích đòn thế"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Nghiên cứu kỳ phổ</span>
+                </button>
+              )}
+              <button
                 onClick={handleReturnToWaitingRoom}
                 className={`flex-1 min-h-[42px] rounded-xl ${primaryBtn} text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer`}
                 title="Quay lại phòng chờ để chuẩn bị ván đấu tiếp theo cùng đối thủ và khán giả"
@@ -2015,11 +2129,14 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
             )}
 
             <button
-              onClick={handleCopyRoomNotation}
-              title="Sao chép kỳ phổ"
-              className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 cursor-pointer"
+              type="button"
+              onClick={() => handleCopyRoomNotation('wxf')}
+              disabled={moves.length === 0}
+              title="Sao chép toàn bộ kỳ phổ WXF ván đấu"
+              className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 disabled:opacity-40 text-stone-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border border-stone-700/60"
             >
-              <Copy className="w-3.5 h-3.5" />
+              <Copy className={`w-3.5 h-3.5 ${textAccent}`} />
+              <span>Chép kỳ phổ</span>
             </button>
           </div>
         </div>
@@ -2153,6 +2270,40 @@ export const RankedRoomView: React.FC<RankedRoomViewProps> = ({
                 <div className="text-[11px] text-stone-300 mt-1">
                   Bấm vào nước cờ để xem lại vị trí trên bàn cờ
                 </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleCopyRoomNotation('wxf')}
+                  disabled={moves.length === 0}
+                  className="px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700/80 disabled:opacity-40 text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  title="Sao chép toàn bộ kỳ phổ chuẩn quốc tế WXF"
+                >
+                  <Copy className={`w-3.5 h-3.5 ${textAccent}`} />
+                  <span>Chép WXF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopyRoomNotation('viet')}
+                  disabled={moves.length === 0}
+                  className="px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700/80 disabled:opacity-40 text-stone-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  title="Sao chép kỳ phổ chữ Việt thuần túy (Xe, Pháo, Mã...)"
+                >
+                  <Copy className="w-3.5 h-3.5 text-stone-400" />
+                  <span>Chép chữ Việt</span>
+                </button>
+                {onOpenViewer && (
+                  <button
+                    type="button"
+                    onClick={handleOpenInViewer}
+                    disabled={moves.length === 0}
+                    className={`px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border ${borderAccent} disabled:opacity-40 ${textAccent} text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs`}
+                    title="Mở ván đấu trong Trình xem kỳ phổ để phân tích chi tiết"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Nghiên cứu</span>
+                  </button>
+                )}
               </div>
             </div>
 

@@ -63,8 +63,8 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onOpenViewer, 
   const badgeAccent = theme?.web.accentBadgeClass || 'bg-amber-500/15 border border-amber-500/30 text-amber-300';
   const borderAccent = theme?.web.borderAccentClass || 'border-amber-500/40';
   const accentBg = theme?.web.accentBgClass || 'bg-amber-500/15';
-  const accentColor = theme?.accentColor || '#f59e0b';
-  const accentGlow = theme?.accentGlow || 'rgba(245, 158, 11, 0.35)';
+  const accentColor = theme?.web.accentColor || '#f59e0b';
+  const accentGlow = theme?.web.accentGlow || 'rgba(245, 158, 11, 0.35)';
 
   const buildLeaderboardUrl = (
     m: RatedMode = mode,
