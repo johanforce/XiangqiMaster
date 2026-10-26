@@ -1,12 +1,12 @@
 import type React from 'react';
 
 export type BoardThemeId =
-  | 'classic_wood'
-  | 'jade'
-  | 'sumi_ink'
-  | 'imperial'
-  | 'midnight_neon'
-  | 'minimal_light';
+    | 'classic_wood'
+    | 'jade'
+    | 'sumi_ink'
+    | 'imperial'
+    | 'midnight_neon'
+    | 'minimal_light';
 
 export interface ThemeImages {
   heroCover: string;
@@ -153,15 +153,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#2d1b0f',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 hover:from-amber-500 hover:to-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)]',
+          'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 hover:from-amber-500 hover:to-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.35)]',
       secondaryBtnClass:
-        'bg-stone-900/90 hover:bg-stone-800 border border-amber-900/60 text-amber-200',
+          'bg-stone-900/90 hover:bg-stone-800 border border-amber-900/60 text-amber-200',
       subtleBtnClass:
-        'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-800',
+          'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-800',
       accentBadgeClass:
-        'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+          'bg-amber-500/15 text-amber-300 border border-amber-500/30',
       cardBorderClass:
-        'border-amber-900/40 hover:border-amber-500/40',
+          'border-amber-900/40 hover:border-amber-500/40',
       cardBgClass: 'bg-stone-900/90',
       bannerGradient: 'from-amber-950/60 via-stone-900/90 to-stone-950',
       activeTabClass: 'bg-amber-950/80 text-amber-300 border border-amber-500/40 shadow-sm',
@@ -208,7 +208,7 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     swatchColors: ['#D6EAE3', '#183B34', '#C52838'],
 
     images: {
-      heroCover: '/images/themes/jade.jpg',
+      heroCover: '/images/themes/xiangqi_jade_theme.jpg',
       arenaGate: '/images/themes/jade_arena_gate.jpg',
       masterDuel: '/images/themes/jade_master_duel.jpg',
       championHall: '/images/themes/jade_champion_hall.jpg',
@@ -237,15 +237,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#13352f',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.35)]',
+          'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.35)]',
       secondaryBtnClass:
-        'bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/50 text-emerald-200',
+          'bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/50 text-emerald-200',
       subtleBtnClass:
-        'bg-emerald-950/50 hover:bg-emerald-900/50 text-teal-200 border border-emerald-900/60',
+          'bg-emerald-950/50 hover:bg-emerald-900/50 text-teal-200 border border-emerald-900/60',
       accentBadgeClass:
-        'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+          'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
       cardBorderClass:
-        'border-emerald-800/40 hover:border-emerald-400/50',
+          'border-emerald-800/40 hover:border-emerald-400/50',
       cardBgClass: 'bg-[#0d221e]/90',
       bannerGradient: 'from-emerald-950/70 via-[#0a1e1a]/95 to-stone-950',
       activeTabClass: 'bg-emerald-950/80 text-emerald-300 border border-emerald-400/40 shadow-sm',
@@ -292,11 +292,11 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     swatchColors: ['#E4DFD5', '#262322', '#991B1B'],
 
     images: {
-      heroCover: '/images/themes/sumi_ink.jpg',
+      heroCover: '/images/themes/xiangqi_sumi_ink_theme.jpg',
       arenaGate: '/images/themes/sumi_arena_gate.jpg',
       masterDuel: '/images/themes/sumi_master_duel.jpg',
-      championHall: '/images/themes/sumi_champion_hall.jpg',
-      leaderboardBg: '/images/themes/sumi_champion_hall.jpg',
+      championHall: '/images/themes/sumi_champion_hall_1792743109855.jpg',
+      leaderboardBg: '/images/themes/sumi_champion_hall_1792743109855.jpg',
       lobbyPavilion: '/images/themes/sumi_arena_gate.jpg',
     },
     web: {
@@ -321,15 +321,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#2c2725',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-stone-700 via-red-800 to-stone-800 hover:from-red-700 hover:to-stone-700 text-stone-100 shadow-[0_0_20px_rgba(185,28,28,0.35)]',
+          'bg-gradient-to-r from-stone-700 via-red-800 to-stone-800 hover:from-red-700 hover:to-stone-700 text-stone-100 shadow-[0_0_20px_rgba(185,28,28,0.35)]',
       secondaryBtnClass:
-        'bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-200',
+          'bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-200',
       subtleBtnClass:
-        'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-800',
+          'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-800',
       accentBadgeClass:
-        'bg-red-500/15 text-red-300 border border-red-500/30',
+          'bg-red-500/15 text-red-300 border border-red-500/30',
       cardBorderClass:
-        'border-stone-700/60 hover:border-red-500/40',
+          'border-stone-700/60 hover:border-red-500/40',
       cardBgClass: 'bg-[#181615]/90',
       bannerGradient: 'from-stone-900/70 via-[#161413]/95 to-stone-950',
       activeTabClass: 'bg-stone-800 text-red-400 border border-red-900/50 shadow-sm',
@@ -376,7 +376,7 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     swatchColors: ['#6B1D1D', '#F59E0B', '#FEF3C7'],
 
     images: {
-      heroCover: '/images/themes/imperial.jpg',
+      heroCover: '/images/themes/xiangqi_imperial_theme.jpg',
       arenaGate: '/images/themes/imperial_arena_gate.jpg',
       masterDuel: '/images/themes/imperial_master_duel.jpg',
       championHall: '/images/themes/imperial_champion_hall.jpg',
@@ -405,15 +405,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#3d0f0f',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-red-700 via-amber-600 to-yellow-600 hover:from-red-600 hover:to-amber-500 text-amber-100 shadow-[0_0_25px_rgba(220,38,38,0.4)]',
+          'bg-gradient-to-r from-red-700 via-amber-600 to-yellow-600 hover:from-red-600 hover:to-amber-500 text-amber-100 shadow-[0_0_25px_rgba(220,38,38,0.4)]',
       secondaryBtnClass:
-        'bg-red-950/70 hover:bg-red-900/70 border border-yellow-500/50 text-amber-200',
+          'bg-red-950/70 hover:bg-red-900/70 border border-yellow-500/50 text-amber-200',
       subtleBtnClass:
-        'bg-red-950/50 hover:bg-red-900/50 text-amber-300 border border-red-900/60',
+          'bg-red-950/50 hover:bg-red-900/50 text-amber-300 border border-red-900/60',
       accentBadgeClass:
-        'bg-amber-500/20 text-yellow-300 border border-yellow-500/40',
+          'bg-amber-500/20 text-yellow-300 border border-yellow-500/40',
       cardBorderClass:
-        'border-red-900/60 hover:border-yellow-500/50',
+          'border-red-900/60 hover:border-yellow-500/50',
       cardBgClass: 'bg-[#240a0a]/90',
       bannerGradient: 'from-red-950/70 via-[#210808]/95 to-stone-950',
       activeTabClass: 'bg-red-950/80 text-yellow-300 border border-yellow-500/50 shadow-sm',
@@ -460,7 +460,7 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     swatchColors: ['#121722', '#4EA8DE', '#D9534F'],
 
     images: {
-      heroCover: '/images/themes/midnight.jpg',
+      heroCover: '/images/themes/xiangqi_midnight_theme.jpg',
       arenaGate: '/images/themes/midnight_arena_gate.jpg',
       masterDuel: '/images/themes/midnight_master_duel.jpg',
       championHall: '/images/themes/midnight_champion_hall.jpg',
@@ -489,15 +489,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#13213a',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-sky-600 via-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-sky-400 text-stone-950 font-bold shadow-[0_0_25px_rgba(56,189,248,0.45)]',
+          'bg-gradient-to-r from-sky-600 via-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-sky-400 text-stone-950 font-bold shadow-[0_0_25px_rgba(56,189,248,0.45)]',
       secondaryBtnClass:
-        'bg-sky-950/70 hover:bg-sky-900/70 border border-cyan-500/50 text-cyan-200',
+          'bg-sky-950/70 hover:bg-sky-900/70 border border-cyan-500/50 text-cyan-200',
       subtleBtnClass:
-        'bg-sky-950/50 hover:bg-sky-900/50 text-sky-200 border border-cyan-900/60',
+          'bg-sky-950/50 hover:bg-sky-900/50 text-sky-200 border border-cyan-900/60',
       accentBadgeClass:
-        'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30',
+          'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30',
       cardBorderClass:
-        'border-sky-900/60 hover:border-cyan-400/50',
+          'border-sky-900/60 hover:border-cyan-400/50',
       cardBgClass: 'bg-[#0b172b]/90',
       bannerGradient: 'from-sky-950/60 via-[#0a1527]/95 to-stone-950',
       activeTabClass: 'bg-sky-950/80 text-cyan-300 border border-cyan-400/50 shadow-sm',
@@ -544,7 +544,7 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     swatchColors: ['#EFECE6', '#5C554B', '#B3261E'],
 
     images: {
-      heroCover: '/images/themes/minimal.jpg',
+      heroCover: '/images/themes/xiangqi_minimal_theme.jpg',
       arenaGate: '/images/themes/minimal_arena_gate.jpg',
       masterDuel: '/images/themes/minimal_master_duel.jpg',
       championHall: '/images/themes/minimal_champion_hall.jpg',
@@ -573,15 +573,15 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       activeNavBg: '#2d2822',
 
       primaryBtnClass:
-        'bg-gradient-to-r from-stone-600 via-amber-700 to-stone-700 hover:from-amber-600 hover:to-stone-600 text-stone-100 shadow-[0_0_20px_rgba(180,140,100,0.3)]',
+          'bg-gradient-to-r from-stone-600 via-amber-700 to-stone-700 hover:from-amber-600 hover:to-stone-600 text-stone-100 shadow-[0_0_20px_rgba(180,140,100,0.3)]',
       secondaryBtnClass:
-        'bg-stone-900/90 hover:bg-stone-800 border border-stone-600/50 text-stone-200',
+          'bg-stone-900/90 hover:bg-stone-800 border border-stone-600/50 text-stone-200',
       subtleBtnClass:
-        'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-700/60',
+          'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-700/60',
       accentBadgeClass:
-        'bg-amber-500/15 text-stone-300 border border-stone-500/30',
+          'bg-amber-500/15 text-stone-300 border border-stone-500/30',
       cardBorderClass:
-        'border-stone-700/60 hover:border-amber-600/40',
+          'border-stone-700/60 hover:border-amber-600/40',
       cardBgClass: 'bg-[#1c1916]/90',
       bannerGradient: 'from-stone-900/70 via-[#181613]/95 to-stone-950',
       activeTabClass: 'bg-stone-800 text-amber-200 border border-stone-500/40 shadow-sm',
