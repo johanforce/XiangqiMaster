@@ -2131,6 +2131,7 @@ async function startServer() {
         'imperial',
         'midnight_neon',
         'minimal_light',
+        'pure_light',
       ];
       if (!validThemes.includes(theme)) {
         return res.status(400).json({ error: 'Mã giao diện không hợp lệ' });
@@ -3821,8 +3822,7 @@ async function startServer() {
 
   const publicPath = path.resolve(process.cwd(), 'public');
   app.use('/images', express.static(path.join(publicPath, 'images')));
-  app.use('/src/assets/images', express.static(path.join(publicPath, 'src/assets/images')));
-  app.use('/src/assets/images', express.static(path.join(process.cwd(), 'src/assets/images')));
+  app.use('/src/assets/images', express.static(path.join(publicPath, 'images/themes')));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

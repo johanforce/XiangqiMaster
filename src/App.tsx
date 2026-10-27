@@ -213,14 +213,21 @@ export default function App() {
   }, [themeId, pieceCharMode, soundEnabled]);
 
   useEffect(() => {
-    fetch(`/api/system/theme?env=${serverEnv}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.theme && BOARD_THEMES[data.theme as BoardThemeId]) {
-          setThemeId(data.theme as BoardThemeId);
-        }
-      })
-      .catch(() => {});
+    try {
+      const saved = localStorage.getItem('xq_theme');
+      if (!saved) {
+        fetch(`/api/system/theme?env=${serverEnv}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data?.theme && BOARD_THEMES[data.theme as BoardThemeId]) {
+              setThemeId(data.theme as BoardThemeId);
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // Ignore storage errors
+    }
   }, [serverEnv]);
 
   // 1-line Toast
@@ -232,31 +239,13 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => setToastMsg(null), 3200);
   }, []);
 
-  const handleApplyGlobalTheme = useCallback(
-    async (newThemeId: BoardThemeId) => {
+  const handleSelectTheme = useCallback(
+    (newThemeId: BoardThemeId) => {
       setThemeId(newThemeId);
-      if (currentUser?.role === 'admin') {
-        try {
-          const res = await fetch('/api/admin/theme', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-admin-uid': currentUser.uid,
-            },
-            body: JSON.stringify({ theme: newThemeId }),
-          });
-          const data = await res.json();
-          if (res.ok) {
-            showToast(`Đã áp dụng giao diện "${BOARD_THEMES[newThemeId].name}" cho toàn bộ hệ thống!`);
-          } else {
-            showToast(data.error || 'Lỗi cập nhật giao diện');
-          }
-        } catch {
-          showToast('Lỗi kết nối khi cập nhật giao diện');
-        }
-      }
+      savePreferences(newThemeId, pieceCharMode, soundEnabled);
+      showToast(`Đã áp dụng giao diện "${BOARD_THEMES[newThemeId]?.name || newThemeId}"!`);
     },
-    [currentUser?.role, currentUser?.uid, showToast]
+    [pieceCharMode, soundEnabled, showToast]
   );
 
   // Realtime fetch of current user profile & preferences from API on reload, tab switch, or modal toggle
@@ -550,8 +539,13 @@ export default function App() {
     });
 
     s.on('system:theme_changed', (payload: any) => {
-      if (payload?.theme && BOARD_THEMES[payload.theme as BoardThemeId]) {
-        setThemeId(payload.theme as BoardThemeId);
+      try {
+        const saved = localStorage.getItem('xq_theme');
+        if (!saved && payload?.theme && BOARD_THEMES[payload.theme as BoardThemeId]) {
+          setThemeId(payload.theme as BoardThemeId);
+        }
+      } catch {
+        // Ignore
       }
     });
 
@@ -765,7 +759,9 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col text-stone-100 transition-all duration-700"
+      className={`min-h-screen flex flex-col transition-all duration-700 ${
+        currentTheme.web.isLight ? 'theme-light text-stone-900' : 'text-stone-100'
+      }`}
       style={{
         ...currentTheme.web.pageBgStyle,
         '--theme-accent': currentTheme.web.accentColor,
@@ -788,7 +784,9 @@ export default function App() {
       {/* Single-Line Toast Notification */}
       {toastMsg && (
         <div
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-stone-900/95 border text-xs font-semibold shadow-2xl whitespace-nowrap backdrop-blur-md"
+          className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl border text-xs font-semibold shadow-2xl whitespace-nowrap backdrop-blur-md ${
+            currentTheme.web.isLight ? 'bg-white/95 text-stone-900' : 'bg-stone-900/95 text-white'
+          }`}
           style={{
             borderColor: currentTheme.web.cardBorderColor,
             color: currentTheme.web.accentTextColor,
@@ -812,7 +810,7 @@ export default function App() {
             onClick={(e) => handleLinkClick(e, '/')}
             className="hover:opacity-95 transition-opacity shrink-0 flex items-center"
           >
-            <Logo size="sm" variant="full" theme="dark" />
+            <Logo size="sm" variant="full" theme={currentTheme.web.isLight ? 'light' : 'dark'} />
           </a>
 
           {/* Zone 2: Concise Single-Line Navigation Links */}
@@ -823,7 +821,9 @@ export default function App() {
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'home'
                   ? currentTheme.web.activeTabClass
-                  : 'text-stone-400 hover:text-stone-100'
+                  : currentTheme.web.isLight
+                  ? 'text-stone-600 hover:text-stone-950 hover:bg-stone-200/50'
+                  : 'text-stone-400 hover:text-stone-100 hover:bg-stone-800/50'
               }`}
             >
               <Home className="w-4 h-4" />
@@ -933,7 +933,11 @@ export default function App() {
                 savePreferences(themeId, next, soundEnabled);
               }}
               title="Chuyển chữ Hán / chữ Việt trên quân cờ"
-              className={`min-w-[38px] min-h-[38px] px-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-bold flex items-center justify-center gap-1 transition-colors ${currentTheme.web.textAccentClass}`}
+              className={`min-w-[38px] min-h-[38px] px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                currentTheme.web.isLight
+                  ? `bg-white hover:bg-stone-100 border-stone-200 ${currentTheme.web.textAccentClass}`
+                  : `bg-stone-900 hover:bg-stone-800 border-stone-800 ${currentTheme.web.textAccentClass}`
+              }`}
             >
               <Languages className="w-3.5 h-3.5" />
               <span>{pieceCharMode === 'hanzi' ? '漢' : 'Việt'}</span>
@@ -946,24 +950,29 @@ export default function App() {
                 savePreferences(themeId, pieceCharMode, next);
               }}
               title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
-              className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 flex items-center justify-center transition-colors"
+              className={`min-w-[38px] min-h-[38px] rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+                currentTheme.web.isLight
+                  ? 'bg-white hover:bg-stone-100 border-stone-200 text-stone-700'
+                  : 'bg-stone-900 hover:bg-stone-800 border-stone-800 text-stone-300'
+              }`}
             >
-              {soundEnabled ? <Volume2 className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} /> : <VolumeX className="w-4 h-4 text-stone-500" />}
+              {soundEnabled ? <Volume2 className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} /> : <VolumeX className="w-4 h-4 text-stone-400" />}
             </button>
 
-            {currentUser?.role === 'admin' && (
-              <button
-                onClick={() => setThemeDrawerOpen((o) => !o)}
-                title="Cài đặt giao diện toàn hệ thống (Dành cho Quản trị viên)"
-                className={`min-w-[38px] min-h-[38px] rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
-                  themeDrawerOpen
-                    ? currentTheme.web.activeTabClass
-                    : `bg-stone-900 hover:bg-stone-800 border-stone-800 ${currentTheme.web.textAccentClass}`
-                }`}
-              >
-                <Palette className="w-4 h-4" />
-              </button>
-            )}
+            {/* Theme Picker Button for ALL users */}
+            <button
+              onClick={() => setThemeDrawerOpen((o) => !o)}
+              title="Cài đặt giao diện bàn cờ & kỳ đài"
+              className={`min-w-[38px] min-h-[38px] rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+                themeDrawerOpen
+                  ? currentTheme.web.activeTabClass
+                  : currentTheme.web.isLight
+                  ? `bg-white hover:bg-stone-100 border-stone-200 ${currentTheme.web.textAccentClass}`
+                  : `bg-stone-900 hover:bg-stone-800 border-stone-800 ${currentTheme.web.textAccentClass}`
+              }`}
+            >
+              <Palette className="w-4 h-4" />
+            </button>
 
             {currentUser ? (
               <div className="flex items-center gap-1.5">
@@ -974,10 +983,14 @@ export default function App() {
                       ? 'Tài khoản đã duyệt'
                       : 'Tài khoản đang chờ quản trị viên duyệt'
                   }
-                  className="px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-xs font-medium flex items-center gap-1.5 whitespace-nowrap"
+                  className={`px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 whitespace-nowrap ${
+                    currentTheme.web.isLight
+                      ? 'bg-white hover:bg-stone-100 border-stone-200 text-stone-900'
+                      : 'bg-stone-900 hover:bg-stone-800 border-stone-800 text-stone-100'
+                  }`}
                 >
                   <User className={`w-3.5 h-3.5 ${currentTheme.web.textAccentClass}`} />
-                  <span className="font-semibold text-stone-100">{currentUser.displayName || currentUser.username}</span>
+                  <span className="font-semibold">{currentUser.displayName || currentUser.username}</span>
                   {!currentUser.isCreateAccount && (
                     <span className={`text-[10px] font-normal ${currentTheme.web.textAccentClass}`}>· Chờ duyệt</span>
                   )}
@@ -988,7 +1001,11 @@ export default function App() {
                 <button
                   onClick={handleLogout}
                   title="Đăng xuất"
-                  className="min-w-[38px] min-h-[38px] rounded-xl bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-400 hover:text-red-400 flex items-center justify-center transition-colors"
+                  className={`min-w-[38px] min-h-[38px] rounded-xl border text-stone-400 hover:text-red-500 flex items-center justify-center transition-colors ${
+                    currentTheme.web.isLight
+                      ? 'bg-white hover:bg-stone-100 border-stone-200'
+                      : 'bg-stone-900 hover:bg-stone-800 border-stone-800'
+                  }`}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -1013,70 +1030,80 @@ export default function App() {
               savePreferences(themeId, pieceCharMode, next);
             }}
             title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
-            className="w-10 h-10 rounded-xl bg-stone-900/95 hover:bg-stone-800 border border-stone-800 text-stone-200 flex items-center justify-center shadow-xl backdrop-blur-md transition-colors"
+            className={`w-10 h-10 rounded-xl border flex items-center justify-center shadow-xl backdrop-blur-md transition-colors ${
+              currentTheme.web.isLight
+                ? 'bg-white/95 hover:bg-stone-100 border-stone-200 text-stone-800'
+                : 'bg-stone-900/95 hover:bg-stone-800 border-stone-800 text-stone-200'
+            }`}
           >
             {soundEnabled ? (
               <Volume2 className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} />
             ) : (
-              <VolumeX className="w-4 h-4 text-stone-500" />
+              <VolumeX className="w-4 h-4 text-stone-400" />
             )}
           </button>
 
-          {currentUser?.role === 'admin' && (
-            <button
-              onClick={() => setThemeDrawerOpen((o) => !o)}
-              title="Cài đặt giao diện toàn hệ thống (Dành cho Quản trị viên)"
-              className={`w-10 h-10 rounded-xl border flex items-center justify-center shadow-xl backdrop-blur-md transition-colors cursor-pointer ${
-                themeDrawerOpen
-                  ? currentTheme.web.activeTabClass
-                  : `bg-stone-900/95 hover:bg-stone-800 border-stone-800 ${currentTheme.web.textAccentClass}`
-              }`}
-            >
-              <Palette className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            onClick={() => setThemeDrawerOpen((o) => !o)}
+            title="Cài đặt giao diện bàn cờ & kỳ đài"
+            className={`w-10 h-10 rounded-xl border flex items-center justify-center shadow-xl backdrop-blur-md transition-colors cursor-pointer ${
+              themeDrawerOpen
+                ? currentTheme.web.activeTabClass
+                : currentTheme.web.isLight
+                ? `bg-white/95 hover:bg-stone-100 border-stone-200 ${currentTheme.web.textAccentClass}`
+                : `bg-stone-900/95 hover:bg-stone-800 border-stone-800 ${currentTheme.web.textAccentClass}`
+            }`}
+          >
+            <Palette className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Instant 6-Theme Swatch & Visual Drawer (Chỉ Quản trị viên điều khiển - Áp dụng cho toàn hệ thống) */}
-      {themeDrawerOpen && currentUser?.role === 'admin' && (
+      {/* Instant 7-Theme Swatch & Visual Drawer (Dành cho mọi người chơi tự do lựa chọn) */}
+      {themeDrawerOpen && (
         <div
-          className="w-full bg-stone-900/98 border-b px-4 py-3.5 shadow-2xl backdrop-blur-md max-h-[85vh] overflow-y-auto animate-fade-in transition-all"
+          className={`w-full border-b px-4 py-3.5 shadow-2xl backdrop-blur-md max-h-[85vh] overflow-y-auto animate-fade-in transition-all ${
+            currentTheme.web.isLight ? 'bg-white/98 text-stone-900' : 'bg-stone-900/98 text-stone-100'
+          }`}
           style={{
             borderColor: currentTheme.web.cardBorderColor,
-            backgroundColor: 'rgba(18, 16, 15, 0.97)',
+            backgroundColor: currentTheme.web.isLight ? 'rgba(255, 255, 255, 0.98)' : 'rgba(18, 16, 15, 0.97)',
           }}
         >
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Palette className={`w-4 h-4 ${currentTheme.web.textAccentClass}`} />
-                <span className="text-xs font-bold text-stone-200 uppercase tracking-wider">
-                  Cài Đặt Giao Diện Kỳ Đài (Đồng Bộ Cho Toàn Bộ Người Chơi Hệ Thống)
+                <span className={`text-xs font-bold uppercase tracking-wider ${currentTheme.web.isLight ? 'text-stone-800' : 'text-stone-200'}`}>
+                  Cài Đặt Giao Diện Kỳ Đài (Tùy Chọn Theo Sở Thích Cá Nhân)
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[11px] text-stone-400 hidden sm:inline">
+                <span className={`text-[11px] hidden sm:inline ${currentTheme.web.isLight ? 'text-stone-600' : 'text-stone-400'}`}>
                   Đang dùng: <span className={`font-semibold ${currentTheme.web.textAccentClass}`}>{currentTheme.name}</span>
                 </span>
                 <button
                   onClick={() => setThemeDrawerOpen(false)}
                   title="Đóng thanh chọn giao diện"
-                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-stone-100 transition-colors cursor-pointer"
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    currentTheme.web.isLight
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                      : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
+                  }`}
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
               {THEME_LIST.map((t) => {
                 const active = t.id === themeId;
                 return (
                   <button
                     key={t.id}
                     onClick={() => {
-                      handleApplyGlobalTheme(t.id);
+                      handleSelectTheme(t.id);
                     }}
                     style={{
                       borderColor: active ? t.web.accentColor : undefined,
@@ -1085,6 +1112,8 @@ export default function App() {
                     className={`group relative overflow-hidden rounded-2xl border text-left transition-all flex flex-col cursor-pointer ${
                       active
                         ? 'ring-2 scale-[1.02]'
+                        : currentTheme.web.isLight
+                        ? 'border-stone-200 bg-white hover:border-amber-400 hover:bg-stone-50 shadow-xs'
                         : 'border-stone-800 bg-stone-950/80 hover:border-stone-700 hover:bg-stone-900/60'
                     }`}
                   >
@@ -1095,14 +1124,14 @@ export default function App() {
                         alt={t.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
                       {/* Swatch color badges on thumbnail */}
                       <div className="absolute top-2 right-2 flex items-center -space-x-1">
                         {t.swatchColors.map((col, idx) => (
                           <span
                             key={idx}
-                            className="w-3.5 h-3.5 rounded-full border border-black/60 shadow-sm"
+                            className="w-3.5 h-3.5 rounded-full border border-black/60 shadow-xs"
                             style={{ backgroundColor: col }}
                           />
                         ))}
@@ -1113,7 +1142,7 @@ export default function App() {
                           className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold shadow text-white"
                           style={{ backgroundColor: t.web.accentColor }}
                         >
-                          Đang dùng (Toàn hệ thống)
+                          Đang chọn
                         </div>
                       )}
                     </div>
@@ -1121,10 +1150,16 @@ export default function App() {
                     {/* Theme Info */}
                     <div className="p-2.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <div className={`text-xs font-bold truncate ${active ? t.web.textAccentClass : 'text-stone-200'}`}>
+                        <div className={`text-xs font-bold truncate ${
+                          active
+                            ? t.web.textAccentClass
+                            : currentTheme.web.isLight
+                            ? 'text-stone-800'
+                            : 'text-stone-200'
+                        }`}>
                           {t.name}
                         </div>
-                        <p className="text-[10px] text-stone-400 line-clamp-1 mt-0.5">
+                        <p className={`text-[10px] line-clamp-1 mt-0.5 ${currentTheme.web.isLight ? 'text-stone-500' : 'text-stone-400'}`}>
                           {t.web?.tagline || t.tagline}
                         </p>
                       </div>
@@ -1157,8 +1192,8 @@ export default function App() {
               navigateUrl(targetMap[tab] || '/');
             }}
             onOpenAuth={() => setAuthModalOpen(true)}
-            onSelectTheme={currentUser?.role === 'admin' ? handleApplyGlobalTheme : undefined}
-            onOpenThemeDrawer={currentUser?.role === 'admin' ? () => setThemeDrawerOpen(true) : undefined}
+            onSelectTheme={handleSelectTheme}
+            onOpenThemeDrawer={() => setThemeDrawerOpen(true)}
           />
         )}
 
@@ -1711,7 +1746,7 @@ export default function App() {
               pieceCharMode={pieceCharMode}
               incomingLoginRequests={adminLoginReqs}
               onToast={showToast}
-              onThemeChange={handleApplyGlobalTheme}
+              onThemeChange={handleSelectTheme}
             />
           ) : (
             <div className="py-16 text-center space-y-3">

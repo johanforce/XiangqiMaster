@@ -177,8 +177,9 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
       style={{
         background: `linear-gradient(145deg, ${theme.frameBgGrad[0]}, ${theme.frameBgGrad[1]})`,
         border: `3px solid ${theme.frameBorder}`,
-        boxShadow:
-          '0 24px 50px -12px rgba(0,0,0,0.85), inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -3px 6px rgba(0,0,0,0.5)',
+        boxShadow: theme.web.isLight
+          ? '0 12px 32px -4px rgba(60,64,67,0.18), 0 4px 12px -2px rgba(60,64,67,0.12), inset 0 1px 2px rgba(255,255,255,0.6)'
+          : '0 24px 50px -12px rgba(0,0,0,0.85), inset 0 2px 4px rgba(255,255,255,0.15), inset 0 -3px 6px rgba(0,0,0,0.5)',
       }}
     >
       {/* Outer Wood Frame Inner Bevel */}
@@ -186,7 +187,9 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
         className="relative w-full h-full rounded-[14px] p-1.5 sm:p-2.5 flex items-center justify-center shadow-inner"
         style={{
           background: `linear-gradient(160deg, ${theme.boardBgGrad[0]} 0%, ${theme.boardBgGrad[1]} 100%)`,
-          boxShadow: 'inset 0 0 25px rgba(0,0,0,0.45), 0 1px 2px rgba(255,255,255,0.12)',
+          boxShadow: theme.web.isLight
+            ? 'inset 0 0 15px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.05)'
+            : 'inset 0 0 25px rgba(0,0,0,0.45), 0 1px 2px rgba(255,255,255,0.12)',
           border: `1.5px solid ${theme.gridLine}55`,
         }}
       >
@@ -216,19 +219,19 @@ export const XiangqiBoard: React.FC<XiangqiBoardProps> = ({
 
               {/* Rivet Gradient */}
               <radialGradient id="rivet-grad" cx="35%" cy="35%" r="65%">
-                <stop offset="0%" stopColor="#FFF2A3" />
+                <stop offset="0%" stopColor={theme.web.isLight ? '#FFFFFF' : '#FFF2A3'} />
                 <stop offset="60%" stopColor={theme.rivetColor} />
-                <stop offset="100%" stopColor="#785012" />
+                <stop offset="100%" stopColor={theme.web.isLight ? '#0D47A1' : '#785012'} />
               </radialGradient>
 
               {/* Piece Drop Shadow */}
               <filter id="piece-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="4" stdDeviation="4.5" floodColor="#000000" floodOpacity="0.55" />
+                <feDropShadow dx="0" dy="3" stdDeviation={theme.web.isLight ? "3" : "4.5"} floodColor="#000000" floodOpacity={theme.web.isLight ? "0.22" : "0.55"} />
               </filter>
             </defs>
 
             {/* Board Grain Overlay */}
-            <rect x="-50" y="-50" width="900" height="1000" fill="url(#board-grain)" opacity="0.6" />
+            <rect x="-50" y="-50" width="900" height="1000" fill="url(#board-grain)" opacity={theme.web.isLight ? 0.15 : 0.6} />
 
             {/* Decorative Corner Rivets */}
             <circle cx="-32" cy="-32" r="5.5" fill="url(#rivet-grad)" stroke="#3A2008" strokeWidth="1" />

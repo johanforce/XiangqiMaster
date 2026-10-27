@@ -95,24 +95,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
     <div className="w-full max-w-6xl mx-auto space-y-12 pb-12 animate-fade-in">
       {/* 1. HERO SECTION WITH CINEMATIC THEME BACKGROUND */}
       <section
-        className={`relative rounded-3xl overflow-hidden border ${borderAccent} shadow-2xl bg-stone-900 transition-all duration-500`}
+        className={`relative rounded-3xl overflow-hidden border ${borderAccent} transition-all duration-500 ${
+          theme?.web?.isLight
+            ? 'bg-white shadow-[0_1px_3px_rgba(60,64,67,0.12),0_4px_12px_rgba(60,64,67,0.08)]'
+            : 'bg-stone-900 shadow-2xl'
+        }`}
       >
         {/* Hero Background Image with Atmospheric Overlay */}
         <div className="absolute inset-0 z-0">
           <img
             src={theme?.images?.heroCover || '/images/hero_cover.jpg'}
             alt="Bàn cờ tướng nghệ thuật"
-            className="w-full h-full object-cover object-center scale-105 filter brightness-[0.45] contrast-[1.1] transition-all duration-700"
+            className={`w-full h-full object-cover object-center scale-105 filter transition-all duration-700 ${
+              theme?.web?.isLight ? 'brightness-[0.95] opacity-35' : 'brightness-[0.45] contrast-[1.1]'
+            }`}
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/30" />
-          <div className="absolute inset-0 bg-radial-gradient from-transparent via-stone-950/40 to-stone-950/90" />
+          <div
+            className={`absolute inset-0 transition-colors duration-500 ${
+              theme?.web?.isLight
+                ? 'bg-gradient-to-t from-white via-white/80 to-white/40'
+                : 'bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/30'
+            }`}
+          />
         </div>
 
         {/* Hero Content */}
         <div className="relative z-10 px-6 py-12 sm:px-12 sm:py-20 max-w-3xl space-y-6">
           <div className="mb-2">
-            <Logo size="lg" variant="full" theme="dark" />
+            <Logo size="lg" variant="full" theme={theme?.web?.isLight ? 'light' : 'dark'} />
           </div>
 
           <div
@@ -122,7 +133,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Fairy-Stockfish WASM · Kỳ Phổ WXF · Cờ Úp Dân Gian</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-stone-100 tracking-tight leading-tight sm:leading-none">
+          <h1 className={`text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight sm:leading-none ${
+            theme?.web?.isLight ? 'text-[#202124]' : 'text-stone-100'
+          }`}>
             KỲ ĐẠO ĐỈNH CAO
             <span
               className={`block text-2xl sm:text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${accentGradient} mt-2 font-serif`}
@@ -131,7 +144,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </span>
           </h1>
 
-          <p className="text-sm sm:text-base text-stone-300 leading-relaxed max-w-2xl">
+          <p className={`text-sm sm:text-base leading-relaxed max-w-2xl ${
+            theme?.web?.isLight ? 'text-[#5F6368]' : 'text-stone-300'
+          }`}>
             Sân chơi cờ tướng trực tuyến chuyên nghiệp. Đấu trí cùng Engine AI quốc tế
             Fairy-Stockfish WASM, ghép phòng tranh tài xếp hạng Elo thời gian thực,
             và nghiên cứu kỳ phổ kinh điển chuẩn quốc tế WXF.
@@ -507,29 +522,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </span>
               <div className="flex items-center gap-2">
                 <span className={`font-bold ${textAccent}`}>{theme?.name || 'Gỗ cổ điển'}</span>
-                {currentUser?.role === 'admin' && (
-                  <a
-                    href="/admin/theme"
-                    onClick={(e) => handleLinkClick(e, '/admin/theme')}
-                    className="text-[10px] text-amber-400 hover:underline font-semibold"
-                  >
-                    (Đổi giao diện hệ thống)
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextIdx = (THEME_LIST.findIndex(t => t.id === theme?.id) + 1) % THEME_LIST.length;
+                    onSelectTheme?.(THEME_LIST[nextIdx].id);
+                  }}
+                  className="text-[10px] text-amber-500 hover:underline font-semibold cursor-pointer"
+                >
+                  (Bấm để đổi giao diện)
+                </button>
               </div>
             </div>
 
-            {/* Informational Swatch Badges */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {/* Swatch Badges for all 7 themes */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
               {THEME_LIST.map((t) => {
                 const isCurrent = (theme?.id || 'classic_wood') === t.id;
-                const isAdmin = currentUser?.role === 'admin';
 
                 return (
                   <div
                     key={t.id}
                     onClick={() => {
-                      if (isAdmin && onSelectTheme) {
+                      if (onSelectTheme) {
                         onSelectTheme(t.id);
                       }
                     }}
@@ -537,12 +552,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       borderColor: isCurrent ? t.web.accentColor : undefined,
                       boxShadow: isCurrent ? `0 0 12px ${t.web.accentGlow}` : undefined,
                     }}
-                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
-                      isAdmin ? 'cursor-pointer' : 'cursor-default'
-                    } ${
+                    className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 cursor-pointer hover:scale-[1.03] ${
                       isCurrent
                         ? `${t.web.accentBadgeClass} font-bold ring-1`
-                        : 'bg-stone-950/80 border-stone-800 text-stone-400'
+                        : theme?.web?.isLight
+                        ? 'bg-white/80 border-stone-200 text-stone-700 hover:border-amber-400'
+                        : 'bg-stone-950/80 border-stone-800 text-stone-400 hover:border-stone-700'
                     }`}
                   >
                     <div className="flex items-center -space-x-1">

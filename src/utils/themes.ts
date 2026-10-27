@@ -6,7 +6,8 @@ export type BoardThemeId =
     | 'sumi_ink'
     | 'imperial'
     | 'midnight_neon'
-    | 'minimal_light';
+    | 'minimal_light'
+    | 'pure_light';
 
 export interface ThemeImages {
   heroCover: string;
@@ -19,6 +20,7 @@ export interface ThemeImages {
 
 export interface WebThemeStyles {
   tagline: string;
+  isLight?: boolean;
   pageBgStyle: React.CSSProperties;
   headerBgStyle: React.CSSProperties;
   cardBgStyle: React.CSSProperties;
@@ -508,40 +510,40 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
     },
   },
 
-  // 6. Tối giản sáng (Minimalist Light warm zen tea room)
+  // 6. Tối giản sáng (Google Warm Sand / Travertine Minimalist)
   minimal_light: {
     id: 'minimal_light',
-    name: 'Tối giản sáng',
-    tagline: 'Phòng trà thiền định tối giản, tre thanh nhã và ánh mai ấm áp',
-    boardBg: '#EFECE6',
-    boardBgGrad: ['#F4F1EC', '#EAE6DF'],
-    frameBgGrad: ['#8A8275', '#6E675B'],
-    frameBorder: '#524C41',
-    boardBorder: '#7A7265',
-    gridLine: '#5C554B',
-    riverText: '#6E6659',
-    rivetColor: '#C8C2B7',
+    name: 'Tối giản sáng (Google Warm)',
+    tagline: 'Phong cách Google Material tối giản tông giấy ấm, thanh nhã và dễ chịu',
+    boardBg: '#FBF9F4',
+    boardBgGrad: ['#FDFCF9', '#F4EFE4'],
+    frameBgGrad: ['#E7DFD2', '#D2C7B4'],
+    frameBorder: '#B7A994',
+    boardBorder: '#D2C7B4',
+    gridLine: '#453A30',
+    riverText: '#685A4E',
+    rivetColor: '#D97706',
 
-    pieceRedBg: '#FAF8F5',
-    pieceRedBgGrad: ['#FFFFFF', '#EDE8E1'],
-    pieceRedBorder: '#DDD7CE',
-    pieceRedRim: '#B3261E',
-    pieceRedText: '#B3261E',
+    pieceRedBg: '#FFFFFF',
+    pieceRedBgGrad: ['#FFFFFF', '#FDF5F2'],
+    pieceRedBorder: '#EED9D2',
+    pieceRedRim: '#C52828',
+    pieceRedText: '#C52828',
 
-    pieceBlackBg: '#FAF8F5',
-    pieceBlackBgGrad: ['#FFFFFF', '#EDE8E1'],
-    pieceBlackBorder: '#DDD7CE',
-    pieceBlackRim: '#2D2A26',
-    pieceBlackText: '#1C1A17',
+    pieceBlackBg: '#2D2926',
+    pieceBlackBgGrad: ['#3A3532', '#221F1C'],
+    pieceBlackBorder: '#5C544E',
+    pieceBlackRim: '#D4AF37',
+    pieceBlackText: '#FDE68A',
 
-    moveFromBg: 'rgba(45, 42, 38, 0.14)',
-    moveFromRing: '#B3261E',
+    moveFromBg: 'rgba(69, 58, 48, 0.12)',
+    moveFromRing: '#C52828',
     moveFromInner: '#FFFFFF',
-    moveFromDot: '#B3261E',
-    moveToBorder: '#B3261E',
-    moveToBg: 'rgba(179, 38, 30, 0.15)',
+    moveFromDot: '#C52828',
+    moveToBorder: '#0D9488',
+    moveToBg: 'rgba(13, 148, 136, 0.14)',
 
-    swatchColors: ['#EFECE6', '#5C554B', '#B3261E'],
+    swatchColors: ['#FBF9F4', '#D97706', '#C52828'],
 
     images: {
       heroCover: '/images/themes/xiangqi_minimal_theme.jpg',
@@ -552,43 +554,135 @@ export const BOARD_THEMES: Record<BoardThemeId, BoardTheme> = {
       lobbyPavilion: '/images/themes/minimal_arena_gate.jpg',
     },
     web: {
-      tagline: 'Phòng trà thiền định tối giản, tre thanh nhã và ánh mai ấm áp',
+      tagline: 'Phong cách Google Material tối giản tông giấy ấm, thanh nhã và dễ chịu',
+      isLight: true,
       pageBgStyle: {
-        background: 'radial-gradient(ellipse at 50% 0%, #201c18 0%, #151310 50%, #0b0a08 100%)',
+        background: '#FAF9F6',
+        color: '#292524',
       },
       headerBgStyle: {
-        backgroundColor: 'rgba(27, 24, 21, 0.94)',
-        borderColor: 'rgba(92, 85, 75, 0.55)',
+        backgroundColor: 'rgba(255, 253, 250, 0.98)',
+        borderColor: '#E8E2D8',
+        boxShadow: '0 1px 3px 0 rgba(60, 50, 40, 0.06)',
       },
       cardBgStyle: {
-        backgroundColor: 'rgba(32, 29, 25, 0.78)',
-        borderColor: 'rgba(92, 85, 75, 0.45)',
+        backgroundColor: '#FFFFFF',
+        borderColor: '#E2DBD0',
+        boxShadow: '0 1px 3px 0 rgba(60, 50, 40, 0.08), 0 2px 6px 0 rgba(60, 50, 40, 0.04)',
       },
-      cardBorderColor: '#5c554b',
-      accentColor: '#d4a373',
-      accentGradient: 'from-amber-700 via-stone-500 to-amber-800',
-      accentTextColor: '#e6ccb2',
-      accentBadgeBg: 'rgba(212, 163, 115, 0.20)',
-      accentGlow: 'rgba(212, 163, 115, 0.35)',
-      activeNavBg: '#2d2822',
+      cardBorderColor: '#E2DBD0',
+      accentColor: '#B45309',
+      accentGradient: 'from-amber-600 via-amber-700 to-amber-800',
+      accentTextColor: '#B45309',
+      accentBadgeBg: 'rgba(180, 83, 9, 0.10)',
+      accentGlow: 'rgba(180, 83, 9, 0.20)',
+      activeNavBg: '#F5F1E9',
 
       primaryBtnClass:
-          'bg-gradient-to-r from-stone-600 via-amber-700 to-stone-700 hover:from-amber-600 hover:to-stone-600 text-stone-100 shadow-[0_0_20px_rgba(180,140,100,0.3)]',
+          'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold shadow-sm hover:shadow active:scale-98 transition-all',
       secondaryBtnClass:
-          'bg-stone-900/90 hover:bg-stone-800 border border-stone-600/50 text-stone-200',
+          'bg-white hover:bg-[#F9F7F2] border border-[#DDD5C7] text-[#44403C] font-medium shadow-xs transition-colors',
       subtleBtnClass:
-          'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-700/60',
+          'bg-[#F5F1E9] hover:bg-[#EBE5DB] border border-[#DDD5C7] text-[#57534E]',
       accentBadgeClass:
-          'bg-amber-500/15 text-stone-300 border border-stone-500/30',
+          'bg-amber-50 text-amber-800 border border-amber-200',
       cardBorderClass:
-          'border-stone-700/60 hover:border-amber-600/40',
-      cardBgClass: 'bg-[#1c1916]/90',
-      bannerGradient: 'from-stone-900/70 via-[#181613]/95 to-stone-950',
-      activeTabClass: 'bg-stone-800 text-amber-200 border border-stone-500/40 shadow-sm',
-      textAccentClass: 'text-amber-200',
-      inputFocusClass: 'focus:border-stone-400 focus:ring-1 focus:ring-amber-600/50',
-      borderAccentClass: 'border-stone-500/40',
-      accentBgClass: 'bg-stone-500/15',
+          'border-[#E2DBD0] hover:border-amber-500/60 shadow-[0_1px_3px_rgba(60,50,40,0.06)]',
+      cardBgClass: 'bg-white',
+      bannerGradient: 'from-amber-50/80 via-white to-stone-50',
+      activeTabClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold shadow-xs',
+      textAccentClass: 'text-amber-800 font-semibold',
+      inputFocusClass: 'focus:border-amber-600 focus:ring-1 focus:ring-amber-500/50',
+      borderAccentClass: 'border-amber-300',
+      accentBgClass: 'bg-amber-50',
+    },
+  },
+
+  // 7. Bạch Ngọc Sáng (Google Material Design 3 Clean Light)
+  pure_light: {
+    id: 'pure_light',
+    name: 'Bạch Ngọc (Google Light)',
+    tagline: 'Thiết kế chuẩn Google Material thanh lịch, phong cách sáng tinh gọn và chuẩn mực',
+    boardBg: '#FFFFFF',
+    boardBgGrad: ['#FFFFFF', '#F5F7F8'],
+    frameBgGrad: ['#ECEFF1', '#CFD8DC'],
+    frameBorder: '#B0BEC5',
+    boardBorder: '#CFD8DC',
+    gridLine: '#263238',
+    riverText: '#37474F',
+    rivetColor: '#1A73E8',
+
+    pieceRedBg: '#FFFFFF',
+    pieceRedBgGrad: ['#FFFFFF', '#FDEDEC'],
+    pieceRedBorder: '#FADBD8',
+    pieceRedRim: '#D93025',
+    pieceRedText: '#D93025',
+
+    pieceBlackBg: '#202124',
+    pieceBlackBgGrad: ['#303134', '#202124'],
+    pieceBlackBorder: '#5F6368',
+    pieceBlackRim: '#FBBC04',
+    pieceBlackText: '#FFFFFF',
+
+    moveFromBg: 'rgba(26, 115, 232, 0.12)',
+    moveFromRing: '#1A73E8',
+    moveFromInner: '#FFFFFF',
+    moveFromDot: '#1A73E8',
+    moveToBorder: '#1E8E3E',
+    moveToBg: 'rgba(30, 142, 62, 0.14)',
+
+    swatchColors: ['#FFFFFF', '#1A73E8', '#D93025'],
+
+    images: {
+      heroCover: '/images/themes/xiangqi_minimal_theme.jpg',
+      arenaGate: '/images/themes/minimal_arena_gate.jpg',
+      masterDuel: '/images/themes/minimal_master_duel.jpg',
+      championHall: '/images/themes/minimal_champion_hall.jpg',
+      leaderboardBg: '/images/themes/minimal_champion_hall.jpg',
+      lobbyPavilion: '/images/themes/minimal_arena_gate.jpg',
+    },
+    web: {
+      tagline: 'Thiết kế chuẩn Google Material thanh lịch, phong cách sáng tinh gọn và chuẩn mực',
+      isLight: true,
+      pageBgStyle: {
+        background: '#F8F9FA',
+        color: '#202124',
+      },
+      headerBgStyle: {
+        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+        borderColor: '#E8EAED',
+        boxShadow: '0 1px 2px 0 rgba(60,64,67,0.08), 0 1px 3px 1px rgba(60,64,67,0.04)',
+      },
+      cardBgStyle: {
+        backgroundColor: '#FFFFFF',
+        borderColor: '#DADCE0',
+        boxShadow: '0 1px 2px 0 rgba(60,64,67,0.12), 0 1px 3px 1px rgba(60,64,67,0.08)',
+      },
+      cardBorderColor: '#DADCE0',
+      accentColor: '#1A73E8',
+      accentGradient: 'from-[#1A73E8] via-[#1967D2] to-[#185ABC]',
+      accentTextColor: '#1A73E8',
+      accentBadgeBg: '#E8F0FE',
+      accentGlow: 'rgba(26, 115, 232, 0.20)',
+      activeNavBg: '#E8F0FE',
+
+      primaryBtnClass:
+          'bg-[#1A73E8] hover:bg-[#1557B0] text-white font-semibold shadow-sm hover:shadow active:scale-98 transition-all',
+      secondaryBtnClass:
+          'bg-white hover:bg-[#F1F3F4] border border-[#DADCE0] text-[#3C4043] font-medium shadow-xs transition-colors',
+      subtleBtnClass:
+          'bg-[#F1F3F4] hover:bg-[#E8EAED] border border-[#DADCE0] text-[#3C4043]',
+      accentBadgeClass:
+          'bg-[#E8F0FE] text-[#1A73E8] border border-[#D2E3FC] font-medium',
+      cardBorderClass:
+          'border-[#DADCE0] hover:border-[#1A73E8]/60 shadow-[0_1px_3px_rgba(60,64,67,0.12)]',
+      cardBgClass: 'bg-white',
+      bannerGradient: 'from-[#E8F0FE] via-white to-[#F8F9FA]',
+      activeTabClass: 'bg-[#E8F0FE] text-[#1A73E8] border border-[#D2E3FC] font-semibold shadow-xs',
+      textAccentClass: 'text-[#1A73E8] font-semibold',
+      inputFocusClass: 'focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8]/50',
+      borderAccentClass: 'border-[#1A73E8]',
+      accentBgClass: 'bg-[#E8F0FE]',
     },
   },
 };
